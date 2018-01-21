@@ -3,6 +3,11 @@
 # ---------
 # FUNCTIONS
 # ---------
+# Remove warning of the Gtk-Message
+function zenity() {
+    /usr/bin/zenity "$@" 2>/dev/null
+}
+
 function Main() {
   way=$( \
     zenity --list --text "What you want?" --radiolist \
