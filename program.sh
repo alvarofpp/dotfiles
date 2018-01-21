@@ -40,10 +40,24 @@ function Bugs() {
   options=$( \
     zenity --list --title "Fix bugs" --checklist \
     --column "select" --column "options" \
-    TRUE "Double-click with touchpad" \
-    FALSE "Input of sound not recognize" \
+    TRUE "Unrecognized clicks with touchpad" \
+    FALSE "Unrecognized sound input" \
     --separator=":"\
   );
+
+  IFS=":"
+  for opt in $options; do
+    case $opt in
+      "Unrecognized clicks with touchpad") ClickTouchpad ;;
+    esac
+  done
+  IFS=""
+}
+
+function ClickTouchpad() {
+  echo "Fixing clicks with touchpad."
+  synclient TapButton1=1 TapButton2=3 TapButton3=2
+  echo "Corrected."
 }
 
 
