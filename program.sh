@@ -69,6 +69,7 @@ function Programs() {
     zenity --list --title "Programs" --text "Select the programs you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Git" \
+    FALSE "Sound control" \
     FALSE "Spotify" \
     FALSE "Sublime Text" \
     --separator=":"\
@@ -78,6 +79,7 @@ function Programs() {
   for opt in $options; do
     case $opt in
       "Git") Git ;;
+      "Sound control") SoundControl ;;
       "Spotify") Spotify ;;
     esac
   done
@@ -88,6 +90,12 @@ function Git() {
   echo "Installing Git"
   sudo apt-get install git
   echo "(Git) Successfully installed"
+}
+
+function SoundControl() {
+  echo "Installing program for sound control"
+  sudo apt-get install pavucontrol
+  echo "(Sound control) Successfully installed"
 }
 
 function Spotify() {
