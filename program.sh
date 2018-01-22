@@ -41,7 +41,6 @@ function Bugs() {
     zenity --list --title "Fix bugs" --checklist \
     --column "select" --column "options" \
     FALSE "Unrecognized clicks with touchpad" \
-    FALSE "Unrecognized sound input" \
     --separator=":" \
   );
 
@@ -117,10 +116,7 @@ function Programming() {
   options=$( \
     zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
-    FALSE "Java" \
     FALSE "PHP" \
-    FALSE "Python" \
-    FALSE "R" \
     --separator=":"\
   );
 
