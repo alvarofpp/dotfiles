@@ -14,7 +14,7 @@ function Main() {
     --column "pick" --column "options" \
     TRUE "Fix bugs" \
     FALSE "Programs" \
-    FALSE "Programming languages" \
+    FALSE "Programming" \
   );
 
   # Checks if user clicked "Cancel"
@@ -28,7 +28,7 @@ function Main() {
   elif [ "$way" == "Programs" ]; then
     Programs
   else
-    Languages
+    Programming
   fi
 }
 
@@ -42,7 +42,7 @@ function Bugs() {
     --column "select" --column "options" \
     FALSE "Unrecognized clicks with touchpad" \
     FALSE "Unrecognized sound input" \
-    --separator=":"\
+    --separator=":" \
   );
 
   IFS=":"
@@ -71,7 +71,6 @@ function Programs() {
     FALSE "Git" \
     FALSE "Sound control" \
     FALSE "Spotify" \
-    FALSE "Sublime Text" \
     --separator=":"\
   );
 
@@ -88,6 +87,7 @@ function Programs() {
 
 function Git() {
   echo "Installing Git"
+  sudo apt-get update
   sudo apt-get install git
   echo "(Git) Successfully installed"
 }
@@ -110,11 +110,10 @@ function Spotify() {
   echo "(Spotify) Successfully installed"
 }
 
-
 # ---------
-# Languages
+# Programming
 # ---------
-function Languages() {
+function Programming() {
   options=$( \
     zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
@@ -124,6 +123,25 @@ function Languages() {
     FALSE "R" \
     --separator=":"\
   );
+
+  IFS=":"
+  for opt in $options; do
+    case $opt in
+      "PHP") PHP ;;
+    esac
+  done
+  IFS=""
+}
+
+function PHP() {
+  echo "Installing Apache 2"
+  sudo apt-get update
+  sudo apt-get install apache2
+  echo "Installing Curl"
+  sudo apt-get install curl
+  echo "Installing PHP 7.0"
+  sudo apt-get install php7.0 libapache2-mod-php7.0 php7.0-all-dev
+  echo "(PHP) Successfully installed"
 }
 
 
