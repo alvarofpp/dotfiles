@@ -13,7 +13,7 @@ function Main() {
     zenity --list --text "What you want?" --radiolist \
     --column "pick" --column "options" \
     TRUE "Fix bugs" \
-    FALSE "Programs" \
+    FALSE "Programs and others" \
     FALSE "Programming" \
   );
 
@@ -25,7 +25,7 @@ function Main() {
   # Redirects to the desired option
   if [ "$way" == "Fix bugs" ]; then
     Bugs
-  elif [ "$way" == "Programs" ]; then
+  elif [ "$way" == "Programs and others" ]; then
     Programs
   else
     Programming
@@ -63,13 +63,15 @@ function ClickTouchpad() {
 # --------
 # Programs
 # --------
-function Programs() {
+function ProgramsOthers() {
   options=$( \
     zenity --list --title "Programs" --text "Select the programs you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Git" \
     FALSE "Sound control" \
     FALSE "Spotify" \
+    FALSE "Tex live" \
+    FALSE "Texmaker" \
     --separator=":"\
   );
 
@@ -79,19 +81,22 @@ function Programs() {
       "Git") Git ;;
       "Sound control") SoundControl ;;
       "Spotify") Spotify ;;
+      "Tex live") TexLive ;;
+      "Texmaker") Texmaker ;;
     esac
   done
   IFS=""
 }
 
 function Git() {
-  echo "Installing Git"
   sudo apt-get update
+  echo "Installing Git"
   sudo apt-get install git
   echo "(Git) Successfully installed"
 }
 
 function SoundControl() {
+  sudo apt-get update
   echo "Installing program for sound control"
   sudo apt-get install pavucontrol
   echo "(Sound control) Successfully installed"
@@ -109,6 +114,21 @@ function Spotify() {
   echo "(Spotify) Successfully installed"
 }
 
+function TexLive() {
+  sudo apt-get update
+  echo "Installing Tex Live"
+  sudo apt-get install texlive-full
+  echo "(Tex live) Successfully installed"
+}
+
+function Texmaker() {
+  sudo apt-get update
+  echo "Installing Texmaker"
+  sudo apt-get install texmaker
+  echo "(Texmaker) Successfully installed"
+}
+
+
 # ---------
 # Programming
 # ---------
@@ -117,6 +137,7 @@ function Programming() {
     zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "PHP" \
+    FALSE "Postgres" \
     --separator=":"\
   );
 
@@ -124,20 +145,38 @@ function Programming() {
   for opt in $options; do
     case $opt in
       "PHP") PHP ;;
+      "Postgres") Postgres ;;
     esac
   done
   IFS=""
 }
 
 function PHP() {
-  echo "Installing Apache 2"
   sudo apt-get update
+  echo "Input PPA"
+  sudo apt-add-repository ppa:ondrej/php -y
+  echo "Installing PHP 7.1"
+  sudo apt-get install -y --force-yes php7.1-cli php7.1 \
+  php7.1-pgsql php7.1-sqlite3 php7.1-gd \
+  php7.1-curl php7.1-memcached \
+  php7.1-imap php7.1-mysql php7.1-mbstring \
+  php7.1-xml php7.1-zip php7.1-bcmath php7.1-soap \
+  php7.1-intl php7.1-readline
+  echo "Installing Apache 2"
   sudo apt-get install apache2
   echo "Installing Curl"
   sudo apt-get install curl
-  echo "Installing PHP 7.0"
-  sudo apt-get install php7.0 libapache2-mod-php7.0 php7.0-all-dev
+  echo "Installing Composer"
+  curl -sS https://getcomposer.org/installer | php
+  mv composer.phar /usr/local/bin/composer
   echo "(PHP) Successfully installed"
+}
+
+function Postgres() {
+  sudo apt-get update
+  echo "Installing PHP 7.1"
+  sudo apt-get install postgresql postgresql-contrib
+  echo "(Postgres) Successfully installed"
 }
 
 
