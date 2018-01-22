@@ -40,7 +40,7 @@ function Bugs() {
   options=$( \
     zenity --list --title "Fix bugs" --checklist \
     --column "select" --column "options" \
-    TRUE "Unrecognized clicks with touchpad" \
+    FALSE "Unrecognized clicks with touchpad" \
     FALSE "Unrecognized sound input" \
     --separator=":"\
   );
@@ -55,7 +55,7 @@ function Bugs() {
 }
 
 function ClickTouchpad() {
-  echo "Fixing clicks with touchpad."
+  echo "Correcting clicks with the touchpad."
   synclient TapButton1=1 TapButton2=3 TapButton3=2
   echo "Corrected."
 }
@@ -68,14 +68,23 @@ function Programs() {
   options=$( \
     zenity --list --title "Programs" --text "Select the programs you prefer" --checklist \
     --column "select" --column "options" \
-    TRUE "Git" \
-    TRUE "Spotify" \
-    FALSE "PHPStorm" \
-    FALSE "DataGrip" \
-    FALSE "Anaconda" \
-    FALSE "PGAdmin" \
+    FALSE "Git" \
+    FALSE "Spotify" \
+    FALSE "Sublime Text" \
     --separator=":"\
   );
+
+  if [[ -z "$options" ]]; then
+    echo "Nothing"
+  else
+    echo "Something"
+  fi
+}
+
+function Git() {
+  echo "Installing Git"
+  sudo apt-get install git
+  echo "(Git) Successfully installed"
 }
 
 
@@ -86,6 +95,7 @@ function Languages() {
   options=$( \
     zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
+    FALSE "Java" \
     FALSE "PHP" \
     FALSE "Python" \
     FALSE "R" \
