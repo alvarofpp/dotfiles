@@ -26,7 +26,7 @@ function Main() {
   if [ "$way" == "Fix bugs" ]; then
     Bugs
   elif [ "$way" == "Programs and others" ]; then
-    Programs
+    ProgramsOthers
   else
     Programming
   fi
