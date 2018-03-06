@@ -139,6 +139,7 @@ function Programming() {
     FALSE "PHP" \
     FALSE "Postgres" \
     FALSE "Node.js" \
+    FALSE "Java 8" \
     --separator=":"\
   );
 
@@ -148,6 +149,7 @@ function Programming() {
       "PHP") PHP ;;
       "Postgres") Postgres ;;
       "Node.js") Nodejs ;;
+      "Java 8") Java8 ;;
     esac
   done
   IFS=""
@@ -188,6 +190,16 @@ function Nodejs() {
   echo "Installing Node.js"
   sudo apt-get install nodejs
   echo "(Node.js) Successfully installed"
+}
+
+function Java8() {
+  sudo apt-get update
+  echo "Adding Oracle PPA"
+  sudo add-apt-repository ppa:webupd8team/java
+  sudo apt-get update
+  echo "Installing Java 8"
+  sudo apt-get install oracle-java8-installer
+  echo "(Java 8) Successfully installed"
 }
 
 
