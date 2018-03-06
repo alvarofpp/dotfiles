@@ -136,20 +136,20 @@ function Programming() {
   options=$( \
     zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
-    FALSE "PHP" \
-    FALSE "Postgres" \
     FALSE "Node.js" \
     FALSE "Java 8" \
+    FALSE "Postgres" \
+    FALSE "PHP" \
     --separator=":"\
   );
 
   IFS=":"
   for opt in $options; do
     case $opt in
-      "PHP") PHP ;;
-      "Postgres") Postgres ;;
       "Node.js") Nodejs ;;
       "Java 8") Java8 ;;
+      "Postgres") Postgres ;;
+      "PHP") PHP ;;
     esac
   done
   IFS=""
