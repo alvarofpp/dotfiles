@@ -138,6 +138,7 @@ function Programming() {
     --column "select" --column "options" \
     FALSE "PHP" \
     FALSE "Postgres" \
+    FALSE "Node.js" \
     --separator=":"\
   );
 
@@ -146,6 +147,7 @@ function Programming() {
     case $opt in
       "PHP") PHP ;;
       "Postgres") Postgres ;;
+      "Node.js") Nodejs ;;
     esac
   done
   IFS=""
@@ -177,6 +179,15 @@ function Postgres() {
   echo "Installing PHP 7.1"
   sudo apt-get install postgresql postgresql-contrib
   echo "(Postgres) Successfully installed"
+}
+
+function Nodejs() {
+  sudo apt-get update
+  echo "Installing NPM"
+  sudo apt-get install npm
+  echo "Installing Node.js"
+  sudo apt-get install nodejs
+  echo "(Node.js) Successfully installed"
 }
 
 
