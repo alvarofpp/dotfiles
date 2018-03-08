@@ -140,6 +140,7 @@ function Programming() {
     FALSE "Java 8" \
     FALSE "Postgres" \
     FALSE "PHP" \
+    FALSE "R-base" \
     --separator=":"\
   );
 
@@ -150,6 +151,7 @@ function Programming() {
       "Java 8") Java8 ;;
       "Postgres") Postgres ;;
       "PHP") PHP ;;
+      "R-base") Rbase ;;
     esac
   done
   IFS=""
@@ -200,6 +202,15 @@ function Java8() {
   echo "Installing Java 8"
   sudo apt-get install oracle-java8-installer
   echo "(Java 8) Successfully installed"
+}
+
+function Rbase() {
+  echo "Add repository CRAN"
+  sudo add-apt-repository 'deb [arch=amd64,i386] https://cran.rstudio.com/bin/linux/ubuntu xenial/'
+  sudo apt-get update
+  echo "Installing R-base"
+  sudo apt-get install r-base
+  echo "(R-base) Successfully installed"
 }
 
 
