@@ -68,6 +68,7 @@ function ProgramsOthers() {
     zenity --list --title "Programs" --text "Select the programs you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Git" \
+    FALSE "RStudio" \
     FALSE "Sound control" \
     FALSE "Spotify" \
     FALSE "Tex live" \
@@ -79,6 +80,7 @@ function ProgramsOthers() {
   for opt in $options; do
     case $opt in
       "Git") Git ;;
+      "RStudio") RStudio ;;
       "Sound control") SoundControl ;;
       "Spotify") Spotify ;;
       "Tex live") TexLive ;;
@@ -93,6 +95,14 @@ function Git() {
   echo "Installing Git"
   sudo apt-get install git
   echo "(Git) Successfully installed"
+}
+
+function RStudio() {
+  echo "Installing RStudio"
+  sudo apt-get install gdebi-core
+  wget https://download2.rstudio.org/rstudio-server-1.1.423-amd64.deb
+  sudo gdebi rstudio-server-1.1.423-amd64.deb
+  echo "(RStudio) Successfully installed"
 }
 
 function SoundControl() {
