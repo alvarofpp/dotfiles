@@ -8,6 +8,11 @@ function zenity() {
     /usr/bin/zenity "$@" 2>/dev/null
 }
 
+# Cores
+GREEN='\033[1;32m'
+RED='\033[1;31m'
+NC='\033[0m'
+
 function Main() {
   way=$( \
     zenity --list --text "What you want?" --radiolist \
@@ -32,6 +37,16 @@ function Main() {
   fi
 }
 
+# Função para imprimir o inicio e fim de uma instalação
+function printTerminal() {
+  case $1 in
+    "red") printf "${RED}$2${NC}\n" ;;
+    "green") printf "${GREEN}$2${NC}\n" ;;
+    "start") printf "${GREEN}Installing $2${NC}\n" ;;
+    "finish") printf "${RED}($2) Successfully installed${NC}\n" ;;
+  esac
+}
+
 
 # ----
 # Bugs
@@ -54,9 +69,9 @@ function Bugs() {
 }
 
 function ClickTouchpad() {
-  echo "Correcting clicks with the touchpad."
+  printTerminal green "Correcting clicks with the touchpad"
   synclient TapButton1=1 TapButton2=3 TapButton3=2
-  echo "Corrected."
+  printTerminal red "Corrected"
 }
 
 
@@ -92,50 +107,50 @@ function ProgramsOthers() {
 
 function Git() {
   sudo apt-get update
-  echo "Installing Git"
+  printTerminal start "Git"
   sudo apt-get install git
-  echo "(Git) Successfully installed"
+  printTerminal finish "Git"
 }
 
 function RStudio() {
-  echo "Installing RStudio"
+  printTerminal start "RStudio"
   sudo apt-get install gdebi-core
   wget https://download2.rstudio.org/rstudio-server-1.1.423-amd64.deb
   sudo gdebi rstudio-server-1.1.423-amd64.deb
-  echo "(RStudio) Successfully installed"
+  printTerminal finish "RStudio"
 }
 
 function SoundControl() {
   sudo apt-get update
-  echo "Installing program for sound control"
+  printTerminal green "Installing program for sound control"
   sudo apt-get install pavucontrol
-  echo "(Sound control) Successfully installed"
+  printTerminal finish "Sound control"
 }
 
 function Spotify() {
-  echo "Adding the Spotify repository signing keys to be able to verify downloaded packages"
+  printTerminal green "Adding the Spotify repository signing keys to be able to verify downloaded packages"
   sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0DF731E45CE24F27EEEB1450EFDC8610341D9410
-  echo "Adding the Spotify repository"
+  printTerminal green "Adding the Spotify repository"
   echo deb http://repository.spotify.com stable non-free | sudo tee /etc/apt/sources.list.d/spotify.list
-  echo "Updating list of available packages"
+  printTerminal green "Updating list of available packages"
   sudo apt-get update
-  echo "Installing Spotify"
+  printTerminal start "Spotify"
   sudo apt-get install spotify-client
-  echo "(Spotify) Successfully installed"
+  printTerminal finish "Spotify"
 }
 
 function TexLive() {
   sudo apt-get update
-  echo "Installing Tex Live"
+  printTerminal start "Tex Live"
   sudo apt-get install texlive-full
-  echo "(Tex live) Successfully installed"
+  printTerminal finish "Tex live"
 }
 
 function Texmaker() {
   sudo apt-get update
-  echo "Installing Texmaker"
+  printTerminal start "Texmaker"
   sudo apt-get install texmaker
-  echo "(Texmaker) Successfully installed"
+  printTerminal finish "Texmaker"
 }
 
 
@@ -148,8 +163,8 @@ function Programming() {
     --column "select" --column "options" \
     FALSE "Node.js" \
     FALSE "Java 8" \
-    FALSE "Postgres" \
-    FALSE "PHP" \
+    FALSE "Postgres + PGAdmin3" \
+    FALSE "PHP + Laravel" \
     FALSE "R-base" \
     --separator=":"\
   );
@@ -159,68 +174,77 @@ function Programming() {
     case $opt in
       "Node.js") Nodejs ;;
       "Java 8") Java8 ;;
-      "Postgres") Postgres ;;
-      "PHP") PHP ;;
+      "Postgres + PGAdmin3") Postgres ;;
+      "PHP + Laravel") PHPLaravel ;;
       "R-base") Rbase ;;
     esac
   done
   IFS=""
 }
 
-function PHP() {
+function PHPLaravel() {
   sudo apt-get update
-  echo "Input PPA"
+  printTerminal green "Adding PPA"
   sudo apt-add-repository ppa:ondrej/php -y
-  echo "Installing PHP 7.1"
-  sudo apt-get install -y --force-yes php7.1-cli php7.1 \
-  php7.1-pgsql php7.1-sqlite3 php7.1-gd \
-  php7.1-curl php7.1-memcached \
-  php7.1-imap php7.1-mysql php7.1-mbstring \
-  php7.1-xml php7.1-zip php7.1-bcmath php7.1-soap \
-  php7.1-intl php7.1-readline
-  echo "Installing Apache 2"
-  sudo apt-get install apache2
-  echo "Installing Curl"
-  sudo apt-get install curl
-  echo "Installing Composer"
+  printTerminal start "PHP 7.2"
+  sudo apt-get install php-mbstring
+  sudo apt-get install composer -y
+  sudo apt-get install php7.2-pgsql -y
+  sudo apt-get install apache2 libapache2-mod-php7.2 -y
+  sudo apt-get install php7.2-dev -y
+  sudo apt-get install php7.2-zip -y
+  sudo apt-get install php7.2-xml -y
+  sudo apt-get install php7.2-mbstring -y
+  sudo apt-get install php7.2-cgi -y
+  sudo apt-get install php7.2-curl -y
+  sudo apt-get install php7.2-zip
+  printTerminal start "Curl"
+  sudo apt-get install curl php-curl
+  printTerminal finish "Curl"
+  printTerminal start "Composer"
   curl -sS https://getcomposer.org/installer | php
-  mv composer.phar /usr/local/bin/composer
-  echo "(PHP) Successfully installed"
+  sudo mv composer.phar /usr/local/bin/composer
+  printTerminal finish "Curl"
+  printTerminal finish "(PHP 7.2)"
+
+  composer global require "laravel/installer"
+  export PATH=$PATH:$HOME/.config/composer/vendor/bin
+  printTerminal finish "Laravel"
 }
 
 function Postgres() {
   sudo apt-get update
-  echo "Installing PHP 7.1"
-  sudo apt-get install postgresql postgresql-contrib
-  echo "(Postgres) Successfully installed"
+  printTerminal start "PostgreSQL + PGAdmin3"
+  sudo apt-get install postgresql postgresql-contrib pgadmin3
+  printTerminal finish "PostgreSQL + PGAdmin3"
 }
 
 function Nodejs() {
   sudo apt-get update
-  echo "Installing NPM"
+  printTerminal start "NPM"
   sudo apt-get install npm
-  echo "Installing Node.js"
+  printTerminal start "Node.js"
   sudo apt-get install nodejs
-  echo "(Node.js) Successfully installed"
+  printTerminal finish "Node.js"
 }
 
 function Java8() {
   sudo apt-get update
-  echo "Adding Oracle PPA"
+  printTerminal green "Adding Oracle PPA"
   sudo add-apt-repository ppa:webupd8team/java
   sudo apt-get update
-  echo "Installing Java 8"
+  printTerminal start "Java 8"
   sudo apt-get install oracle-java8-installer
-  echo "(Java 8) Successfully installed"
+  printTerminal finish "Java 8"
 }
 
 function Rbase() {
-  echo "Add repository CRAN"
+  printTerminal green "Add repository CRAN"
   sudo add-apt-repository 'deb [arch=amd64,i386] https://cran.rstudio.com/bin/linux/ubuntu xenial/'
   sudo apt-get update
-  echo "Installing R-base"
+  printTerminal start "R-base"
   sudo apt-get install r-base
-  echo "(R-base) Successfully installed"
+  printTerminal finish "R-base"
 }
 
 
