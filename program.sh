@@ -20,6 +20,7 @@ function Main() {
     TRUE "Fix bugs" \
     FALSE "Programs and others" \
     FALSE "Programming" \
+    FALSE "Anaconda" \
   );
 
   # Checks if user clicked "Cancel"
@@ -32,6 +33,8 @@ function Main() {
     Bugs
   elif [ "$way" == "Programs and others" ]; then
     ProgramsOthers
+  elif [ "$way" == "Anaconda" ]; then
+    Anaconda
   else
     Programming
   fi
@@ -98,6 +101,7 @@ function ProgramsOthers() {
       "RStudio") RStudio ;;
       "Sound control") SoundControl ;;
       "Spotify") Spotify ;;
+      "Sublime Text") SublimeText ;;
       "Tex live") TexLive ;;
       "Texmaker") Texmaker ;;
     esac
@@ -129,7 +133,7 @@ function SoundControl() {
 
 function Spotify() {
   printTerminal green "Adding the Spotify repository signing keys to be able to verify downloaded packages"
-  sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0DF731E45CE24F27EEEB1450EFDC8610341D9410
+  sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90
   printTerminal green "Adding the Spotify repository"
   echo deb http://repository.spotify.com stable non-free | sudo tee /etc/apt/sources.list.d/spotify.list
   printTerminal green "Updating list of available packages"
@@ -137,6 +141,18 @@ function Spotify() {
   printTerminal start "Spotify"
   sudo apt-get install spotify-client
   printTerminal finish "Spotify"
+}
+
+function SublimeText() {
+  printTerminal green "Install the GPG key"
+  wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | sudo apt-key add -
+  printTerminal green "Channel stable to use"
+  echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list
+  printTerminal green "Updating list of available packages"
+  sudo apt-get update
+  printTerminal start "Sublime Text"
+  sudo apt-get install sublime-text
+  printTerminal finish "Sublime Text"
 }
 
 function TexLive() {
@@ -245,6 +261,50 @@ function Rbase() {
   printTerminal start "R-base"
   sudo apt-get install r-base
   printTerminal finish "R-base"
+}
+
+
+# ---------
+# Anaconda
+# ---------
+function Anaconda() {
+  options=$( \
+    zenity --list --title "Anaconda" --text "Extensions and more" --checklist \
+    --column "select" --column "options" \
+    FALSE "Jupyter" \
+    FALSE "Jupyter Lab" \
+    FALSE "Jupyter Nbextensions Configurator" \
+    --separator=":"\
+  );
+
+  IFS=":"
+  for opt in $options; do
+    case $opt in
+      "Jupyter") Jupyter ;;
+      "Jupyter Lab") JupyterLab ;;
+      "Jupyter Nbextensions Configurator") JupyterNbextensionsConfigurator ;;
+    esac
+  done
+  IFS=""
+}
+
+function Jupyter() {
+  printTerminal start "Jupyter"
+  conda install -c conda-forge jupyter
+  printTerminal finish "Jupyter"
+}
+
+function JupyterLab() {
+  printTerminal start "Jupyter Lab"
+  conda install -c conda-forge jupyterlab
+  printTerminal finish "Jupyter Lab"
+}
+
+function JupyterNbextensionsConfigurator() {
+  printTerminal start "Jupyter Nbextensions Configurator"
+  conda install -c conda-forge jupyter_contrib_nbextensions
+  conda install -c conda-forge jupyter_nbextensions_configurator
+  printTerminal finish "Jupyter Nbextensions Configurator"
 }
 
 
