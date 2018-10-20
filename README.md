@@ -7,6 +7,7 @@
   - RStudio
   - Sound control
   - Spotify
+  - Sublime Text
   - Tex live
   - Texmaker
 - Programming
@@ -15,3 +16,7 @@
   - Postgres + PGAdmin3
   - PHP + Laravel
   - R-base
+- Anaconda
+  - Jupyter
+  - Jupyter Lab
+  - Jupyter Nbextensions Configurator
