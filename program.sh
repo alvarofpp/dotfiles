@@ -101,6 +101,7 @@ function ProgramsOthers() {
       "RStudio") RStudio ;;
       "Sound control") SoundControl ;;
       "Spotify") Spotify ;;
+      "Sublime Text") SublimeText ;;
       "Tex live") TexLive ;;
       "Texmaker") Texmaker ;;
     esac
@@ -140,6 +141,18 @@ function Spotify() {
   printTerminal start "Spotify"
   sudo apt-get install spotify-client
   printTerminal finish "Spotify"
+}
+
+function SublimeText() {
+  printTerminal green "Install the GPG key"
+  wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | sudo apt-key add -
+  printTerminal green "Channel stable to use"
+  echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list
+  printTerminal green "Updating list of available packages"
+  sudo apt-get update
+  printTerminal start "Sublime Text"
+  sudo apt-get install sublime-text
+  printTerminal finish "Sublime Text"
 }
 
 function TexLive() {
