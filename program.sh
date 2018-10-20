@@ -20,6 +20,7 @@ function Main() {
     TRUE "Fix bugs" \
     FALSE "Programs and others" \
     FALSE "Programming" \
+    FALSE "Anaconda" \
   );
 
   # Checks if user clicked "Cancel"
@@ -32,6 +33,8 @@ function Main() {
     Bugs
   elif [ "$way" == "Programs and others" ]; then
     ProgramsOthers
+  elif [ "$way" == "Anaconda" ]; then
+    Anaconda
   else
     Programming
   fi
@@ -245,6 +248,50 @@ function Rbase() {
   printTerminal start "R-base"
   sudo apt-get install r-base
   printTerminal finish "R-base"
+}
+
+
+# ---------
+# Anaconda
+# ---------
+function Anaconda() {
+  options=$( \
+    zenity --list --title "Anaconda" --text "Extensions and more" --checklist \
+    --column "select" --column "options" \
+    FALSE "Jupyter" \
+    FALSE "Jupyter Lab" \
+    FALSE "Jupyter Nbextensions Configurator" \
+    --separator=":"\
+  );
+
+  IFS=":"
+  for opt in $options; do
+    case $opt in
+      "Jupyter") Jupyter ;;
+      "Jupyter Lab") JupyterLab ;;
+      "Jupyter Nbextensions Configurator") JupyterNbextensionsConfigurator ;;
+    esac
+  done
+  IFS=""
+}
+
+function Jupyter() {
+  printTerminal start "Jupyter"
+  conda install -c conda-forge jupyter
+  printTerminal finish "Jupyter"
+}
+
+function JupyterLab() {
+  printTerminal start "Jupyter Lab"
+  conda install -c conda-forge jupyterlab
+  printTerminal finish "Jupyter Lab"
+}
+
+function JupyterNbextensionsConfigurator() {
+  printTerminal start "Jupyter Nbextensions Configurator"
+  conda install -c conda-forge jupyter_contrib_nbextensions
+  conda install -c conda-forge jupyter_nbextensions_configurator
+  printTerminal finish "Jupyter Nbextensions Configurator"
 }
 
 
