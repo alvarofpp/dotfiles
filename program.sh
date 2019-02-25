@@ -59,6 +59,7 @@ function Bugs() {
     zenity --list --title "Fix bugs" --checklist \
     --column "select" --column "options" \
     FALSE "Unrecognized clicks with touchpad" \
+    False "Right click touchpad not working" \
     --separator=":" \
   );
 
@@ -66,6 +67,7 @@ function Bugs() {
   for opt in $options; do
     case $opt in
       "Unrecognized clicks with touchpad") ClickTouchpad ;;
+      "Right click touchpad not working") RightClick ;;
     esac
   done
   IFS=""
@@ -75,6 +77,13 @@ function ClickTouchpad() {
   printTerminal green "Correcting clicks with the touchpad"
   synclient TapButton1=1 TapButton2=3 TapButton3=2
   printTerminal red "Corrected"
+}
+
+function RightClick() {
+  printTerminal green "Correcting right click touchpad"
+  printTerminal start "GNOME Tweak Tool"
+  sudo apt install gnome-tweak-tool
+  printTerminal finish "GNOME Tweak Tool"
 }
 
 
@@ -274,6 +283,8 @@ function Anaconda() {
     FALSE "Jupyter" \
     FALSE "Jupyter Lab" \
     FALSE "Jupyter Nbextensions Configurator" \
+    FALSE "Jupyter Themes" \
+    FALSE "Python packages for data science" \
     --separator=":"\
   );
 
@@ -283,6 +294,8 @@ function Anaconda() {
       "Jupyter") Jupyter ;;
       "Jupyter Lab") JupyterLab ;;
       "Jupyter Nbextensions Configurator") JupyterNbextensionsConfigurator ;;
+      "Jupyter Themes") JupyterThemes ;;
+      "Python packages for data science") PythonPackages ;;
     esac
   done
   IFS=""
@@ -305,6 +318,24 @@ function JupyterNbextensionsConfigurator() {
   conda install -c conda-forge jupyter_contrib_nbextensions
   conda install -c conda-forge jupyter_nbextensions_configurator
   printTerminal finish "Jupyter Nbextensions Configurator"
+}
+
+function JupyterThemes() {
+  printTerminal start "Jupyter Themes"
+  mkdir -p $(jupyter --data-dir)/nbextensions
+  cd $(jupyter --data-dir)/nbextensions
+  mkdir jupyter_themes && cd jupyter_themes
+  wget https://raw.githubusercontent.com/merqurio/jupyter_themes/master/theme_selector.js
+  cd ../ && jupyter nbextension enable jupyter_themes/theme_selector
+  printTerminal finish "Jupyter Themes"
+}
+
+function PythonPackages() {
+  printTerminal start "Python packages"
+  conda install -c conda-forge numpy
+  conda install -c conda-forge matplotlib
+  conda install -c conda-forge pandas
+  printTerminal finish "Python packages"
 }
 
 

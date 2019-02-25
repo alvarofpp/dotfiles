@@ -2,6 +2,7 @@
 
 - Fix bugs
   - Unrecognized clicks with touchpad
+  - Right click touchpad not working
 - Programs and others
   - Git
   - RStudio
@@ -20,3 +21,5 @@
   - Jupyter
   - Jupyter Lab
   - Jupyter Nbextensions Configurator
+  - Jupyter Themes
+  - Python packages for data science
