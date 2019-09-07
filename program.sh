@@ -211,18 +211,18 @@ function PHPLaravel() {
   sudo apt-get update
   printTerminal green "Adding PPA"
   sudo apt-add-repository ppa:ondrej/php -y
-  printTerminal start "PHP 7.2"
+  printTerminal start "PHP 7.3"
   sudo apt-get install php-mbstring
   sudo apt-get install composer -y
-  sudo apt-get install php7.2-pgsql -y
-  sudo apt-get install apache2 libapache2-mod-php7.2 -y
-  sudo apt-get install php7.2-dev -y
-  sudo apt-get install php7.2-zip -y
-  sudo apt-get install php7.2-xml -y
-  sudo apt-get install php7.2-mbstring -y
-  sudo apt-get install php7.2-cgi -y
-  sudo apt-get install php7.2-curl -y
-  sudo apt-get install php7.2-zip
+  sudo apt-get install php7.3-pgsql -y
+  sudo apt-get install apache2 libapache2-mod-php7.3 -y
+  sudo apt-get install php7.3-dev -y
+  sudo apt-get install php7.3-zip -y
+  sudo apt-get install php7.3-xml -y
+  sudo apt-get install php7.3-mbstring -y
+  sudo apt-get install php7.3-cgi -y
+  sudo apt-get install php7.3-curl -y
+  sudo apt-get install php7.3-zip
   printTerminal start "Curl"
   sudo apt-get install curl php-curl
   printTerminal finish "Curl"
@@ -230,7 +230,7 @@ function PHPLaravel() {
   curl -sS https://getcomposer.org/installer | php
   sudo mv composer.phar /usr/local/bin/composer
   printTerminal finish "Curl"
-  printTerminal finish "(PHP 7.2)"
+  printTerminal finish "(PHP 7.3)"
 
   composer global require "laravel/installer"
   export PATH=$PATH:$HOME/.config/composer/vendor/bin
