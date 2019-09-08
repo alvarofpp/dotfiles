@@ -15,7 +15,7 @@
   - Node.js
   - Java 8
   - Postgres + PGAdmin3
-  - PHP + Laravel
+  - PHP 7.3 + Laravel
   - R-base
 - Anaconda
   - Jupyter
