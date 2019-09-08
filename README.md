@@ -16,6 +16,7 @@
   - Java 11
   - Postgres + PGAdmin3
   - PHP 7.3 + Laravel
+  - Python 3.7
   - R-base
 - Anaconda
   - Jupyter

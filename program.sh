@@ -182,12 +182,14 @@ function Texmaker() {
 # ---------
 function Programming() {
   options=$( \
-    zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
+    zenity --list --title "Programming languages" \
+    --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Node.js" \
     FALSE "Java 12" \
     FALSE "Postgres + PGAdmin3" \
     FALSE "PHP + Laravel" \
+    FALSE "Python 3.7" \
     FALSE "R-base" \
     --separator=":"\
   );
@@ -196,13 +198,41 @@ function Programming() {
   for opt in $options; do
     case $opt in
       "Node.js") Nodejs ;;
-      "Java 12") Java12 ;;
+      "Java 12") Java ;;
       "Postgres + PGAdmin3") Postgres ;;
       "PHP + Laravel") PHPLaravel ;;
+      "Python 3.7") Python ;;
       "R-base") Rbase ;;
     esac
   done
   IFS=""
+}
+
+function Nodejs() {
+  sudo apt-get update
+  printTerminal start "NPM"
+  sudo apt-get install npm
+  printTerminal start "Node.js"
+  sudo apt-get install nodejs
+  printTerminal finish "Node.js"
+}
+
+function Java() {
+  sudo apt-get update
+  printTerminal green "Adding Oracle PPA"
+  sudo add-apt-repository ppa:linuxuprising/java
+  sudo apt update
+  printTerminal start "Java 12"
+  sudo apt install oracle-java12-installer
+  sudo apt install oracle-java12-set-default
+  printTerminal finish "Java 12"
+}
+
+function Postgres() {
+  sudo apt-get update
+  printTerminal start "PostgreSQL + PGAdmin3"
+  sudo apt-get install postgresql postgresql-contrib pgadmin3
+  printTerminal finish "PostgreSQL + PGAdmin3"
 }
 
 function PHPLaravel() {
@@ -235,31 +265,15 @@ function PHPLaravel() {
   printTerminal finish "Laravel"
 }
 
-function Postgres() {
+function Python() {
   sudo apt-get update
-  printTerminal start "PostgreSQL + PGAdmin3"
-  sudo apt-get install postgresql postgresql-contrib pgadmin3
-  printTerminal finish "PostgreSQL + PGAdmin3"
-}
-
-function Nodejs() {
-  sudo apt-get update
-  printTerminal start "NPM"
-  sudo apt-get install npm
-  printTerminal start "Node.js"
-  sudo apt-get install nodejs
-  printTerminal finish "Node.js"
-}
-
-function Java12() {
-  sudo apt-get update
-  printTerminal green "Adding Oracle PPA"
-  sudo add-apt-repository ppa:linuxuprising/java
-  sudo apt update
-  printTerminal start "Java 12"
-  sudo apt install oracle-java12-installer
-  sudo apt install oracle-java12-set-default
-  printTerminal finish "Java 12"
+  printTerminal green "Installing the prerequisites"
+  sudo apt install software-properties-common
+  printTerminal green "Add the deadsnakes PPA to your sources list"
+  sudo add-apt-repository ppa:deadsnakes/ppa
+  printTerminal start "Python 3.7"
+  sudo apt install python3.7
+  printTerminal finish "Python 3.7"
 }
 
 function Rbase() {
