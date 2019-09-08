@@ -13,7 +13,7 @@
   - Texmaker
 - Programming
   - Node.js
-  - Java 8
+  - Java 11
   - Postgres + PGAdmin3
   - PHP 7.3 + Laravel
   - R-base

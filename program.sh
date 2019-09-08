@@ -185,7 +185,7 @@ function Programming() {
     zenity --list --title "Programming languages" --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Node.js" \
-    FALSE "Java 8" \
+    FALSE "Java 12" \
     FALSE "Postgres + PGAdmin3" \
     FALSE "PHP + Laravel" \
     FALSE "R-base" \
@@ -196,7 +196,7 @@ function Programming() {
   for opt in $options; do
     case $opt in
       "Node.js") Nodejs ;;
-      "Java 8") Java8 ;;
+      "Java 12") Java12 ;;
       "Postgres + PGAdmin3") Postgres ;;
       "PHP + Laravel") PHPLaravel ;;
       "R-base") Rbase ;;
@@ -251,14 +251,15 @@ function Nodejs() {
   printTerminal finish "Node.js"
 }
 
-function Java8() {
+function Java12() {
   sudo apt-get update
   printTerminal green "Adding Oracle PPA"
-  sudo add-apt-repository ppa:webupd8team/java
-  sudo apt-get update
-  printTerminal start "Java 8"
-  sudo apt-get install oracle-java8-installer
-  printTerminal finish "Java 8"
+  sudo add-apt-repository ppa:linuxuprising/java
+  sudo apt update
+  printTerminal start "Java 12"
+  sudo apt install oracle-java12-installer
+  sudo apt install oracle-java12-set-default
+  printTerminal finish "Java 12"
 }
 
 function Rbase() {
