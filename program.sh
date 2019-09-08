@@ -142,13 +142,11 @@ function SoundControl() {
 
 function Spotify() {
   printTerminal green "Adding the Spotify repository signing keys to be able to verify downloaded packages"
-  sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90
+  curl -sS https://download.spotify.com/debian/pubkey.gpg | sudo apt-key add -
   printTerminal green "Adding the Spotify repository"
-  echo deb http://repository.spotify.com stable non-free | sudo tee /etc/apt/sources.list.d/spotify.list
-  printTerminal green "Updating list of available packages"
-  sudo apt-get update
+  echo "deb http://repository.spotify.com stable non-free" | sudo tee /etc/apt/sources.list.d/spotify.list
   printTerminal start "Spotify"
-  sudo apt-get install spotify-client
+  sudo apt-get update && sudo apt-get install spotify-client
   printTerminal finish "Spotify"
 }
 
