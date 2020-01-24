@@ -178,7 +178,7 @@ function Programming() {
     --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Java 12" \
-    FALSE "Postgres + PGAdmin3" \
+    FALSE "Postgres + PGAdmin4" \
     FALSE "PHP 7.4 + Laravel" \
     FALSE "Python 3.8" \
     --separator=":"\
@@ -189,7 +189,7 @@ function Programming() {
     case $opt in
       "Node.js") Nodejs ;;
       "Java 12") Java ;;
-      "Postgres + PGAdmin3") Postgres ;;
+      "Postgres + PGAdmin4") Postgres ;;
       "PHP 7.4 + Laravel") PHPLaravel ;;
       "Python 3.8") Python ;;
       "R-base") Rbase ;;
@@ -211,9 +211,15 @@ function Java() {
 
 function Postgres() {
   sudo apt update
-  printTerminal start "PostgreSQL + PGAdmin3"
-  sudo apt install -y postgresql postgresql-contrib pgadmin3
-  printTerminal finish "PostgreSQL + PGAdmin3"
+  printTerminal start "PostgreSQL"
+  sudo apt install -y postgresql postgresql-contrib
+  printTerminal finish "PostgreSQL"
+  printTerminal start "PGAdmin4"
+  wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
+  sudo apt update
+  sudo apt install -y pgadmin4 pgadmin4-apache2
+  printTerminal finish "PGAdmin4"
 }
 
 function PHPLaravel() {
