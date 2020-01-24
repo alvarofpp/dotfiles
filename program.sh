@@ -82,7 +82,7 @@ function ClickTouchpad() {
 function RightClick() {
   printTerminal green "Correcting right click touchpad"
   printTerminal start "GNOME Tweak Tool"
-  sudo apt install gnome-tweak-tool
+  sudo apt install -y gnome-tweak-tool
   printTerminal finish "GNOME Tweak Tool"
 }
 
@@ -95,9 +95,9 @@ function ProgramsOthers() {
     zenity --list --title "Programs" --text "Select the programs you prefer" --checklist \
     --column "select" --column "options" \
     FALSE "Git" \
-    FALSE "RStudio" \
     FALSE "Sound control" \
     FALSE "Spotify" \
+    FALSE "Sublime Text" \
     FALSE "Tex live" \
     FALSE "Texmaker" \
     --separator=":"\
@@ -119,24 +119,16 @@ function ProgramsOthers() {
 }
 
 function Git() {
-  sudo apt-get update
+  sudo apt update
   printTerminal start "Git"
-  sudo apt-get install git
+  sudo apt install -y git
   printTerminal finish "Git"
 }
 
-function RStudio() {
-  printTerminal start "RStudio"
-  sudo apt-get install gdebi-core
-  wget https://download2.rstudio.org/rstudio-server-1.1.423-amd64.deb
-  sudo gdebi rstudio-server-1.1.423-amd64.deb
-  printTerminal finish "RStudio"
-}
-
 function SoundControl() {
-  sudo apt-get update
+  sudo apt update
   printTerminal green "Installing program for sound control"
-  sudo apt-get install pavucontrol
+  sudo apt install -y pavucontrol
   printTerminal finish "Sound control"
 }
 
@@ -146,7 +138,7 @@ function Spotify() {
   printTerminal green "Adding the Spotify repository"
   echo "deb http://repository.spotify.com stable non-free" | sudo tee /etc/apt/sources.list.d/spotify.list
   printTerminal start "Spotify"
-  sudo apt-get update && sudo apt-get install spotify-client
+  sudo apt update && sudo apt install -y spotify-client
   printTerminal finish "Spotify"
 }
 
@@ -156,23 +148,23 @@ function SublimeText() {
   printTerminal green "Channel stable to use"
   echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list
   printTerminal green "Updating list of available packages"
-  sudo apt-get update
+  sudo apt update
   printTerminal start "Sublime Text"
-  sudo apt-get install sublime-text
+  sudo apt install -y sublime-text
   printTerminal finish "Sublime Text"
 }
 
 function TexLive() {
-  sudo apt-get update
+  sudo apt update
   printTerminal start "Tex Live"
-  sudo apt-get install texlive-full
+  sudo apt install -y texlive-full
   printTerminal finish "Tex live"
 }
 
 function Texmaker() {
-  sudo apt-get update
+  sudo apt update
   printTerminal start "Texmaker"
-  sudo apt-get install texmaker
+  sudo apt install -y texmaker
   printTerminal finish "Texmaker"
 }
 
@@ -185,12 +177,10 @@ function Programming() {
     zenity --list --title "Programming languages" \
     --text "Select the languages you prefer" --checklist \
     --column "select" --column "options" \
-    FALSE "Node.js" \
     FALSE "Java 12" \
     FALSE "Postgres + PGAdmin3" \
-    FALSE "PHP + Laravel" \
-    FALSE "Python 3.7" \
-    FALSE "R-base" \
+    FALSE "PHP 7.4 + Laravel" \
+    FALSE "Python 3.8" \
     --separator=":"\
   );
 
@@ -200,65 +190,56 @@ function Programming() {
       "Node.js") Nodejs ;;
       "Java 12") Java ;;
       "Postgres + PGAdmin3") Postgres ;;
-      "PHP + Laravel") PHPLaravel ;;
-      "Python 3.7") Python ;;
+      "PHP 7.4 + Laravel") PHPLaravel ;;
+      "Python 3.8") Python ;;
       "R-base") Rbase ;;
     esac
   done
   IFS=""
 }
 
-function Nodejs() {
-  sudo apt-get update
-  printTerminal start "NPM"
-  sudo apt-get install npm
-  printTerminal start "Node.js"
-  sudo apt-get install nodejs
-  printTerminal finish "Node.js"
-}
-
 function Java() {
-  sudo apt-get update
+  sudo apt update
   printTerminal green "Adding Oracle PPA"
   sudo add-apt-repository ppa:linuxuprising/java
   sudo apt update
   printTerminal start "Java 12"
-  sudo apt install oracle-java12-installer
-  sudo apt install oracle-java12-set-default
+  sudo apt install -y oracle-java12-installer
+  sudo apt install -y oracle-java12-set-default
   printTerminal finish "Java 12"
 }
 
 function Postgres() {
-  sudo apt-get update
+  sudo apt update
   printTerminal start "PostgreSQL + PGAdmin3"
-  sudo apt-get install postgresql postgresql-contrib pgadmin3
+  sudo apt install -y postgresql postgresql-contrib pgadmin3
   printTerminal finish "PostgreSQL + PGAdmin3"
 }
 
 function PHPLaravel() {
-  sudo apt-get update
+  sudo apt update
   printTerminal green "Adding PPA"
   sudo apt-add-repository ppa:ondrej/php -y
-  printTerminal start "PHP 7.3"
-  sudo apt-get install php-mbstring
-  sudo apt-get install composer -y
-  sudo apt-get install php7.3-pgsql -y
-  sudo apt-get install apache2 libapache2-mod-php7.3 -y
-  sudo apt-get install php7.3-dev -y
-  sudo apt-get install php7.3-zip -y
-  sudo apt-get install php7.3-xml -y
-  sudo apt-get install php7.3-mbstring -y
-  sudo apt-get install php7.3-cgi -y
-  sudo apt-get install php7.3-curl -y
-  sudo apt-get install php7.3-zip
+  printTerminal start "PHP 7.4"
+  sudo apt install -y php-mbstring
+  sudo apt install -y composer -y
+  sudo apt install -y php7.4-pgsql -y
+  sudo apt install -y apache2 libapache2-mod-php7.4 -y
+  sudo apt install -y php7.4-dev -y
+  sudo apt install -y php7.4-zip -y
+  sudo apt install -y php7.4-xml -y
+  sudo apt install -y php7.4-mbstring -y
+  sudo apt install -y php7.4-cgi -y
+  sudo apt install -y php7.4-curl -y
+  sudo apt install -y php7.4-zip
   printTerminal start "Curl"
-  sudo apt-get install curl php-curl
+  sudo apt install -y curl php-curl
   printTerminal finish "Curl"
   printTerminal start "Composer"
   curl -sS https://getcomposer.org/installer | php
   sudo mv composer.phar /usr/local/bin/composer
   printTerminal finish "Curl"
-  printTerminal finish "(PHP 7.3)"
+  printTerminal finish "PHP 7.4"
 
   composer global require "laravel/installer"
   export PATH=$PATH:$HOME/.config/composer/vendor/bin
@@ -266,23 +247,14 @@ function PHPLaravel() {
 }
 
 function Python() {
-  sudo apt-get update
+  sudo apt update
   printTerminal green "Installing the prerequisites"
-  sudo apt install software-properties-common
+  sudo apt install -y software-properties-common
   printTerminal green "Add the deadsnakes PPA to your sources list"
   sudo add-apt-repository ppa:deadsnakes/ppa
-  printTerminal start "Python 3.7"
-  sudo apt install python3.7
-  printTerminal finish "Python 3.7"
-}
-
-function Rbase() {
-  printTerminal green "Add repository CRAN"
-  sudo add-apt-repository 'deb [arch=amd64,i386] https://cran.rstudio.com/bin/linux/ubuntu xenial/'
-  sudo apt-get update
-  printTerminal start "R-base"
-  sudo apt-get install r-base
-  printTerminal finish "R-base"
+  printTerminal start "Python 3.8"
+  sudo apt install -y python3.8
+  printTerminal finish "Python 3.8"
 }
 
 
