@@ -5,19 +5,16 @@
   - Right click touchpad not working
 - Programs and others
   - Git
-  - RStudio
   - Sound control
   - Spotify
   - Sublime Text
   - Tex live
   - Texmaker
 - Programming
-  - Node.js
-  - Java 11
+  - Java 12
   - Postgres + PGAdmin3
-  - PHP 7.3 + Laravel
-  - Python 3.7
-  - R-base
+  - PHP 7.4 + Laravel
+  - Python 3.8
 - Anaconda
   - Jupyter
   - Jupyter Lab
