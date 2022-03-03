@@ -96,7 +96,6 @@ function ProgramsOthers() {
     --column "select" --column "options" \
     FALSE "Git" \
     FALSE "Sound control" \
-    FALSE "Spotify" \
     FALSE "Sublime Text" \
     FALSE "Tex live" \
     FALSE "Texmaker" \
@@ -109,7 +108,6 @@ function ProgramsOthers() {
       "Git") Git ;;
       "RStudio") RStudio ;;
       "Sound control") SoundControl ;;
-      "Spotify") Spotify ;;
       "Sublime Text") SublimeText ;;
       "Tex live") TexLive ;;
       "Texmaker") Texmaker ;;
@@ -130,16 +128,6 @@ function SoundControl() {
   printTerminal green "Installing program for sound control"
   sudo apt install -y pavucontrol
   printTerminal finish "Sound control"
-}
-
-function Spotify() {
-  printTerminal green "Adding the Spotify repository signing keys to be able to verify downloaded packages"
-  curl -sS https://download.spotify.com/debian/pubkey.gpg | sudo apt-key add -
-  printTerminal green "Adding the Spotify repository"
-  echo "deb http://repository.spotify.com stable non-free" | sudo tee /etc/apt/sources.list.d/spotify.list
-  printTerminal start "Spotify"
-  sudo apt update && sudo apt install -y spotify-client
-  printTerminal finish "Spotify"
 }
 
 function SublimeText() {

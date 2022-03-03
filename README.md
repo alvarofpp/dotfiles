@@ -6,7 +6,6 @@
 - Programs and others
   - Git
   - Sound control
-  - Spotify
   - Sublime Text
   - Tex live
   - Texmaker
