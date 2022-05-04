@@ -1,0 +1,15 @@
+#!/bin/bash
+
+IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}")
+readarray -t IMAGES_ARRAY <<< "$IMAGES"
+
+for IMAGE in "${IMAGES_ARRAY[@]}"; do
+  if [[ "IMAGE" == *"none"* ]]; then
+    continue
+  fi
+  if [[ "IMAGE" == *"development"* ]]; then
+    continue
+  fi
+  
+  docker pull ${IMAGE}
+done
