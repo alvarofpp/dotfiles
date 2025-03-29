@@ -1,0 +1,33 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+
+tasks:
+  ls:
+    cmds:
+      - docker ps --format '{{.ID}} | {{.Names}} | {{.Status}} | {{.Ports}}'
+
+  drop-none:
+    cmds:
+      - docker rmi $(docker images --filter "dangling=true" -q --no-trunc) --force
+
+  prune:
+    cmds:
+      - docker system prune -f --volumes
+
+  pull-all:
+    vars:
+      DOCKER_IMAGES:
+        sh: docker images --format "{{.Repository}}:{{.Tag}}"
+    cmds:
+      - for: { var: DOCKER_IMAGES, as: DOCKER_IMAGE }
+        cmd: |
+          if [[ "{{ .DOCKER_IMAGE }}" == *"none"* ]]; then
+            continue
+          fi
+          if [[ "{{ .DOCKER_IMAGE }}" == *"development"* ]]; then
+            continue
+          fi
+
+          docker pull ${IMAGE}
