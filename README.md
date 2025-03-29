@@ -1,22 +1,23 @@
-# List of programs contained in Script
+# Dotfiles
 
-- Fix bugs
-  - Unrecognized clicks with touchpad
-  - Right click touchpad not working
-- Programs and others
-  - Git
-  - Sound control
-  - Sublime Text
-  - Tex live
-  - Texmaker
-- Programming
-  - Java 12
-  - Postgres + PGAdmin3
-  - PHP 7.4 + Laravel
-  - Python 3.8
-- Anaconda
-  - Jupyter
-  - Jupyter Lab
-  - Jupyter Nbextensions Configurator
-  - Jupyter Themes
-  - Python packages for data science
+This repository contains the dotfiles for my system.
+
+## Setup
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alvarofpp/dotfiles/refs/heads/master/setup.sh | /bin/bash -c
+```
+
+## Requirements
+
+```bash
+sudo apt install git stow -y
+```
+
+## How to use
+
+```bash
+git clone git@github.com:alvarofpp/dotfiles.git
+cd dotfiles
+stow .
+```

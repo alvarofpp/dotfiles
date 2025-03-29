@@ -1,0 +1,13 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+
+includes:
+  docker: ./taskfiles/Docker.yml
+  py: ./taskfiles/Python.yml
+
+tasks:
+  default:
+    cmds:
+      - task --list-all

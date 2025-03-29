@@ -1,0 +1,9 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+
+tasks:
+  remove-pycache:
+    cmds:
+      - find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs sudo rm -rf
