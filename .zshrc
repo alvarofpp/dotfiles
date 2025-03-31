@@ -83,3 +83,6 @@ alias cd="z"
 alias ls="eza"
 alias ll="eza -alh"
 alias tree="eza --tree"
+
+# atuin (better history)
+eval "$(atuin init zsh)"
