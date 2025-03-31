@@ -10,7 +10,9 @@ export LESS=FRX
 # Catppuccin
 source $HOME/zsh-themes/syntax-highlighting/catppuccin_mocha-zsh-syntax-highlighting.zsh
 
-# Avoid duplicates
+# History
+HISTSIZE=5000
+HISTFILESIZE=50000
 HISTCONTROL=ignoredups:erasedups
 
 # Python
