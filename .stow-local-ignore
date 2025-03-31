@@ -1,0 +1,12 @@
+# IDE
+.idea
+
+# Git
+.git
+.gitignore
+
+# Repository
+^/README.*
+LICENSE
+setup.sh
+
