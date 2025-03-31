@@ -5,18 +5,22 @@ silent: true
 
 tasks:
   ls:
+    desc: "List all running Docker containers."
     cmds:
       - docker ps --format '{{.ID}} | {{.Names}} | {{.Status}} | {{.Ports}}'
 
   drop-none:
+    desc: "Remove all Docker images with '<none>' tag."
     cmds:
       - docker rmi $(docker images --filter "dangling=true" -q --no-trunc) --force
 
   prune:
+    desc: "Prune all unused Docker objects including containers, images and volumes."
     cmds:
       - docker system prune -f --volumes
 
   pull-all:
+    desc: "Pull all Docker images, excluding those with '<none>' or 'development' tags."
     vars:
       DOCKER_IMAGES:
         sh: docker images --format "{{.Repository}}:{{.Tag}}"

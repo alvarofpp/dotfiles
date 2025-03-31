@@ -9,5 +9,6 @@ includes:
 
 tasks:
   default:
+    desc: "List all tasks."
     cmds:
       - task --list-all
