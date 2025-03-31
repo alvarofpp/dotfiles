@@ -1,17 +1,25 @@
+# Homebrew
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
 # oh-my-zsh
 export ZSH="$HOME/.oh-my-zsh"
-plugins=(git)
 source $ZSH/oh-my-zsh.sh
-source $ZSH/templates/headline.zsh-theme
+source $HOME/zsh-themes/headline.zsh-theme
+export LESS=FRX
+
+# Catppuccin
+source $HOME/zsh-themes/syntax-highlighting/catppuccin_mocha-zsh-syntax-highlighting.zsh
 
 # Avoid duplicates
 HISTCONTROL=ignoredups:erasedups
 
 # Python
-alias python="python3.10"
+alias python="python3.13"
 
 # Taskfile
 export PATH="${PATH}:/home/alvarofpp/.local/bin"
+alias ts=task --global
+eval "$(task --completion zsh)"
 
 # Autocompletion (Taskfile)
 autoload -U compinit
@@ -40,10 +48,10 @@ cyan="#2CF9ED"
 
 export FZF_DEFAULT_OPTS="--color=fg:${fg},bg:${bg},hl:${purple},fg+:${fg},bg+:${bg_highlight},hl+:${purple},info:${blue},prompt:${cyan},pointer:${cyan},marker:${cyan},spinner:${cyan},header:${cyan}"
 
-show_file_or_dir_preview="if [ -d {} ]; then exa --tree --color=always {} | head -200; else bat -n --color=always --line-range :500 {}; fi"
+show_file_or_dir_preview="if [ -d {} ]; then eza --tree --color=always {} | head -200; else bat -n --color=always --line-range :500 {}; fi"
 
 export FZF_CTRL_T_OPTS="--preview '$show_file_or_dir_preview'"
-export FZF_ALT_C_OPTS="--preview 'exa --tree --color=always {} | head -200'"
+export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
 
 # fd (better find)
 # Use fd instead of fzf
@@ -71,7 +79,7 @@ alias cat="bat"
 eval "$(zoxide init zsh)"
 alias cd="z"
 
-# exa (better ls)
-alias ls="exa"
-alias ll="exa -alh"
-alias tree="exa --tree"
+# eza (better ls)
+alias ls="eza"
+alias ll="eza -alh"
+alias tree="eza --tree"
