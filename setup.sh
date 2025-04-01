@@ -14,11 +14,22 @@ function installPackage() {
 
 # Install brew if not installed
 command -v brew >/dev/null 2>&1 || {
-  echo >&2 "Installing Homebrew Now"; \
+  echo >&2 "Installing Homebrew now"; \
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)";
 }
 INSTALL_CMD="brew install"
 LIST_PACKAGES=$(brew list)
+
+# Install zsh
+installPackage "${INSTALL_CMD}" "zsh" "${LIST_PACKAGES}"
+
+# Check if oh-my-zsh is installed. If not, install it
+if ! command -v zsh >/dev/null 2>&1 || [ ! -d "$HOME/.oh-my-zsh" ]; then
+  echo >&2 "Installing oh-my-zsh now"; \
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+else
+  echo "✅ oh-my-zsh is already installed"
+fi
 
 # Installing packages
 PACKAGES=(
@@ -53,6 +64,14 @@ fc-cache -f -v
 
 echo "📝 Downloading syntax highlighting..."
 installPackage "${INSTALL_CMD}" "zsh-syntax-highlighting" "${LIST_PACKAGES}"
+
+if [ ! -d "${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab" ]; then
+  echo "⬇️ Cloning fzf-tab..."
+  git clone https://github.com/Aloxaf/fzf-tab "${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab"
+else
+  echo "✅ fzf-tab is already present"
+fi
+#git clone https://github.com/Aloxaf/fzf-tab "${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
   brew install --cask iterm2
