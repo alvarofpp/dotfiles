@@ -3,9 +3,11 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
 # oh-my-zsh
 export ZSH="$HOME/.oh-my-zsh"
+plugins=(fzf-tab)
 source $ZSH/oh-my-zsh.sh
 source $HOME/zsh-themes/headline.zsh-theme
 export LESS=FRX
+autoload -U compinit; compinit -i
 
 # Catppuccin
 source $HOME/zsh-themes/syntax-highlighting/catppuccin_mocha-zsh-syntax-highlighting.zsh
@@ -22,10 +24,6 @@ alias python="python3.13"
 export PATH="${PATH}:/home/alvarofpp/.local/bin"
 alias t=task --global
 eval "$(task --completion zsh)"
-
-# Autocompletion (Taskfile)
-autoload -U compinit
-compinit -i
 
 # Add Pulumi to the PATH
 export PATH=$PATH:/home/alvarofpp/.pulumi/bin
