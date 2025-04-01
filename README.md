@@ -19,7 +19,7 @@ sudo apt install -y git stow
 ## Setup
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alvarofpp/dotfiles/refs/heads/master/setup.sh | /bin/bash -c
+curl -fsSL https://raw.githubusercontent.com/alvarofpp/dotfiles/refs/heads/main/setup.sh | /bin/bash -c
 ```
 
 `setup.sh` will install [Homebrew][homebrew] if it hasn't already been installed.
