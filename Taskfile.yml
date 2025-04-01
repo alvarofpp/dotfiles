@@ -5,6 +5,7 @@ silent: true
 
 includes:
   docker: ./taskfiles/Docker.yml
+  op: ./taskfiles/Operations.yml
   py: ./taskfiles/Python.yml
 
 tasks:

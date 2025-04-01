@@ -20,7 +20,7 @@ alias python="python3.13"
 
 # Taskfile
 export PATH="${PATH}:/home/alvarofpp/.local/bin"
-alias ts=task --global
+alias t=task --global
 eval "$(task --completion zsh)"
 
 # Autocompletion (Taskfile)

@@ -1,0 +1,30 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+
+tasks:
+  foreach:
+    desc: Executes an operation declared in `OP` for each input.
+    summary: |
+      Executes an operation declared in `OP` for each input.
+      
+      Arguments:
+        - CLI_ARGS: The arguments to pass to the operation.
+      
+      Environment variables:
+        - OP: The operation to execute.
+      
+      Examples:
+        - ls | OP="echo {}" xargs task op:foreach --
+    env:
+      OP: '{{ .OP }}'
+    cmds:
+      - for: { var: CLI_ARGS, as: ARGUMENT }
+        cmd: |
+          ARGUMENT={{ .ARGUMENT }}
+          if [[ "${OP}" == *"{}"* ]]; then
+            eval "${OP//\{\}/$ARGUMENT}"
+          else
+            eval "${OP} ${ARGUMENT}"
+          fi
