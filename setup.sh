@@ -49,6 +49,7 @@ PACKAGES=(
   "tlrc"
   "yq"
   "zoxide"
+  "1password-cli"
 )
 for PACKAGE in "${PACKAGES[@]}"; do
   installPackage "${INSTALL_CMD}" "${PACKAGE}" "${LIST_PACKAGES}"
