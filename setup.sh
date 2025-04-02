@@ -66,16 +66,34 @@ fc-cache -f -v
 echo "📝 Downloading syntax highlighting..."
 installPackage "${INSTALL_CMD}" "zsh-syntax-highlighting" "${LIST_PACKAGES}"
 
+echo "📝 Installing oh-my-zsh plugins..."
 if [ ! -d "${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab" ]; then
   echo "⬇️ Cloning fzf-tab..."
   git clone https://github.com/Aloxaf/fzf-tab "${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab"
 else
   echo "✅ fzf-tab is already present"
 fi
-#git clone https://github.com/Aloxaf/fzf-tab "${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab"
 
+echo "🖥️ Installing desktop applications..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  brew install --cask iterm2
+  DESKTOP_APPS=(
+    "orbstack"
+    "notion"
+  )
+  for DESKTOP_APP in "${DESKTOP_APPS[@]}"; do
+    installPackage "${INSTALL_CMD}" "${DESKTOP_APP}" "${LIST_PACKAGES}"
+  done
+
+  DESKTOP_APPS_WITH_CASK=(
+    "iterm2"
+    "notion-calendar"
+    "jetbrains-toolbox"
+    "zen-browser"
+    "rectangle"
+  )
+  for DESKTOP_APP_WITH_CASK in "${DESKTOP_APPS_WITH_CASK[@]}"; do
+    installPackage "brew install --cask" "${DESKTOP_APP_WITH_CASK}" "${LIST_PACKAGES}"
+  done
 fi
 
 echo "🎆 Done"
