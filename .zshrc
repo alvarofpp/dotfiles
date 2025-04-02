@@ -5,12 +5,22 @@ eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 export ZSH="$HOME/.oh-my-zsh"
 plugins=(fzf-tab)
 source $ZSH/oh-my-zsh.sh
-source $HOME/zsh-themes/headline.zsh-theme
 export LESS=FRX
+
+# Autocomplete
 autoload -U compinit; compinit -i
 
-# Catppuccin
-source $HOME/zsh-themes/syntax-highlighting/catppuccin_mocha-zsh-syntax-highlighting.zsh
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  # Theme
+  source $HOME/zsh-themes/headline.zsh-theme
+
+  # Catppuccin
+  source $HOME/zsh-themes/syntax-highlighting/catppuccin_mocha-zsh-syntax-highlighting.zsh
+
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  # JetBrains
+  export PATH="/Users/alvarofpp/Library/Application Support/JetBrains/Toolbox/scripts:${PATH}"
+fi
 
 # History
 HISTSIZE=5000
@@ -19,6 +29,10 @@ HISTCONTROL=ignoredups:erasedups
 
 # Python
 alias python="python3.13"
+
+# Remove Python 2.7 from Path
+# Reference: https://stackoverflow.com/a/370192
+export PATH=`echo ${PATH} | awk -v RS=: -v ORS=: '/2.7/ {next} {print}'`
 
 # Taskfile
 export PATH="${PATH}:/home/alvarofpp/.local/bin"
@@ -86,3 +100,10 @@ alias tree="eza --tree"
 
 # atuin (better history)
 eval "$(atuin init zsh)"
+
+# SSH
+# Create an agent for SSH if it doesn't exist.
+# ssh-add -l &> /dev/null
+# if [ $? -ne 0 ]; then
+#   ssh-add -t 5d ~/.ssh/id_rsa && echo "SSH agent created!"
+# fi
