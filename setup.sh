@@ -28,6 +28,7 @@ installPackage "${INSTALL_CMD}" "zsh" "${LIST_PACKAGES}"
 if ! command -v zsh >/dev/null 2>&1 || [ ! -d "$HOME/.oh-my-zsh" ]; then
   echo >&2 "Installing oh-my-zsh now"; \
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  chsh -s $(which zsh)
 else
   echo "✅ oh-my-zsh is already installed"
 fi
