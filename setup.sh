@@ -15,7 +15,8 @@ function installPackage() {
 # Install brew if not installed
 command -v brew >/dev/null 2>&1 || {
   echo >&2 "Installing Homebrew now"; \
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)";
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; \
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)";
 }
 INSTALL_CMD="brew install"
 LIST_PACKAGES=$(brew list)
