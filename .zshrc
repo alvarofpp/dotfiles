@@ -1,3 +1,5 @@
+WSL_USER="alvaro"
+
 # Homebrew
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
@@ -19,7 +21,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 
 elif [[ "$OSTYPE" == "darwin"* ]]; then
   # JetBrains
-  export PATH="/Users/alvarofpp/Library/Application Support/JetBrains/Toolbox/scripts:${PATH}"
+  export PATH="/Users/${WSL_USER}/Library/Application Support/JetBrains/Toolbox/scripts:${PATH}"
 fi
 
 # History
@@ -35,12 +37,12 @@ alias python="python3.13"
 export PATH=`echo ${PATH} | awk -v RS=: -v ORS=: '/2.7/ {next} {print}'`
 
 # Taskfile
-export PATH="${PATH}:/home/alvarofpp/.local/bin"
+export PATH="${PATH}:/home/${WSL_USER}/.local/bin"
 alias t=task --global
 eval "$(task --completion zsh)"
 
 # Add Pulumi to the PATH
-export PATH=$PATH:/home/alvarofpp/.pulumi/bin
+export PATH="$PATH:/home/${WSL_USER}/.pulumi/bin"
 
 # NVM
 export NVM_DIR="$HOME/.nvm"
