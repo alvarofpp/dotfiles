@@ -1,0 +1,111 @@
+<project version="4">
+  <component name="BookmarksManager">
+    <option name="groups">
+      <GroupState>
+        <option name="name" value="to-kindle-io" />
+      </GroupState>
+    </option>
+  </component>
+  <component name="FileTypeUsageLocalSummary"><![CDATA[{
+  "data": {
+    "Shell Script": {
+      "usageCount": 3,
+      "lastUsed": 1753799983205
+    },
+    "Markdown": {
+      "usageCount": 3,
+      "lastUsed": 1753799983443
+    }
+  }
+}]]></component>
+  <component name="FilesOpenedOnControllerState">
+    <option name="openedFilesInfos">
+      <list>
+        <OpenedFileInfo>
+          <option name="caretOffset" value="2667" />
+          <option name="fileUrl" value="file://$USER_HOME$/dotfiles/setup.sh" />
+        </OpenedFileInfo>
+        <OpenedFileInfo>
+          <option name="caretOffset" value="0" />
+          <option name="fileUrl" value="file://$PROJECT_DIR$/README.md" />
+          <option name="selected" value="false" />
+        </OpenedFileInfo>
+      </list>
+    </option>
+  </component>
+  <component name="GitSEFilterConfiguration">{}</component>
+  <component name="IdeDocumentHistory">{
+  &quot;changedPaths&quot;: [
+    &quot;/home/alvaro/dotfiles/setup.sh&quot;
+  ]
+}</component>
+  <component name="IgnoredFileRootStore">
+    <option name="generatedRoots">
+      <set>
+        <option value="$PROJECT_DIR$/.idea" />
+      </set>
+    </option>
+  </component>
+  <component name="LanguageUsageStatistics">
+    <language id="Markdown">
+      <summary usageCount="3" lastUsage="1753799983443" />
+    </language>
+    <language id="Shell Script">
+      <summary usageCount="3" lastUsage="1753799983207" />
+    </language>
+  </component>
+  <component name="ProjectView">
+    <navigator currentView="ProjectPane" proportions="" version="1" />
+    <panes>
+      <pane id="ProjectPane" />
+      <pane id="Scope" />
+    </panes>
+  </component>
+  <component name="TimeTrackingManager">
+    <option name="totallyTimeSpent" value="1584000" />
+  </component>
+  <component name="ToolWindowManager">
+    <layoutV2>
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" />
+      <window_info id="Commit" order="1" weight="0.25" />
+      <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
+      <window_info anchor="bottom" id="Version Control" order="0" />
+      <window_info anchor="bottom" id="Problems" order="1" />
+      <window_info anchor="bottom" id="Problems View" order="2" />
+      <window_info anchor="bottom" id="Terminal" order="3" />
+      <window_info anchor="bottom" id="Services" order="4" />
+      <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
+      <window_info anchor="right" id="AIAssistant" order="1" weight="0.25" />
+      <window_info anchor="right" id="Database" order="2" weight="0.25" />
+      <window_info anchor="right" id="Gradle" order="3" weight="0.25" />
+      <window_info anchor="right" id="Maven" order="4" weight="0.25" />
+      <unified_weights right="0.25" />
+    </layoutV2>
+    <recentWindows>
+      <value>Project</value>
+      <value>AIAssistant</value>
+    </recentWindows>
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="368" y="124" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog" timestamp="1753799925476">
+      <screen x="0" y="0" width="1536" height="864" />
+    </state>
+    <state x="368" y="124" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog/0.0.1536.864@0.0.1024.768" timestamp="1753799925476" />
+    <state x="556" y="195" key="FileChooserDialogImpl" timestamp="1753798396962">
+      <screen x="0" y="0" width="1536" height="864" />
+    </state>
+    <state x="556" y="195" key="FileChooserDialogImpl/0.0.1536.864@0.0.1024.768" timestamp="1753798396962" />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$USER_HOME$/dotfiles/setup.sh">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-396">
+          <caret line="96" column="86" lean-forward="true" selection-start-line="96" selection-start-column="86" selection-end-line="96" selection-end-column="86" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/README.md">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+  </component>
+</project>

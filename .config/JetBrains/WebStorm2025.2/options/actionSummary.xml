@@ -1,0 +1,19 @@
+<application>
+  <component name="ActionsLocalSummary">
+    <e n="AIAssistantHubPopupAction">
+      <i c="2" l="1752799012408" />
+    </e>
+    <e n="AIHub.Settings">
+      <i c="1" l="1752799016861" />
+    </e>
+    <e n="CustomizeMainToolbarAction">
+      <i c="1" l="1752799134859" />
+    </e>
+    <e n="EditorPaste">
+      <i c="1" l="1752798636289" />
+    </e>
+    <e n="com.intellij.openapi.updateSettings.impl.UpdateSettingsEntryPointActionProvider$3">
+      <i c="1" l="1752799103155" />
+    </e>
+  </component>
+</application>

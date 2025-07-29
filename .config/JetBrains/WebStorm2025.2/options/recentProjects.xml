@@ -1,0 +1,26 @@
+<application>
+  <component name="RecentProjectsManager">
+    <option name="additionalInfo">
+      <map>
+        <entry key="$USER_HOME$/alvarofpp/template-typescript">
+          <value>
+            <RecentProjectMetaInfo frameTitle="template-typescript" opened="true" projectWorkspaceId="301GmdxaEimmazg6UOomt5tELJx">
+              <option name="activationTimestamp" value="1752799500906" />
+              <option name="binFolder" value="$APPLICATION_HOME_DIR$/bin" />
+              <option name="build" value="WS-252.23892.218" />
+              <option name="buildTimestamp" value="1752667740000" />
+              <option name="colorInfo">
+                <RecentProjectColorInfo associatedIndex="3" />
+              </option>
+              <option name="eap" value="true" />
+              <frame x="-7" y="-7" width="1550" height="830" />
+              <option name="productionCode" value="WS" />
+              <option name="projectOpenTimestamp" value="1752799488880" />
+            </RecentProjectMetaInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="lastOpenedProject" value="$USER_HOME$/alvarofpp/template-typescript" />
+  </component>
+</application>
