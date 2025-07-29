@@ -1,0 +1,11 @@
+<application>
+  <component name="Trusted.Paths">
+    <option name="TRUSTED_PROJECT_PATHS">
+      <map>
+        <entry key="$USER_HOME$/alvarofpp/template-typescript" value="true" />
+        <entry key="$USER_HOME$/alvarofpp/to-kindle-io" value="true" />
+        <entry key="$USER_HOME$/dotfiles" value="true" />
+      </map>
+    </option>
+  </component>
+</application>

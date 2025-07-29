@@ -1,0 +1,91 @@
+<application>
+  <component name="ActionsLocalSummary">
+    <e n="$SelectAll">
+      <i c="3" l="1753800012636" />
+    </e>
+    <e n="$Undo">
+      <i c="1" l="1753799007536" />
+    </e>
+    <e n="AIAssistantHubPopupAction">
+      <i c="4" l="1753798677104" />
+    </e>
+    <e n="AIHub.Settings">
+      <i c="1" l="1752799016861" />
+    </e>
+    <e n="CustomizeMainToolbarAction">
+      <i c="1" l="1752799134859" />
+    </e>
+    <e n="EditorBackSpace">
+      <i c="10" l="1753800007593" />
+    </e>
+    <e n="EditorCopy">
+      <i c="9" l="1753799093316" />
+    </e>
+    <e n="EditorCut">
+      <i c="2" l="1753798666434" />
+    </e>
+    <e n="EditorDown">
+      <i c="2" l="1753798937577" />
+    </e>
+    <e n="EditorEnter">
+      <i c="13" l="1753798999424" />
+    </e>
+    <e n="EditorLeft">
+      <i c="4" l="1753799073297" />
+    </e>
+    <e n="EditorLeftWithSelection">
+      <i c="1" l="1753799008649" />
+    </e>
+    <e n="EditorNextWord">
+      <i c="2" l="1753798650477" />
+    </e>
+    <e n="EditorNextWordWithSelection">
+      <i c="1" l="1753798535569" />
+    </e>
+    <e n="EditorPaste">
+      <i c="21" l="1753799025125" />
+    </e>
+    <e n="EditorPreviousWord">
+      <i c="1" l="1753798649151" />
+    </e>
+    <e n="EditorPreviousWordWithSelection">
+      <i c="7" l="1753799045402" />
+    </e>
+    <e n="EditorRight">
+      <i c="8" l="1753798742581" />
+    </e>
+    <e n="EditorSelectWord">
+      <i c="9" l="1753799004518" />
+    </e>
+    <e n="EditorUp">
+      <i c="11" l="1753799025477" />
+    </e>
+    <e n="NewProject">
+      <i c="1" l="1753798345227" />
+    </e>
+    <e n="OpenFile">
+      <i c="1" l="1753798391210" />
+    </e>
+    <e n="com.intellij.ide.ReopenProjectAction">
+      <i c="1" l="1753799979651" />
+    </e>
+    <e n="com.intellij.ide.plugins.PluginManagerMain$3">
+      <i c="1" l="1753799941040" />
+    </e>
+    <e n="com.intellij.ml.llm.core.codeGeneration.popup.AcceptAction">
+      <i c="1" l="1753798907814" />
+    </e>
+    <e n="com.intellij.ml.llm.core.codeGeneration.popup.NextChange">
+      <i c="3" l="1753798906070" />
+    </e>
+    <e n="com.intellij.ml.llm.core.codeGeneration.popup.SubmitAction">
+      <i c="1" l="1753798753183" />
+    </e>
+    <e n="com.intellij.openapi.updateSettings.impl.UpdateSettingsEntryPointActionProvider$3">
+      <i c="2" l="1753799921717" />
+    </e>
+    <e n="com.intellij.ui.dsl.builder.components.SegmentedButtonAction">
+      <i c="1" l="1753798359357" />
+    </e>
+  </component>
+</application>
