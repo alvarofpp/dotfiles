@@ -98,4 +98,22 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   done
 fi
 
+# IT tools
+IT_PACKAGES=(
+  "python"
+  "node"
+  "deno"
+  "docker"
+)
+for IT_PACKAGE in "${IT_PACKAGES[@]}"; do
+  installPackage "${INSTALL_CMD}" "${IT_PACKAGE}" "${LIST_PACKAGES}"
+  if [ "${IT_PACKAGE}" = "node" ]; then
+    echo "Installing TypeScript globally..."
+    npm install -g typescript
+
+    echo "Installing Claude Code globally..."
+    npm install -g @anthropic-ai/claude-code
+  fi
+done
+
 echo "🎆 Done"
