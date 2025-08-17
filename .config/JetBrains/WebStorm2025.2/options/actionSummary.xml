@@ -1,19 +1,142 @@
 <application>
   <component name="ActionsLocalSummary">
+    <e n="$Copy">
+      <i c="12" l="1755453088553" />
+    </e>
+    <e n="$Delete">
+      <i c="5" l="1755447286632" />
+    </e>
+    <e n="$Paste">
+      <i c="8" l="1755453095609" />
+    </e>
+    <e n="$SelectAll">
+      <i c="1" l="1755447353990" />
+    </e>
+    <e n="$Undo">
+      <i c="1" l="1753976553496" />
+    </e>
+    <e n="AIAssistant.ToolWindow.ShowOrFocus">
+      <i c="1" l="1753974960371" />
+    </e>
     <e n="AIAssistantHubPopupAction">
-      <i c="2" l="1752799012408" />
+      <i c="4" l="1753974936591" />
     </e>
     <e n="AIHub.Settings">
       <i c="1" l="1752799016861" />
     </e>
+    <e n="CommentByLineComment">
+      <i c="37" l="1755450229151" />
+    </e>
     <e n="CustomizeMainToolbarAction">
       <i c="1" l="1752799134859" />
     </e>
+    <e n="EditorBackSpace">
+      <i c="123" l="1755453894847" />
+    </e>
+    <e n="EditorChooseLookupItem">
+      <i c="5" l="1754000494006" />
+    </e>
+    <e n="EditorCopy">
+      <i c="50" l="1755453886106" />
+    </e>
+    <e n="EditorCut">
+      <i c="20" l="1755453578709" />
+    </e>
+    <e n="EditorDown">
+      <i c="15" l="1755446348228" />
+    </e>
+    <e n="EditorDownWithSelection">
+      <i c="12" l="1755450228673" />
+    </e>
+    <e n="EditorEnter">
+      <i c="32" l="1755453847302" />
+    </e>
+    <e n="EditorEscape">
+      <i c="2" l="1753977626129" />
+    </e>
+    <e n="EditorLeft">
+      <i c="48" l="1755453869999" />
+    </e>
+    <e n="EditorLeftWithSelection">
+      <i c="28" l="1755453579867" />
+    </e>
+    <e n="EditorNextWord">
+      <i c="12" l="1755446293999" />
+    </e>
+    <e n="EditorNextWordWithSelection">
+      <i c="28" l="1755453667970" />
+    </e>
     <e n="EditorPaste">
-      <i c="1" l="1752798636289" />
+      <i c="89" l="1755453887675" />
+    </e>
+    <e n="EditorPreviousWord">
+      <i c="39" l="1755453180478" />
+    </e>
+    <e n="EditorPreviousWordWithSelection">
+      <i c="33" l="1755453884846" />
+    </e>
+    <e n="EditorRight">
+      <i c="28" l="1755453579165" />
+    </e>
+    <e n="EditorRightWithSelection">
+      <i c="12" l="1755450219313" />
+    </e>
+    <e n="EditorSelectWord">
+      <i c="78" l="1755453888919" />
+    </e>
+    <e n="EditorStartNewLine">
+      <i c="1" l="1754001035483" />
+    </e>
+    <e n="EditorTab">
+      <i c="1" l="1755450880207" />
+    </e>
+    <e n="EditorUnindentSelection">
+      <i c="9" l="1755450008650" />
+    </e>
+    <e n="EditorUp">
+      <i c="25" l="1755450879858" />
+    </e>
+    <e n="EditorUpWithSelection">
+      <i c="15" l="1755453885833" />
+    </e>
+    <e n="GotoDeclaration">
+      <i c="2" l="1755453769746" />
+    </e>
+    <e n="MoreRunToolbarActions">
+      <i c="2" l="1753975020216" />
+    </e>
+    <e n="NewDir">
+      <i c="1" l="1755447268913" />
+    </e>
+    <e n="NewEditorConfigFile">
+      <i c="1" d="1" l="1753975620468" k="1753975620468" />
+    </e>
+    <e n="NewFile">
+      <i c="2" l="1755452020762" />
+    </e>
+    <e n="RenameElement">
+      <i c="5" l="1755447658854" />
+    </e>
+    <e n="Vcs.RollbackChangedLines">
+      <i c="1" l="1753976989517" />
+    </e>
+    <e n="com.intellij.mcpserver.impl.McpClientDetectionActivity$ShowSettingsAction">
+      <i c="1" l="1753974698667" />
+    </e>
+    <e n="com.intellij.ml.llm.codeGeneration.popup.AcceptAction">
+      <i c="1" l="1753974928353" />
+    </e>
+    <e n="com.intellij.ml.llm.codeGeneration.popup.SubmitAction">
+      <i c="1" l="1753974918405" />
+    </e>
+    <e n="com.intellij.openapi.ui.DialogWrapper$5">
+      <i c="4" l="1755447287164" />
     </e>
     <e n="com.intellij.openapi.updateSettings.impl.UpdateSettingsEntryPointActionProvider$3">
-      <i c="1" l="1752799103155" />
+      <i c="3" l="1755446984326" />
+    </e>
+    <e n="org.editorconfig.configmanagement.EditorConfigActionUtil$1">
+      <i c="1" l="1753975615467" />
     </e>
   </component>
 </application>

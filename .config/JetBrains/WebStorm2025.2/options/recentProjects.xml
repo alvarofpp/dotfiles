@@ -4,7 +4,7 @@
       <map>
         <entry key="$USER_HOME$/alvarofpp/template-typescript">
           <value>
-            <RecentProjectMetaInfo frameTitle="template-typescript" opened="true" projectWorkspaceId="301GmdxaEimmazg6UOomt5tELJx">
+            <RecentProjectMetaInfo frameTitle="template-typescript" projectWorkspaceId="301GmdxaEimmazg6UOomt5tELJx">
               <option name="activationTimestamp" value="1752799500906" />
               <option name="binFolder" value="$APPLICATION_HOME_DIR$/bin" />
               <option name="build" value="WS-252.23892.218" />
@@ -19,8 +19,24 @@
             </RecentProjectMetaInfo>
           </value>
         </entry>
+        <entry key="$USER_HOME$/alvarofpp/to-kindle-io">
+          <value>
+            <RecentProjectMetaInfo displayName="to-kindle-io, dotfiles" frameTitle="to-kindle-io" opened="true" projectWorkspaceId="30YJ3NOX2Uufu6CKObulPWBhlS1">
+              <option name="activationTimestamp" value="1755454116839" />
+              <option name="binFolder" value="$APPLICATION_HOME_DIR$/bin" />
+              <option name="build" value="WS-252.23892.411" />
+              <option name="buildTimestamp" value="1754032200000" />
+              <option name="colorInfo">
+                <RecentProjectColorInfo associatedIndex="4" />
+              </option>
+              <frame x="-7" y="-7" width="1550" height="830" />
+              <option name="productionCode" value="WS" />
+              <option name="projectOpenTimestamp" value="1755445422928" />
+            </RecentProjectMetaInfo>
+          </value>
+        </entry>
       </map>
     </option>
-    <option name="lastOpenedProject" value="$USER_HOME$/alvarofpp/template-typescript" />
+    <option name="lastOpenedProject" value="$USER_HOME$/alvarofpp/to-kindle-io" />
   </component>
 </application>

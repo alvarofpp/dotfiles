@@ -9,5 +9,6 @@
     <entry key="enable.connection.configuration.widget" value="false" source="SYSTEM" />
     <entry key="ide.text.fractional.metrics" value="[Auto|Disabled*|Enabled]" source="SYSTEM" />
     <entry key="editor.text.fractional.metrics" value="[Auto|Disabled*|Enabled]" source="SYSTEM" />
+    <entry key="eslint.additional.file.extensions" value="svelte" source="SYSTEM" />
   </component>
 </application>

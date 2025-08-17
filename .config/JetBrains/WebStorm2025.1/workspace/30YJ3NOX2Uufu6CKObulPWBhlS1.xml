@@ -6,6 +6,9 @@
       </GroupState>
     </option>
   </component>
+  <component name="FileEditorManager">
+    <leaf ideFingerprint="6h8cdf25quhw" />
+  </component>
   <component name="FileTypeUsageLocalSummary"><![CDATA[{
   "data": {
     "Shell Script": {
@@ -13,8 +16,68 @@
       "lastUsed": 1753799983205
     },
     "Markdown": {
+      "usageCount": 6,
+      "lastUsed": 1753824786236
+    },
+    "GitIgnore file": {
+      "usageCount": 1,
+      "lastUsed": 1753801025444
+    },
+    "DIFF": {
+      "usageCount": 10,
+      "lastUsed": 1753809627246
+    },
+    "JSON": {
+      "usageCount": 18,
+      "lastUsed": 1753828434090
+    },
+    "Dockerfile": {
+      "usageCount": 5,
+      "lastUsed": 1753826961604
+    },
+    "YAML": {
       "usageCount": 3,
-      "lastUsed": 1753799983443
+      "lastUsed": 1753827215101
+    },
+    "tsconfig": {
+      "usageCount": 6,
+      "lastUsed": 1753827011281
+    },
+    "JavaScript": {
+      "usageCount": 7,
+      "lastUsed": 1753827017415
+    },
+    "PLAIN_TEXT": {
+      "usageCount": 4,
+      "lastUsed": 1753826008956
+    },
+    "HTML": {
+      "usageCount": 4,
+      "lastUsed": 1753828264575
+    },
+    "TypeScript": {
+      "usageCount": 9,
+      "lastUsed": 1753828574658
+    },
+    "AUTO_DETECTED": {
+      "usageCount": 1,
+      "lastUsed": 1753823839726
+    },
+    "Svelte": {
+      "usageCount": 4,
+      "lastUsed": 1753828576808
+    },
+    "CSS": {
+      "usageCount": 2,
+      "lastUsed": 1753828581308
+    },
+    "DockerIgnore file": {
+      "usageCount": 1,
+      "lastUsed": 1753825267709
+    },
+    "XML": {
+      "usageCount": 1,
+      "lastUsed": 1753826713167
     }
   }
 }]]></component>
@@ -22,23 +85,53 @@
     <option name="openedFilesInfos">
       <list>
         <OpenedFileInfo>
-          <option name="caretOffset" value="2667" />
-          <option name="fileUrl" value="file://$USER_HOME$/dotfiles/setup.sh" />
+          <option name="caretOffset" value="143" />
+          <option name="fileUrl" value="file://$PROJECT_DIR$/frontend/src/main.ts" />
+          <option name="selected" value="false" />
         </OpenedFileInfo>
         <OpenedFileInfo>
-          <option name="caretOffset" value="0" />
-          <option name="fileUrl" value="file://$PROJECT_DIR$/README.md" />
+          <option name="caretOffset" value="5168" />
+          <option name="fileUrl" value="file://$PROJECT_DIR$/frontend/src/App.svelte" />
+        </OpenedFileInfo>
+        <OpenedFileInfo>
+          <option name="caretOffset" value="493" />
+          <option name="fileUrl" value="file://$PROJECT_DIR$/frontend/src/app.css" />
           <option name="selected" value="false" />
         </OpenedFileInfo>
       </list>
     </option>
   </component>
   <component name="GitSEFilterConfiguration">{}</component>
-  <component name="IdeDocumentHistory">{
-  &quot;changedPaths&quot;: [
-    &quot;/home/alvaro/dotfiles/setup.sh&quot;
+  <component name="IdeDocumentHistory"><![CDATA[{
+  "changedPaths": [
+    "/home/alvaro/dotfiles/setup.sh",
+    "/home/alvaro/alvarofpp/to-kindle-io/.gitignore",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/tsconfig.json",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/vite.config.js",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/App.Svelte",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/components/Header.svelte",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/components/Counter.svelte",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/app.html",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/vite.config.ts",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/svelte.config.js",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/servers.ts",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/index.html",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/main.ts",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/App.svelte",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/app.css",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/vite-env.d.ts",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/.dockerignore",
+    "/home/alvaro/alvarofpp/to-kindle-io/.env.example",
+    "/home/alvaro/alvarofpp/to-kindle-io/CLAUDE.md",
+    "/home/alvaro/alvarofpp/to-kindle-io/backend/Dockerfile",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/Dockerfile",
+    "/home/alvaro/alvarofpp/to-kindle-io/docker-compose.yml",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/package.json",
+    "/home/alvaro/alvarofpp/to-kindle-io/backend/deno.json",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/deno.json",
+    "/home/alvaro/alvarofpp/to-kindle-io/frontend/src/server.ts"
   ]
-}</component>
+}]]></component>
   <component name="IgnoredFileRootStore">
     <option name="generatedRoots">
       <set>
@@ -47,22 +140,328 @@
     </option>
   </component>
   <component name="LanguageUsageStatistics">
+    <language id="CSS">
+      <summary usageCount="2" lastUsage="1753828581308" />
+    </language>
+    <language id="DockerIgnore">
+      <summary usageCount="1" lastUsage="1753825267709" />
+    </language>
+    <language id="Dockerfile">
+      <summary usageCount="5" lastUsage="1753826961604" />
+    </language>
+    <language id="GitIgnore">
+      <summary usageCount="1" lastUsage="1753801025444" />
+    </language>
+    <language id="HTML">
+      <summary usageCount="4" lastUsage="1753828264575" />
+    </language>
+    <language id="JSON">
+      <summary usageCount="24" lastUsage="1753828434090" />
+    </language>
+    <language id="JavaScript">
+      <summary usageCount="7" lastUsage="1753827017415" />
+    </language>
     <language id="Markdown">
-      <summary usageCount="3" lastUsage="1753799983443" />
+      <summary usageCount="6" lastUsage="1753824786236" />
     </language>
     <language id="Shell Script">
       <summary usageCount="3" lastUsage="1753799983207" />
+    </language>
+    <language id="SvelteHTML">
+      <summary usageCount="4" lastUsage="1753828576808" />
+    </language>
+    <language id="TEXT">
+      <summary usageCount="4" lastUsage="1753826008956" />
+    </language>
+    <language id="TypeScript">
+      <summary usageCount="9" lastUsage="1753828574658" />
+    </language>
+    <language id="XML">
+      <summary usageCount="1" lastUsage="1753826713167" />
+    </language>
+    <language id="yaml">
+      <summary usageCount="3" lastUsage="1753827215101" />
     </language>
   </component>
   <component name="ProjectView">
     <navigator currentView="ProjectPane" proportions="" version="1" />
     <panes>
-      <pane id="ProjectPane" />
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="to-kindle-io" type="b2602c69:ProjectViewProjectNode" />
+              <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io}" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="to-kindle-io" type="b2602c69:ProjectViewProjectNode" />
+              <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io}" type="462c0819:PsiDirectoryNode" />
+              <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io/frontend}" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+          <presentation>
+            <attributes />
+            <data iconPath="expui/toolwindows/project.svg" iconPlugin="com.intellij" isLeaf="false" text="to-kindle-io" />
+            <item name="to-kindle-io" type="b2602c69:ProjectViewProjectNode" />
+            <presentation>
+              <attributes>
+                <map>
+                  <entry key="filePath" value="$PROJECT_DIR$" />
+                </map>
+              </attributes>
+              <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text="to-kindle-io" />
+              <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io}" type="462c0819:PsiDirectoryNode" />
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/.claude" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text=".claude" />
+                <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io/.claude}" type="462c0819:PsiDirectoryNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/.idea" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text=".idea" />
+                <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io/.idea}" type="462c0819:PsiDirectoryNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/backend" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text="backend" />
+                <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io/backend}" type="462c0819:PsiDirectoryNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/frontend" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text="frontend" />
+                <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io/frontend}" type="462c0819:PsiDirectoryNode" />
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/src" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text="src" />
+                  <item name="dir{file:///home/alvaro/alvarofpp/to-kindle-io/frontend/src}" type="462c0819:PsiDirectoryNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/.dockerignore" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/ignored.svg" iconPlugin="com.intellij" isLeaf="true" text=".dockerignore" />
+                  <item name=".dockerignore" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/deno.json" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/json.svg" iconPlugin="com.intellij" isLeaf="true" text="deno.json" />
+                  <item name="deno.json" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/deno.lock" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/text.svg" iconPlugin="com.intellij" isLeaf="true" text="deno.lock" />
+                  <item name="deno.lock" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/Dockerfile" />
+                    </map>
+                  </attributes>
+                  <data iconPath="icons/expui/docker.svg" iconPlugin="Docker" isLeaf="true" text="Dockerfile" />
+                  <item name="Dockerfile" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/index.html" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/html.svg" iconPlugin="com.intellij" isLeaf="true" text="index.html" />
+                  <item name="index.html" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/package.json" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/json.svg" iconPlugin="com.intellij" isLeaf="true" text="package.json" />
+                  <item name="package.json" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/svelte.config.js" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/javaScript.svg" iconPlugin="com.intellij" isLeaf="true" text="svelte.config.js" />
+                  <item name="svelte.config.js" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/tsconfig.json" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/json.svg" iconPlugin="com.intellij" isLeaf="true" text="tsconfig.json" />
+                  <item name="tsconfig.json" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/tsconfig.node.json" />
+                    </map>
+                  </attributes>
+                  <data iconPath="expui/fileTypes/json.svg" iconPlugin="com.intellij" isLeaf="true" text="tsconfig.node.json" />
+                  <item name="tsconfig.node.json" type="ab9368bb:PsiFileNode" />
+                </presentation>
+                <presentation>
+                  <attributes>
+                    <map>
+                      <entry key="filePath" value="$PROJECT_DIR$/frontend/vite.config.ts" />
+                    </map>
+                  </attributes>
+                  <data iconPath="icons/expui/fileTypes/typeScript.svg" iconPlugin="JavaScript" isLeaf="true" text="vite.config.ts" />
+                  <item name="vite.config.ts" type="ab9368bb:PsiFileNode" />
+                </presentation>
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/.env" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/fileTypes/text.svg" iconPlugin="com.intellij" isLeaf="true" text=".env" />
+                <item name=".env" type="ab9368bb:PsiFileNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/.env.example" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/fileTypes/text.svg" iconPlugin="com.intellij" isLeaf="true" text=".env.example" />
+                <item name=".env.example" type="ab9368bb:PsiFileNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/.gitignore" />
+                  </map>
+                </attributes>
+                <data iconPath="expui/fileTypes/ignored.svg" iconPlugin="com.intellij" isLeaf="true" text=".gitignore" />
+                <item name=".gitignore" type="ab9368bb:PsiFileNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/CLAUDE.md" />
+                  </map>
+                </attributes>
+                <data iconPath="icons/expui/markdown.svg" iconPlugin="org.intellij.plugins.markdown" isLeaf="true" text="CLAUDE.md" />
+                <item name="CLAUDE.md" type="ab9368bb:PsiFileNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/docker-compose.yml" />
+                  </map>
+                </attributes>
+                <data iconPath="icons/expui/dockerCompose.svg" iconPlugin="Docker" isLeaf="true" text="docker-compose.yml" />
+                <item name="docker-compose.yml" type="ab9368bb:PsiFileNode" />
+              </presentation>
+              <presentation>
+                <attributes>
+                  <map>
+                    <entry key="filePath" value="$PROJECT_DIR$/README.md" />
+                  </map>
+                </attributes>
+                <data iconPath="icons/expui/markdown.svg" iconPlugin="org.intellij.plugins.markdown" isLeaf="true" text="README.md" />
+                <item name="README.md" type="ab9368bb:PsiFileNode" />
+              </presentation>
+            </presentation>
+            <presentation>
+              <attributes>
+                <map>
+                  <entry key="filePath" value="$USER_HOME$/dotfiles" />
+                </map>
+              </attributes>
+              <data iconPath="expui/nodes/folder.svg" iconPlugin="com.intellij" isLeaf="false" text="dotfiles" />
+              <item name="dir{file:///home/alvaro/dotfiles}" type="462c0819:PsiDirectoryNode" />
+            </presentation>
+            <presentation>
+              <attributes />
+              <data iconPath="expui/nodes/library.svg" iconPlugin="com.intellij" isLeaf="false" text="External Libraries" />
+              <item name="External Libraries" type="cb654da1:ExternalLibrariesNode" />
+            </presentation>
+            <presentation>
+              <attributes />
+              <data iconPath="expui/fileTypes/scratches.svg" iconPlugin="com.intellij" isLeaf="false" text="Scratches and Consoles" />
+              <item name="Scratches and Consoles" type="b85a3e1f:ScratchTreeStructureProvider$MyProjectNode" />
+            </presentation>
+          </presentation>
+        </subPane>
+      </pane>
       <pane id="Scope" />
     </panes>
   </component>
+  <component name="TerminalArrangementManager">
+    <option name="myTabStates">
+      <TerminalTabState tabName="Local" />
+    </option>
+  </component>
+  <component name="TerminalTabsStorage">
+    <option name="tabs">
+      <TerminalSessionPersistedTab name="dotfiles" isUserDefinedName="true" workingDirectory="$USER_HOME$/dotfiles">
+        <option name="shellCommand">
+          <option value="/usr/bin/zsh" />
+          <option value="-i" />
+        </option>
+      </TerminalSessionPersistedTab>
+      <TerminalSessionPersistedTab name="claude-code" isUserDefinedName="true" workingDirectory="$PROJECT_DIR$">
+        <option name="shellCommand">
+          <option value="/usr/bin/zsh" />
+          <option value="-i" />
+        </option>
+      </TerminalSessionPersistedTab>
+      <TerminalSessionPersistedTab name="to-kindle-io" isUserDefinedName="true" workingDirectory="$PROJECT_DIR$">
+        <option name="shellCommand">
+          <option value="/usr/bin/zsh" />
+          <option value="-i" />
+        </option>
+      </TerminalSessionPersistedTab>
+      <TerminalSessionPersistedTab name="Remote" workingDirectory="$PROJECT_DIR$">
+        <option name="shellCommand">
+          <option value="/usr/bin/zsh" />
+          <option value="-i" />
+        </option>
+      </TerminalSessionPersistedTab>
+    </option>
+  </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="1584000" />
+    <option name="totallyTimeSpent" value="15907000" />
   </component>
   <component name="ToolWindowManager">
     <layoutV2>
@@ -74,15 +473,17 @@
       <window_info anchor="bottom" id="Problems View" order="2" />
       <window_info anchor="bottom" id="Terminal" order="3" />
       <window_info anchor="bottom" id="Services" order="4" />
+      <window_info anchor="bottom" id="Find" order="5" weight="0.32951808" />
       <window_info anchor="right" content_ui="combo" id="Notifications" order="0" weight="0.25" />
       <window_info anchor="right" id="AIAssistant" order="1" weight="0.25" />
       <window_info anchor="right" id="Database" order="2" weight="0.25" />
       <window_info anchor="right" id="Gradle" order="3" weight="0.25" />
       <window_info anchor="right" id="Maven" order="4" weight="0.25" />
-      <unified_weights right="0.25" />
+      <unified_weights bottom="0.32951808" right="0.25" />
     </layoutV2>
     <recentWindows>
       <value>Project</value>
+      <value>Find</value>
       <value>AIAssistant</value>
     </recentWindows>
   </component>
@@ -95,17 +496,230 @@
       <screen x="0" y="0" width="1536" height="864" />
     </state>
     <state x="556" y="195" key="FileChooserDialogImpl/0.0.1536.864@0.0.1024.768" timestamp="1753798396962" />
+    <state x="493" y="249" key="jetbrains.nodejs.interpreters-dialog" timestamp="1753826687374">
+      <screen x="0" y="0" width="1536" height="864" />
+    </state>
+    <state x="493" y="249" key="jetbrains.nodejs.interpreters-dialog/0.0.1536.864@0.0.1024.768" timestamp="1753826687374" />
   </component>
   <component name="editorHistoryManager">
     <entry file="file://$USER_HOME$/dotfiles/setup.sh">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-396">
-          <caret line="96" column="86" lean-forward="true" selection-start-line="96" selection-start-column="86" selection-end-line="96" selection-end-column="86" />
+        <state relative-caret-position="1496">
+          <caret line="68" column="71" selection-start-line="68" selection-start-column="71" selection-end-line="68" selection-end-column="71" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/README.md">
       <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.claude/settings.local.json">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="117" selection-start-line="117" selection-end-line="117" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/routes/+layout.svelte">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/routes/+page.svelte">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/lib/api.ts">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/components/Header.svelte">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="55" column="8" selection-start-line="55" selection-start-column="8" selection-end-line="55" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/components/Counter.svelte">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="64" column="8" selection-start-line="64" selection-start-column="8" selection-end-line="64" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/app.html">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="11" column="50" selection-start-line="11" selection-start-column="50" selection-end-line="11" selection-end-column="50" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/svelte.config.js">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/.dockerignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="13" column="9" selection-start-line="13" selection-start-column="9" selection-end-line="13" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/deno.lock">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.env.example">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="44">
+          <caret line="18" lean-forward="true" selection-start-line="18" selection-end-line="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/CLAUDE.md">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="814">
+          <caret line="55" column="42" selection-start-line="55" selection-start-column="42" selection-end-line="55" selection-end-column="42" />
+          <folding>
+            <element signature="e#5752#5776#0#Markdown" expanded="true" />
+            <element signature="e#5807#5832#0#Markdown" expanded="true" />
+            <element signature="e#5861#5884#0#Markdown" expanded="true" />
+            <element signature="e#5906#5938#0#Markdown" expanded="true" />
+            <element signature="e#5964#5994#0#Markdown" expanded="true" />
+            <element signature="e#6022#6073#0#Markdown" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/vite-env.d.ts">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="22">
+          <caret line="2" selection-start-line="2" selection-end-line="2" />
+          <folding>
+            <element signature="n#!!doc" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.idea/workspace.xml">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/backend/app/models/User.ts">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/backend/Dockerfile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret column="24" selection-start-column="24" selection-end-column="24" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/Dockerfile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="66">
+          <caret line="4" lean-forward="true" selection-start-line="4" selection-end-line="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/vite.config.ts">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="198">
+          <caret line="10" selection-start-line="10" selection-end-line="10" />
+          <folding>
+            <element signature="e#0#36#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/tsconfig.node.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="198">
+          <caret line="9" column="1" selection-start-line="9" selection-start-column="1" selection-end-line="9" selection-end-column="1" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/svelte.config.js">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="110">
+          <caret line="5" selection-start-line="5" selection-end-line="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/package-lock.json">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/tsconfig.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="462">
+          <caret line="21" column="1" selection-start-line="21" selection-start-column="1" selection-end-line="21" selection-end-column="1" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/docker-compose.yml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="352">
+          <caret line="20" column="29" selection-start-line="20" selection-start-column="29" selection-end-line="20" selection-end-column="29" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/tsconfig.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="440">
+          <caret line="20" column="1" selection-start-line="20" selection-start-column="1" selection-end-line="20" selection-end-column="1" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/index.html">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="286">
+          <caret line="13" selection-start-line="13" selection-end-line="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/package.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="15" column="19" selection-start-line="15" selection-start-column="19" selection-end-line="15" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/backend/deno.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="330">
+          <caret line="15" column="42" selection-start-line="15" selection-start-column="42" selection-end-line="15" selection-end-column="42" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/deno.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="12" column="36" selection-start-line="12" selection-start-column="36" selection-end-line="12" selection-end-column="36" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/server.ts">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret line="1" column="38" selection-start-line="1" selection-start-column="38" selection-end-line="1" selection-end-column="38" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/main.ts">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="154">
+          <caret line="8" selection-start-line="8" selection-end-line="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/app.css">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="550">
+          <caret line="25" selection-start-line="25" selection-end-line="25" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/frontend/src/App.svelte">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-132">
+          <caret line="216" column="28" lean-forward="true" selection-start-line="216" selection-start-column="28" selection-end-line="216" selection-end-column="28" />
+        </state>
+      </provider>
     </entry>
   </component>
 </project>
