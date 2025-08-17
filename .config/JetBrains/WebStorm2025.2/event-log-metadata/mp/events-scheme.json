@@ -14,19 +14,22 @@
         "errors" : [ "{regexp#integer}" ],
         "external" : [ "{enum#boolean}" ],
         "failed" : [ "{regexp#integer}" ],
+        "max_sent_files_count" : [ "{regexp#integer}" ],
         "paths" : [ "{regexp#hash}" ],
         "plugin" : [ "{util#plugin}" ],
         "plugin_type" : [ "{util#plugin_type}" ],
         "plugin_version" : [ "{util#plugin_version}" ],
         "send" : [ "{regexp#integer}" ],
         "send_ts" : [ "{regexp#integer}" ],
+        "sent_files_count" : [ "{regexp#integer}" ],
         "stage" : [ "{enum:LOADING|PARSING}" ],
         "succeed" : [ "{enum#boolean}", "{regexp#integer}" ],
         "total" : [ "{regexp#integer}" ],
+        "total_files_count" : [ "{regexp#integer}" ],
         "version" : [ "{regexp#version}" ]
       },
       "enums" : {
-        "__event_id" : [ "external.send.finished", "metadata.load.failed", "external.send.started", "metadata.updated", "external.send.command.creation.started", "logs.send", "metadata.loaded", "metadata.update.failed", "external.send.command.creation.finished", "loading.config.failed" ]
+        "__event_id" : [ "external.send.finished", "metadata.load.failed", "external.send.started", "metadata.updated", "external.send.command.creation.started", "logs.send", "metadata.loaded", "metadata.update.failed", "external.send.command.creation.finished", "loading.config.failed", "sent.logs.files.calculated" ]
       }
     },
     "anonymized_fields" : [ {
@@ -147,5 +150,5 @@
       "version" : "Unknown|unknown.format|unknown|UNKNOWN|((\\d+\\.?)*\\d+)"
     }
   },
-  "version" : "5487"
+  "version" : "6035"
 }

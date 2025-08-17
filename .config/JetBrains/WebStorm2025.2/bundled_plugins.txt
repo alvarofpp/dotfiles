@@ -11,7 +11,6 @@ Refactor-X|HTML and XML
 Subversion|Version Controls
 com.deadlock.scsyntax|JavaScript Frameworks and Tools
 com.dmarcotte.handlebars|Template Languages
-com.intellij.completion.ml.ranking.models|Local AI/ML Tools
 com.intellij.completion.ml.ranking|Local AI/ML Tools
 com.intellij.configurationScript|IDE Settings
 com.intellij.copyright|IDE Settings
@@ -45,7 +44,6 @@ com.intellij.plugins.webcomponents|JavaScript Frameworks and Tools
 com.intellij.react|JavaScript Frameworks and Tools
 com.intellij.searcheverywhere.ml|Local AI/ML Tools
 com.intellij.settingsSync|IDE Settings
-com.intellij.stats.completion|Platform Development
 com.intellij.stylelint|JavaScript Frameworks and Tools
 com.intellij.swagger|Microservices
 com.intellij.tailwindcss|Style Sheets

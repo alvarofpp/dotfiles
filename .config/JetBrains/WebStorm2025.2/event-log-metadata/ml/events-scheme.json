@@ -2788,12 +2788,12 @@
         "context_collection.context_sizes" : [ "{regexp#integer}" ],
         "context_collection.is_multiline_applicable" : [ "{enum:DISABLED_BY_LANGUAGE_KIT|ENABLED_DIRECT_CALL|ENABLED_SHOW_REST|ENABLED_AFTER_SUGGESTION_INSERTED|DISABLED_BY_LOOKUP|DISABLED_BY_LANGUAGE_SUPPORTER|ENABLED|ENFORCED}", "{enum:DISABLED_BY_VALUABLE_ON_THE_RIGHT}" ],
         "context_collection.is_multiline_suitable" : [ "{enum:DISABLED_BY_LANGUAGE_KIT|ENABLED_DIRECT_CALL|ENABLED_SHOW_REST|DISABLED_BY_LOOKUP|DISABLED_BY_LANGUAGE_SUPPORTER|ENABLED}", "{enum:ENABLED_AFTER_SUGGESTION_INSERTED}" ],
-        "context_collection.trigger_bypass_reason" : [ "{enum:DISABLED|LOADING|FAILED_TO_LOAD|UNAVAILABLE_LANGUAGE|UNAVAILABLE_FEATURES|SILENT|RANDOM_PASS|MUTED}" ],
+        "context_collection.trigger_bypass_reason" : [ "{enum:DISABLED|LOADING|FAILED_TO_LOAD|UNAVAILABLE_LANGUAGE|UNAVAILABLE_FEATURES|SILENT|RANDOM_PASS|MUTED}", "{enum:ERROR}" ],
         "context_collection.trigger_inference_time_ms" : [ "{regexp#integer}" ],
         "context_collection.trigger_pass" : [ "{enum#boolean}" ],
         "context_collection.trigger_score" : [ "{regexp#float}" ],
         "context_collection.trigger_threshold" : [ "{regexp#float}" ],
-        "context_collection.trigger_version" : [ "{regexp#integer}" ],
+        "context_collection.trigger_version" : [ "{regexp#integer}", "{regexp:Unknown|unknown.format|unknown|UNKNOWN|((\\d+\\.?)*\\d+)}" ],
         "duration_ms" : [ "{regexp#integer}" ],
         "edit_distance" : [ "{regexp#integer}" ],
         "edit_distance_no_add" : [ "{regexp#integer}" ],
@@ -2923,7 +2923,7 @@
         "inline_api_starting.showup_decayed_by_1d" : [ "{regexp#float}" ],
         "inline_api_starting.showup_decayed_by_1h" : [ "{regexp#float}" ],
         "inline_api_starting.showup_decayed_by_7d" : [ "{regexp#float}" ],
-        "inline_api_starting.skip_reason" : [ "{enum:AI_IGNORE|NOT_APPLICABLE|DISABLED_LANGUAGE|JS_IMPORT_STRING_LITERAL|COMMENT|JVM_ANNOTATION|DUBIOUS_TOKEN|KOTLIN_CODE_OUTSIDE_OF_PROJECT_SOURCES|PY_DOCSTRING_WITH_LLM_INLAY}", "{enum#__inline_api_starting_skip_reason}", "{enum:YAML_CC_NOT_SUPPORTED_WHEN_SCHEMA_DEFINED}" ],
+        "inline_api_starting.skip_reason" : [ "{enum:AI_IGNORE|NOT_APPLICABLE|DISABLED_LANGUAGE|JS_IMPORT_STRING_LITERAL|COMMENT|JVM_ANNOTATION|DUBIOUS_TOKEN|KOTLIN_CODE_OUTSIDE_OF_PROJECT_SOURCES|PY_DOCSTRING_WITH_LLM_INLAY}", "{enum#__inline_api_starting_skip_reason}", "{enum:YAML_CC_NOT_SUPPORTED_WHEN_SCHEMA_DEFINED}", "{enum:CODE_BLOCK_IN_CHAT_INPUT_NOT_SUPPORTED}", "{enum:PROPERTIES_SECRET_PLAIN_VALUE_COMPLETION_DISABLED|PROPERTIES_SECRET_TEMPLATE_WITH_DEFAULT_VALUE_COMPLETION_DISABLED}", "{enum:TEMPLATE_PRESENT}" ],
         "inline_api_starting.symbols_in_line_after_caret" : [ "{regexp#integer}" ],
         "inline_api_starting.symbols_in_line_before_caret" : [ "{regexp#integer}" ],
         "inline_api_starting.third_parent" : [ "{util#class_name}" ],
@@ -3320,19 +3320,22 @@
         "errors" : [ "{regexp#integer}" ],
         "external" : [ "{enum#boolean}" ],
         "failed" : [ "{regexp#integer}" ],
+        "max_sent_files_count" : [ "{regexp#integer}" ],
         "paths" : [ "{regexp#hash}" ],
         "plugin" : [ "{util#plugin}" ],
         "plugin_type" : [ "{util#plugin_type}" ],
         "plugin_version" : [ "{util#plugin_version}" ],
         "send" : [ "{regexp#integer}" ],
         "send_ts" : [ "{regexp#integer}" ],
+        "sent_files_count" : [ "{regexp#integer}" ],
         "stage" : [ "{enum:LOADING|PARSING}" ],
         "succeed" : [ "{enum#boolean}", "{regexp#integer}" ],
         "total" : [ "{regexp#integer}" ],
+        "total_files_count" : [ "{regexp#integer}" ],
         "version" : [ "{regexp#version}" ]
       },
       "enums" : {
-        "__event_id" : [ "external.send.finished", "metadata.load.failed", "external.send.started", "metadata.updated", "external.send.command.creation.started", "logs.send", "metadata.loaded", "metadata.update.failed", "external.send.command.creation.finished", "loading.config.failed" ]
+        "__event_id" : [ "external.send.finished", "metadata.load.failed", "external.send.started", "metadata.updated", "external.send.command.creation.started", "logs.send", "metadata.loaded", "metadata.update.failed", "external.send.command.creation.finished", "loading.config.failed", "sent.logs.files.calculated" ]
       }
     },
     "anonymized_fields" : [ {
@@ -3350,9 +3353,18 @@
       "event_data" : {
         "accepted_diffs" : [ "{regexp#integer}" ],
         "accepted_jumps" : [ "{regexp#integer}" ],
-        "filter_reason" : [ "{enum:iter_no_diffs|iter_does_not_fit_screen|iter_one_diff_too_long|iter_file_removed|iter_internal_markers|iter_revert_last_change}" ],
+        "deleted_length" : [ "{regexp#integer}" ],
+        "filter_reason" : [ "{enum:iter_no_diffs|iter_does_not_fit_screen|iter_one_diff_too_long|iter_file_removed|iter_internal_markers|iter_revert_last_change}", "{enum:iter_contains_simple_comment|iter_contains_plain_todo}", "{enum:iter_direct_code_repetition}", "{enum:iter_jupyter_change_cell_separators}" ],
         "finish_type" : [ "{enum:ESCAPE|DOCUMENT_CHANGE|ACCEPTED|COULD_NOT_SHOW|MANAGER_DISPOSED|INACTIVE|NEW_SESSION}", "{enum:EXPIRED|NOT_APPROPRIATE|ASSOCIATED_COMPLETION_FINISHED_SESSION}", "{enum:INCOMPATIBLE_CARET_CHANGE}", "{enum:SELECTION_CHANGED}" ],
+        "inserted_length" : [ "{regexp#integer}" ],
+        "invalid" : [ "{enum#boolean}" ],
         "lang" : [ "{util#lang}" ],
+        "performance.client_execution_time" : [ "{regexp#integer}" ],
+        "performance.context_collection_time" : [ "{regexp#integer}" ],
+        "performance.iteration_filter_time" : [ "{regexp#integer}" ],
+        "performance.request_waiting_time" : [ "{regexp#integer}" ],
+        "performance.session_duration" : [ "{regexp#integer}" ],
+        "provider_id" : [ "{enum:nes_client|ide_action_rename}" ],
         "request_id" : [ "{regexp#integer}" ],
         "show_time" : [ "{regexp#integer}" ],
         "shown_diffs" : [ "{regexp#integer}" ],
@@ -3360,7 +3372,9 @@
         "suppressed_by_inline" : [ "{regexp#integer}" ],
         "suppressed_by_lookup" : [ "{regexp#integer}" ],
         "time_to_show" : [ "{regexp#integer}" ],
+        "total_delete_length" : [ "{regexp#integer}" ],
         "total_diffs" : [ "{regexp#integer}" ],
+        "total_insert_length" : [ "{regexp#integer}" ],
         "trigger_event" : [ "{enum:TYPING|REMOVAL|DIRECT_CALL|IDE_ACTION|LOOKUP_ITEM_SELECTED|INLINE_COMPLETION_SELECTED|NEXT_EDIT_SELECTED|UNKNOWN}" ]
       }
     }
@@ -3389,5 +3403,5 @@
       "version" : "Unknown|unknown.format|unknown|UNKNOWN|((\\d+\\.?)*\\d+)"
     }
   },
-  "version" : "5981"
+  "version" : "6077"
 }

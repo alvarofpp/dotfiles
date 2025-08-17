@@ -121,6 +121,43 @@
       }
     }
   }, {
+    "id" : "ai.assistant.grazie.pro.count",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "4"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum#__event_id}" ],
+      "event_data" : {
+        "applied_rank" : [ "{regexp#integer}" ],
+        "count" : [ "{regexp#integer}" ],
+        "domain" : [ "{enum:LITERALS|COMMENTS|DOCUMENTATION|PLAIN_TEXT|COMMIT_MESSAGE}" ],
+        "duration_ms" : [ "{regexp#integer}" ],
+        "from" : [ "{enum#language_abbreviated}" ],
+        "id" : [ "{enum#grazie_rule_long_ids}" ],
+        "lang" : [ "{util#lang}" ],
+        "language" : [ "{enum#language_abbreviated}" ],
+        "natural_language" : [ "{enum:CHINESE|JAPANESE|KOREAN|ENGLISH|FRENCH|GERMAN|DUTCH|ITALIAN|POLISH|PORTUGUESE|ROMANIAN|SLOVAK|SPANISH|ASTURIAN|BRETON|CATALAN|DANISH|ESPERANTO|GALICIAN|IRISH|SLOVENE|SWEDISH|TAGALOG|GREEK|KHMER|TAMIL|ARABIC|PERSIAN|RUSSIAN|UKRAINIAN|BELARUSIAN|UNKNOWN}" ],
+        "plugin" : [ "{util#plugin}" ],
+        "plugin_type" : [ "{util#plugin_type}" ],
+        "plugin_version" : [ "{util#plugin_version}" ],
+        "range_length" : [ "{regexp#integer}" ],
+        "range_word_count" : [ "{regexp#integer}" ],
+        "rephrase_length" : [ "{regexp#integer}" ],
+        "rephrase_word_count" : [ "{regexp#integer}" ],
+        "sentence_length" : [ "{regexp#integer}" ],
+        "src_word_count" : [ "{regexp#integer}" ],
+        "suggestion_count" : [ "{regexp#integer}" ],
+        "to" : [ "{enum#language_abbreviated}" ],
+        "translation_word_count" : [ "{regexp#integer}" ],
+        "word_count" : [ "{regexp#integer}" ]
+      },
+      "enums" : {
+        "__event_id" : [ "definition.shown", "auto.fix.undone", "auto.fix.applied", "rephrase.requested", "rephrase.shown.empty", "rephrase.applied", "translate.requested", "rephrase.rejected", "definition.requested", "translate.replaced" ],
+        "language_abbreviated" : [ "zh", "ja", "ko", "en", "fr", "de", "nl", "it", "pl", "pt", "ro", "sk", "es", "ast", "br", "ca", "da", "eo", "gl", "ga", "sl", "sv", "tl", "el", "km", "ta", "ar", "fa", "ru", "uk", "be", "unknown" ]
+      }
+    }
+  }, {
     "id" : "ai.assistant.grazie.pro.state",
     "builds" : [ ],
     "versions" : [ {
@@ -174,13 +211,16 @@
       "event_data" : {
         "has_system_prompt" : [ "{enum#boolean}" ],
         "model_count" : [ "{regexp#integer}" ],
+        "model_id" : [ "{enum:anthropic-claude|anthropic-claude-3-haiku|anthropic-claude-3-opus|anthropic-claude-3-sonnet|anthropic-claude-3.5-sonnet|aqa|babbage|chatgpt-4o|claude-3-5-haiku|claude-3-5-sonnet|claude-3-7-sonnet|claude-3-haiku|claude-opus-4|claude-sonnet-4|codestral|codestral-embed|codex-mini|computer-use|dall-e-2|dall-e-3|davinci|deepseek-chat|deepseek-reasoner|devstral-small|embedding|embedding-gecko|gemini-1.0-pro-vision|gemini-1.5-flash|gemini-1.5-pro|gemini-2.0-flash|gemini-2.0-flash-lite|gemini-2.0-flash-thinking-exp|gemini-2.0-pro-exp|gemini-2.5-flash|gemini-2.5-pro|gemini-embedding-exp|gemini-exp|gemini-live-2.5-flash|gemini-pro-vision|gemma-3-12b-it|gemma-3-1b-it|gemma-3-27b-it|gemma-3-4b-it|gemma-3n-e2b-it|gemma-3n-e4b-it|google-chat-gemini-flash-2.5|google-chat-gemini-pro-2.5|gpt-3.5-turbo|gpt-3.5-turbo-16k|gpt-3.5-turbo-instruct|gpt-4|gpt-4-turbo|gpt-4.1|gpt-4.1-mini|gpt-4.1-nano|gpt-4.1-nano-reasoning|gpt-4.5|gpt-4o|gpt-4o-64k-output-alpha|gpt-4o-audio|gpt-4o-lc|gpt-4o-mini|gpt-4o-mini-audio|gpt-4o-mini-realtime|gpt-4o-mini-search|gpt-4o-mini-transcribe|gpt-4o-mini-tts|gpt-4o-realtime|gpt-4o-search|gpt-4o-transcribe|gpt-image|imagen-3.0-generate|imagen-4.0-generate|imagen-4.0-ultra-generate|learnlm-2.0-flash-experimental|magistral-medium|magistral-small|ministral-3b|ministral-8b|mistral-embed|mistral-large|mistral-medium|mistral-moderation|mistral-ocr|mistral-saba|mistral-small|mistral-tiny|o1|o1-mini|o1-pro|o3|o3-deep-research|o3-mini|o3-pro|o4-mini|o4-mini-deep-research|omni-moderation|open-mistral-7b|open-mistral-nemo|open-mixtral|openai-chat-gpt|openai-chat-gpt-16k|openai-embedding-ada|openai-embedding-large|openai-embedding-small|openai-gpt-4|openai-gpt-4-turbo|openai-gpt-4o|openai-gpt-4o-mini|openai-gpt4.1|openai-gpt4.1-mini|openai-gpt4.1-nano|openai-instruct-gpt|openai-o1|openai-o1-mini|openai-o3|openai-o3-mini|openai-o4-mini|pixtral-12b|pixtral-large|text-embedding|text-embedding-3-large|text-embedding-3-small|tts|veo-2.0-generate|whisper|unknown-model}" ],
         "parameter" : [ "{enum:TOP_P|MAX_TOKENS|TEMPERATURE}" ],
         "place" : [ "{enum:TOOL_WINDOW_EMPTY_STATE|TOOL_WINDOW_ACTION|CODE_ENTRY}" ],
         "provider_id" : [ "{enum:openai|openai_compatible|anthropic|mistral|ollama|aiassistant|deepseek|gemini}" ],
-        "target_type" : [ "{enum:USER|ASSISTANT|SYSTEM}" ]
+        "provider_ids" : [ "{enum:openai|openai_compatible|anthropic|mistral|ollama|aiassistant|deepseek|gemini}" ],
+        "target_type" : [ "{enum:USER|ASSISTANT|SYSTEM}" ],
+        "tokens_consumed" : [ "{regexp#integer}" ]
       },
       "enums" : {
-        "__event_id" : [ "chat_created", "message_edited", "toolwindow_opened", "model_removed", "chat_history_cleared", "chat_removed", "message_regenerated", "prompt_parameters_set", "add_provider_dialog_open", "chat_opened", "chat_renamed", "chat_closed", "provider", "prompt_submitted", "model_added", "manage_providers_opened" ]
+        "__event_id" : [ "chat_created", "message_edited", "toolwindow_opened", "model_removed", "chat_history_cleared", "chat_removed", "message_regenerated", "prompt_parameters_set", "add_provider_dialog_open", "chat_opened", "chat_renamed", "chat_closed", "provider", "prompt_submitted", "model_added", "manage_providers_opened", "message_completed", "env_api_keys_added", "line_marker_click", "env_api_keys_dialog_canceled", "line_marker_shown", "env_api_keys_dialog_shown" ]
       }
     }
   }, {
@@ -777,6 +817,21 @@
       }
     }
   }, {
+    "id" : "cidr.embedded.peripheral.view",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "1"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum:PERIPHERAL_VIEW_SHOWN|PERIPHERAL_VIEW_VALUE_WRITTEN}" ],
+      "event_data" : {
+        "ACTIVE_PERIPHERAL_NODES" : [ "{regexp#integer}" ],
+        "SUCCESS" : [ "{enum#boolean}" ],
+        "VALUE_CHANGED" : [ "{enum#boolean}" ],
+        "VALUE_TYPE" : [ "{enum:REGISTER|FIELD}" ]
+      }
+    }
+  }, {
     "id" : "cloud.tools",
     "builds" : [ ],
     "versions" : [ {
@@ -1096,6 +1151,7 @@
         "additional.iren_model_type" : [ "{enum:default|both|ngram|dobf}" ],
         "additional.iren_probability" : [ "{regexp#float}" ],
         "additional.js_completion_source" : [ "{enum:FILE_TOP_LEVEL|CLASS_MEMBER|INTERFACE_MEMBER|OBJECT_LITERAL|DESTRUCTURING_CONTAINER|FUNCTION_BODY|TYPE_ANNOTATION|IMPORT_SPECIFIER|MODULE_RESOLUTION|EXPORT_STATEMENT|STRING_LITERAL|TEMPLATE_LITERAL|MARKUP_COMPONENT|MARKUP_ATTRIBUTE|MARKUP_ATTRIBUTE_VALUE|CALL_EXPRESSION|PROPERTY_ACCESS|NAMESPACE_MEMBER|UNKNOWN}", "{enum:SERVICE|SERVICE_AND_IDE_CONTRIBUTORS|IDE_CONTRIBUTORS}" ],
+        "additional.js_invocation_place" : [ "{enum:FILE_TOP_LEVEL|CLASS_MEMBER|INTERFACE_MEMBER|OBJECT_LITERAL|DESTRUCTURING_CONTAINER|FUNCTION_BODY|TYPE_ANNOTATION|IMPORT_SPECIFIER|MODULE_RESOLUTION|EXPORT_STATEMENT|STRING_LITERAL|TEMPLATE_LITERAL|MARKUP_TAG|MARKUP_ATTRIBUTE|MARKUP_ATTRIBUTE_VALUE_STRING|MARKUP_ATTRIBUTE_VALUE_EXPRESSION|CALL_EXPRESSION|PROPERTY_ACCESS|NAMESPACE_MEMBER|UNKNOWN}" ],
         "additional.keyword_kind" : [ "{enum:PUB|PUB_CRATE|PUB_PARENS|LAMBDA_EXPR|ELSE_BRANCH|AWAIT|KEYWORD|NOT_A_KEYWORD}" ],
         "additional.local" : [ "{enum#boolean}" ],
         "additional.lookup_shown_early" : [ "{enum#boolean}" ],
@@ -2145,6 +2201,23 @@
       }
     }
   }, {
+    "id" : "django.logical.structure.usage",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "1"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum:code.generation.invoked|gutter.navigation.happened}" ],
+      "event_data" : {
+        "entity_type" : [ "{enum:ADMIN_FOR_MODEL|SERIALIZER_FOR_MODEL}" ],
+        "invoke_type" : [ "{enum:WITH_AI|WITH_TEMPLATE}" ],
+        "model_class" : [ "{util#class_name}" ],
+        "plugin" : [ "{util#plugin}" ],
+        "plugin_type" : [ "{util#plugin_type}" ],
+        "plugin_version" : [ "{util#plugin_version}" ]
+      }
+    }
+  }, {
     "id" : "django.structure.ab.exp",
     "builds" : [ ],
     "versions" : [ {
@@ -3054,19 +3127,22 @@
         "errors" : [ "{regexp#integer}" ],
         "external" : [ "{enum#boolean}" ],
         "failed" : [ "{regexp#integer}" ],
+        "max_sent_files_count" : [ "{regexp#integer}" ],
         "paths" : [ "{regexp#hash}" ],
         "plugin" : [ "{util#plugin}" ],
         "plugin_type" : [ "{util#plugin_type}" ],
         "plugin_version" : [ "{util#plugin_version}" ],
         "send" : [ "{regexp#integer}" ],
         "send_ts" : [ "{regexp#integer}" ],
+        "sent_files_count" : [ "{regexp#integer}" ],
         "stage" : [ "{enum:LOADING|PARSING}" ],
         "succeed" : [ "{enum#boolean}", "{regexp#integer}" ],
         "total" : [ "{regexp#integer}" ],
+        "total_files_count" : [ "{regexp#integer}" ],
         "version" : [ "{regexp#version}" ]
       },
       "enums" : {
-        "__event_id" : [ "external.send.finished", "metadata.load.failed", "external.send.started", "metadata.updated", "external.send.command.creation.started", "logs.send", "metadata.loaded", "metadata.update.failed", "external.send.command.creation.finished", "loading.config.failed" ]
+        "__event_id" : [ "external.send.finished", "metadata.load.failed", "external.send.started", "metadata.updated", "external.send.command.creation.started", "logs.send", "metadata.loaded", "metadata.update.failed", "external.send.command.creation.finished", "loading.config.failed", "sent.logs.files.calculated" ]
       }
     },
     "anonymized_fields" : [ {
@@ -4586,6 +4662,19 @@
       }
     }
   }, {
+    "id" : "js.eslint",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "1"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum:eslint.response}" ],
+      "event_data" : {
+        "duration_ms" : [ "{regexp#integer}" ],
+        "status" : [ "{enum:SUCCESS|TIMEOUT}" ]
+      }
+    }
+  }, {
     "id" : "js.eslint.options",
     "builds" : [ ],
     "versions" : [ {
@@ -4672,8 +4761,9 @@
       "from" : "2"
     } ],
     "rules" : {
-      "event_id" : [ "{enum:language.level|completion.only.type.based}" ],
+      "event_id" : [ "{enum:language.level|completion.only.type.based|has.mappings}" ],
       "event_data" : {
+        "has_mappings" : [ "{enum#boolean}" ],
         "value" : [ "{enum#__value}", "{enum#boolean}" ]
       },
       "enums" : {
@@ -4771,7 +4861,7 @@
         "previous" : [ "{enum:CONNECTED|CONNECTION_ERROR|LOADING|STOPPED}" ],
         "remote_file" : [ "{enum#boolean}" ],
         "server_kind" : [ "{enum:Lab}", "{enum:Hub|Notebook|SageMaker|UNKNOWN}" ],
-        "start_result" : [ "{enum:SUCCESS|PACKAGE_INSTALL_FAILED|SERVER_ERROR|NO_PROJECT_SDK|UNSUPPORTED_SDK|PROCESS_STOPPED_ON_START|UNKNOWN_ERROR}" ],
+        "start_result" : [ "{enum:SUCCESS|PACKAGE_INSTALL_FAILED|SERVER_ERROR|NO_PROJECT_SDK|UNSUPPORTED_SDK|PROCESS_STOPPED_ON_START|UNKNOWN_ERROR}", "{enum:SDK_READ_ONLY}" ],
         "success" : [ "{enum#boolean}" ],
         "version" : [ "{regexp#version}" ]
       },
@@ -4789,7 +4879,7 @@
       "event_id" : [ "{enum:command_executed}" ],
       "event_data" : {
         "command" : [ "{util#class_name}" ],
-        "command_type" : [ "{enum:DF_INFO|SLICE|SLICE_CSV|DF_DESCRIBE|VISUALIZATION_DATA|IMAGE_START_CHUNK_LOAD|IMAGE_CHUNK_LOAD}" ],
+        "command_type" : [ "{enum:DF_INFO|SLICE|SLICE_CSV|DF_DESCRIBE|VISUALIZATION_DATA|IMAGE_START_CHUNK_LOAD|IMAGE_CHUNK_LOAD}", "{enum:INSPECTIONS}" ],
         "duration_ms" : [ "{regexp#integer}" ],
         "plugin" : [ "{util#plugin}" ],
         "plugin_type" : [ "{util#plugin_type}" ],
@@ -4800,7 +4890,8 @@
     "id" : "jupyter.remote.debugger",
     "builds" : [ ],
     "versions" : [ {
-      "from" : "1"
+      "from" : "1",
+      "to" : "3"
     } ],
     "rules" : {
       "event_id" : [ "{enum:used}" ]
@@ -4863,7 +4954,8 @@
     "id" : "kafka.connection.settings",
     "builds" : [ ],
     "versions" : [ {
-      "from" : "1"
+      "from" : "1",
+      "to" : "2"
     } ],
     "rules" : {
       "event_id" : [ "{enum#__event_id}" ],
@@ -5113,8 +5205,9 @@
     "rules" : {
       "event_id" : [ "{enum#__event_id}" ],
       "event_data" : {
-        "action_id" : [ "{enum:telepresence-create-interception|telepresence-create-interception-from-list|telepresence-connect|telepresence-quit|telepresence-leave|telepresence-install-traffic-manager|telepresence-install}", "{enum:telepresence-add-tunnel-for-debug-in-gutter|telepresence-add-tunnel-for-debug-in-run-configurations}", "{enum:apply|delete|reload|compare-with-cluster|change-context|view-yaml|describe-resources|remove-resources|pod-following|pod-download|pod-open-console|pod-run-shell-console|pod-forward-ports|deployment-follow|deployment-download|create-secret|stop-forwarding|namespaces|all-namespaces|open-kube-config|add-context|attach-context|refresh-configuration|refresh-model|toggle-watcher|install-kubectl|how-to-install|find-usages}", "{enum:paste-context-content}", "{enum:edit-secret}", "{enum:pod-forward-ports.inlay}", "{enum:watch-api-connect-cluster|watch-api-connect-cluster-failed|watch-successfully-started|watch-api-disconnect-cluster|start-watch-action-id|watch-failed-to-start|watch-action-forbidden|get-action-forbidden}", "{enum:logs-log-tab-opened-action|logs-clear-logs-filter-used-action|logs-log-text-filter-used-action|logs-log-text-filter-match-case-selected|logs-log-text-filter-use-regex-selected|logs-pattern-matching-opened|logs-one-patterns-selected|logs-one-patterns-excluded|logs-select-columns-action|logs-timestamp-column-selected|logs-timestamp-column-excluded|logs-source-column-selected|logs-source-column-excluded|logs-message-column-selected|logs-message-column-excluded|logs-select-date-time-action|logs-select-date-time-show-last-hour-action|logs-select-date-time-show-last-24-hours-action|logs-select-date-time-field-from-selected|logs-select-date-time-field-to-selected|logs-highlight-navigation-action|logs-download-logs-from-tab-action}", "{enum:show-logs-in-services-selected|show-logs-in-editor-selected}", "{enum:watch-api-connect-cluster|watch-api-connect-cluster-failed|watch-api-connect-cluster-success|watch-successfully-started|watch-api-disconnect-cluster|start-watch-action-id|watch-failed-to-start|watch-action-forbidden|manual-get-action-forbidden|manual-get-action-called|manual-get-action-called-namespaced}" ],
+        "action_id" : [ "{enum:telepresence-create-interception|telepresence-create-interception-from-list|telepresence-connect|telepresence-quit|telepresence-leave|telepresence-install-traffic-manager|telepresence-install}", "{enum:telepresence-add-tunnel-for-debug-in-gutter|telepresence-add-tunnel-for-debug-in-run-configurations}", "{enum:apply|delete|reload|compare-with-cluster|change-context|view-yaml|describe-resources|remove-resources|pod-following|pod-download|pod-open-console|pod-run-shell-console|pod-forward-ports|deployment-follow|deployment-download|create-secret|stop-forwarding|namespaces|all-namespaces|open-kube-config|add-context|attach-context|refresh-configuration|refresh-model|toggle-watcher|install-kubectl|how-to-install|find-usages}", "{enum:paste-context-content}", "{enum:edit-secret}", "{enum:pod-forward-ports.inlay}", "{enum:watch-api-connect-cluster|watch-api-connect-cluster-failed|watch-successfully-started|watch-api-disconnect-cluster|start-watch-action-id|watch-failed-to-start|watch-action-forbidden|get-action-forbidden}", "{enum:logs-log-tab-opened-action|logs-clear-logs-filter-used-action|logs-log-text-filter-used-action|logs-log-text-filter-match-case-selected|logs-log-text-filter-use-regex-selected|logs-pattern-matching-opened|logs-one-patterns-selected|logs-one-patterns-excluded|logs-select-columns-action|logs-timestamp-column-selected|logs-timestamp-column-excluded|logs-source-column-selected|logs-source-column-excluded|logs-message-column-selected|logs-message-column-excluded|logs-select-date-time-action|logs-select-date-time-show-last-hour-action|logs-select-date-time-show-last-24-hours-action|logs-select-date-time-field-from-selected|logs-select-date-time-field-to-selected|logs-highlight-navigation-action|logs-download-logs-from-tab-action}", "{enum:show-logs-in-services-selected|show-logs-in-editor-selected}", "{enum:watch-api-connect-cluster|watch-api-connect-cluster-failed|watch-api-connect-cluster-success|watch-successfully-started|watch-api-disconnect-cluster|start-watch-action-id|watch-failed-to-start|watch-action-forbidden|manual-get-action-forbidden|manual-get-action-called|manual-get-action-called-namespaced}", "{enum:logs-patterns-selected-count|logs-patterns-excluded-count}" ],
         "changed" : [ "{enum#boolean}" ],
+        "count" : [ "{regexp#integer}" ],
         "duration_ms" : [ "{regexp#integer}" ],
         "exit_code" : [ "{regexp#integer}" ],
         "ide_activity_id" : [ "{regexp#integer}" ],
@@ -5127,7 +5220,7 @@
         "result" : [ "{enum#boolean}" ]
       },
       "enums" : {
-        "__event_id" : [ "navigation.gutter.label.container", "inspection.remove.duplicate.envvar", "completion.kind", "completion.label.key", "completion.schema", "telepresence.action.triggered", "action.triggered", "service.view.selected", "watch.api.action.triggered", "telepresence.add.tunnel.for.debug.dialog.shown.started", "telepresence.add.tunnel.for.debug.dialog.shown.finished", "telepresence.create.interception.prelaunch.task.started.edited", "telepresence.add.tunnel.for.debug.dialog.shown.stage", "telepresence.create.interception.prelaunch.task.performed", "logs.api.action.triggered", "watch.api.usage" ]
+        "__event_id" : [ "navigation.gutter.label.container", "inspection.remove.duplicate.envvar", "completion.kind", "completion.label.key", "completion.schema", "telepresence.action.triggered", "action.triggered", "service.view.selected", "watch.api.action.triggered", "telepresence.add.tunnel.for.debug.dialog.shown.started", "telepresence.add.tunnel.for.debug.dialog.shown.finished", "telepresence.create.interception.prelaunch.task.started.edited", "telepresence.add.tunnel.for.debug.dialog.shown.stage", "telepresence.create.interception.prelaunch.task.performed", "logs.api.action.triggered", "watch.api.usage", "logs.patterns.count", "helmfile.values.completion.inline", "helmfile.values.completion" ]
       }
     }
   }, {
@@ -5411,7 +5504,7 @@
         "initial_context_size" : [ "{regexp#integer}" ],
         "prompt_init_size_chars" : [ "{regexp#integer}" ],
         "prompt_limit_tokens" : [ "{regexp#integer}" ],
-        "prompt_source" : [ "{enum:TOKENIZE_USER_INPUT_TASK|CLASSIFY_USERS_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEM_PROMPT_ID_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_TASK|MAKE_WEB_SEARCH_REQUEST_TASK|SUMMARIZE_WEB_SEARCH_RAW_CONTENT_TASK|SUMMARIZE_CONTEXT_ITEM_TASK|COMMIT_TASK_CHAT_BUILDER|LLM_BASE_COMMIT_MESSAGE|LOCAL_CHANGES_ENDPOINT|SLIDING_WINDOW|SLIDING_WINDOW_MESSAGES_WITHIN_TOK_LIMIT|VCS_ENDPOINT|ABSTRACT_CHAT_ACTION_ON_DATA_FRAME_ACTION|ABSTRACT_CHAT_INTENTION|CHAT_INTENTION_TASK|JUPYTER_CREATE_CHAT_AND_SEND_MESSAGE|PY_GENERATE_CHARTS_FOR_DATAFRAME_TASK|JUPYTER_BUILD_CHAT|DESCRIPTION_ENSURE_SOFT_TOKENS_LIMIT|WRITE_DOCUMENTATION_CODE_SNIPPET|FUNCTION_RESPONSE_TOKEN_LIMIT|LLM_COMMIT_MESSAGE_ACTION|LLM_REWORD_COMMIT_ACTION|CODE_DEPENDENCY_COLLECTOR|FILE_SIZE_EXCEEDED_WITHOUT_SUMMARIZATION|FILE_SIZE_EXCEEDED_TO_BE_ATTACHMENT|FILE_SIZE_EXCEEDED_CHAT_INTENTION_CANDIDATE|WRITE_DOCUMENTATION_EXAMPLE_DECLARATION_SIZE|WRITE_DOCUMENTATION_EXAMPLE_DOCUMENTATION_SIZE|CLASSIFY_CHAT_TASK|EDITOR_MODIFICATION_PROMPT_BUILDER_DEFAULT|EDITOR_MODIFICATION_PROMPT_BUILDER_FILE_INFORMATION|GENERATE_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_COMMIT_SUMMARY_TASK_USER|GENERATE_COMMIT_SUMMARY_TASK_COMMIT_MESSAGE|GENERATE_USER_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_USER_COMMIT_SUMMARY_TASK_USER|SHELVE_TITLE_TASK|LLM_GENERATE_MICROSERVICES_EXAMPLE_ACTION|JUPYTER_DATA_RETRIEVER_CODE|JUPYTER_DATA_RETRIEVER_OUTPUT|GO_CODE_CONTEXT|GO_NAME_SUGGESTION_CONTEXT|VGO_CODE_CONTEXT|GO_TESTS_PROMPT_GENERATOR|PYTHON_FUNCTION_FULL_CONTEXT_FUNCTION_TEXT|PYTHON_FUNCTION_FULL_CONTEXT_CLASS_TEXT|PYTHON_CLASS_SIGNATURE|PYTHON_DECLARATIONS_FOR_DEPENDENCY_VARIABLES|PYTHON_CODE_CONTEXT_USAGES|PYTHON_TEST_PROMPT_BUILD_CLASS_DESCRIPTION|PYTHON_JUPYTER_TEXT_ENDPOINT|JVM_STACKTRACE_CONTEXT_PROVIDER}", "{enum:CHAT_CONTEXT_TRIMMING}", "{enum:FOLDER_SIZE_EXCEEDED_TO_BE_ATTACHMENT}", "{enum:TOKENIZE_USER_INPUT_TASK|CLASSIFY_USERS_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEM_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEMS_PROMPT_ID_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_WITH_HISTORY_TASK|MAKE_WEB_SEARCH_REQUEST_TASK|SUMMARIZE_WEB_SEARCH_RAW_CONTENT_TASK|SUMMARIZE_CONTEXT_ITEM_TASK|REQUEST_REQUIRED_CLASSES_TASK|COMMIT_TASK_CHAT_BUILDER|LLM_BASE_COMMIT_MESSAGE|LOCAL_CHANGES_ENDPOINT|SLIDING_WINDOW|SLIDING_WINDOW_MESSAGES_WITHIN_TOK_LIMIT|VCS_ENDPOINT|APPLY_AI_RULE_TASK|ABSTRACT_CHAT_ACTION_ON_DATA_FRAME_ACTION|ABSTRACT_CHAT_INTENTION|CHAT_INTENTION_TASK|JUPYTER_CREATE_CHAT_AND_SEND_MESSAGE|PY_GENERATE_CHARTS_FOR_DATAFRAME_TASK|JUPYTER_BUILD_CHAT|DESCRIPTION_ENSURE_SOFT_TOKENS_LIMIT|WRITE_DOCUMENTATION_CODE_SNIPPET|FUNCTION_RESPONSE_TOKEN_LIMIT|LLM_COMMIT_MESSAGE_ACTION|LLM_REWORD_COMMIT_ACTION|COMMIT_MESSAGE_COMPLETION|CODE_DEPENDENCY_COLLECTOR|CURRENT_FILE_CONTEXT_ATTACHMENT|AUTOMATICALLY_ATTACHED_FILE_CONTEXT|MANUALLY_ATTACHED_FILE_CONTEXT|DIRECTORY_STRUCTURE_ATTACHED_CONTEXT|FILE_SIZE_EXCEEDED_WITHOUT_SUMMARIZATION|FILE_SIZE_EXCEEDED_TO_BE_ATTACHMENT|WRITE_DOCUMENTATION_EXAMPLE_DECLARATION_SIZE|WRITE_DOCUMENTATION_EXAMPLE_DOCUMENTATION_SIZE|CLASSIFY_CHAT_TASK|EDITOR_MODIFICATION_PROMPT_BUILDER_DEFAULT|EDITOR_MODIFICATION_PROMPT_BUILDER_FILE_INFORMATION|GENERATE_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_COMMIT_SUMMARY_TASK_USER|GENERATE_COMMIT_SUMMARY_TASK_COMMIT_MESSAGE|GENERATE_USER_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_USER_COMMIT_SUMMARY_TASK_USER|SHELVE_TITLE_TASK|IMAGE_CODE_TITLE_TASK|LLM_GENERATE_MICROSERVICES_EXAMPLE_ACTION|JUPYTER_DATA_RETRIEVER_CODE|JUPYTER_DATA_RETRIEVER_OUTPUT|GO_CODE_CONTEXT|GO_NAME_SUGGESTION_CONTEXT|VGO_CODE_CONTEXT|GO_TESTS_PROMPT_GENERATOR|PYTHON_FUNCTION_FULL_CONTEXT_FUNCTION_TEXT|PYTHON_FUNCTION_FULL_CONTEXT_CLASS_TEXT|PYTHON_CLASS_SIGNATURE|PYTHON_DECLARATIONS_FOR_DEPENDENCY_VARIABLES|PYTHON_CODE_CONTEXT_USAGES|PYTHON_TEST_PROMPT_BUILD_CLASS_DESCRIPTION|PYTHON_JUPYTER_TEXT_ENDPOINT|JVM_STACKTRACE_CONTEXT_PROVIDER}", "{enum:TOKENIZE_USER_INPUT_TASK|CLASSIFY_USERS_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEM_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEMS_PROMPT_ID_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_WITH_HISTORY_TASK|MAKE_WEB_SEARCH_REQUEST_TASK|SUMMARIZE_WEB_SEARCH_RAW_CONTENT_TASK|SUMMARIZE_CONTEXT_ITEM_TASK|REQUEST_REQUIRED_CLASSES_TASK|COMMIT_TASK_CHAT_BUILDER|LLM_BASE_COMMIT_MESSAGE|LOCAL_CHANGES_ENDPOINT|SLIDING_WINDOW|SLIDING_WINDOW_MESSAGES_WITHIN_TOK_LIMIT|VCS_ENDPOINT|APPLY_AI_RULE_TASK|ABSTRACT_CHAT_ACTION_ON_DATA_FRAME_ACTION|ABSTRACT_CHAT_INTENTION|CHAT_INTENTION_TASK|JUPYTER_CREATE_CHAT_AND_SEND_MESSAGE|PY_GENERATE_CHARTS_FOR_DATAFRAME_TASK|JUPYTER_BUILD_CHAT|DESCRIPTION_ENSURE_SOFT_TOKENS_LIMIT|WRITE_DOCUMENTATION_CODE_SNIPPET|FUNCTION_RESPONSE_TOKEN_LIMIT|LLM_COMMIT_MESSAGE_ACTION|LLM_REWORD_COMMIT_ACTION|COMMIT_MESSAGE_COMPLETION|CODE_DEPENDENCY_COLLECTOR|CURRENT_FILE_CONTEXT_ATTACHMENT|AUTOMATICALLY_ATTACHED_FILE_CONTEXT|MANUALLY_ATTACHED_FILE_CONTEXT|DIRECTORY_STRUCTURE_ATTACHED_CONTEXT|GENERIC_FILE_CONTEXT_ATTACHMENT|SELECTION_CONTEXT_ATTACHMENT|FILE_SIZE_EXCEEDED_WITHOUT_SUMMARIZATION|WRITE_DOCUMENTATION_EXAMPLE_DECLARATION_SIZE|WRITE_DOCUMENTATION_EXAMPLE_DOCUMENTATION_SIZE|CLASSIFY_CHAT_TASK|EDITOR_MODIFICATION_PROMPT_BUILDER_DEFAULT|EDITOR_MODIFICATION_PROMPT_BUILDER_FILE_INFORMATION|GENERATE_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_COMMIT_SUMMARY_TASK_USER|GENERATE_COMMIT_SUMMARY_TASK_COMMIT_MESSAGE|GENERATE_USER_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_USER_COMMIT_SUMMARY_TASK_USER|SHELVE_TITLE_TASK|IMAGE_CODE_TITLE_TASK|LLM_GENERATE_MICROSERVICES_EXAMPLE_ACTION|JUPYTER_DATA_RETRIEVER_CODE|JUPYTER_DATA_RETRIEVER_OUTPUT|GO_CODE_CONTEXT|GO_NAME_SUGGESTION_CONTEXT|VGO_CODE_CONTEXT|GO_TESTS_PROMPT_GENERATOR|PYTHON_FUNCTION_FULL_CONTEXT_FUNCTION_TEXT|PYTHON_FUNCTION_FULL_CONTEXT_CLASS_TEXT|PYTHON_CLASS_SIGNATURE|PYTHON_DECLARATIONS_FOR_DEPENDENCY_VARIABLES|PYTHON_CODE_CONTEXT_USAGES|PYTHON_TEST_PROMPT_BUILD_CLASS_DESCRIPTION|PYTHON_JUPYTER_TEXT_ENDPOINT|JVM_STACKTRACE_CONTEXT_PROVIDER}", "{enum:REGULAR_TEXT_CONTEXT_ATTACHMENT}", "{enum:UI_PICKER_CONTEXT_ATTACHMENT|AUTOLOADED_UI_PICKER_CONTEXT_ATTACHMENT}" ],
+        "prompt_source" : [ "{enum:TOKENIZE_USER_INPUT_TASK|CLASSIFY_USERS_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEM_PROMPT_ID_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_TASK|MAKE_WEB_SEARCH_REQUEST_TASK|SUMMARIZE_WEB_SEARCH_RAW_CONTENT_TASK|SUMMARIZE_CONTEXT_ITEM_TASK|COMMIT_TASK_CHAT_BUILDER|LLM_BASE_COMMIT_MESSAGE|LOCAL_CHANGES_ENDPOINT|SLIDING_WINDOW|SLIDING_WINDOW_MESSAGES_WITHIN_TOK_LIMIT|VCS_ENDPOINT|ABSTRACT_CHAT_ACTION_ON_DATA_FRAME_ACTION|ABSTRACT_CHAT_INTENTION|CHAT_INTENTION_TASK|JUPYTER_CREATE_CHAT_AND_SEND_MESSAGE|PY_GENERATE_CHARTS_FOR_DATAFRAME_TASK|JUPYTER_BUILD_CHAT|DESCRIPTION_ENSURE_SOFT_TOKENS_LIMIT|WRITE_DOCUMENTATION_CODE_SNIPPET|FUNCTION_RESPONSE_TOKEN_LIMIT|LLM_COMMIT_MESSAGE_ACTION|LLM_REWORD_COMMIT_ACTION|CODE_DEPENDENCY_COLLECTOR|FILE_SIZE_EXCEEDED_WITHOUT_SUMMARIZATION|FILE_SIZE_EXCEEDED_TO_BE_ATTACHMENT|FILE_SIZE_EXCEEDED_CHAT_INTENTION_CANDIDATE|WRITE_DOCUMENTATION_EXAMPLE_DECLARATION_SIZE|WRITE_DOCUMENTATION_EXAMPLE_DOCUMENTATION_SIZE|CLASSIFY_CHAT_TASK|EDITOR_MODIFICATION_PROMPT_BUILDER_DEFAULT|EDITOR_MODIFICATION_PROMPT_BUILDER_FILE_INFORMATION|GENERATE_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_COMMIT_SUMMARY_TASK_USER|GENERATE_COMMIT_SUMMARY_TASK_COMMIT_MESSAGE|GENERATE_USER_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_USER_COMMIT_SUMMARY_TASK_USER|SHELVE_TITLE_TASK|LLM_GENERATE_MICROSERVICES_EXAMPLE_ACTION|JUPYTER_DATA_RETRIEVER_CODE|JUPYTER_DATA_RETRIEVER_OUTPUT|GO_CODE_CONTEXT|GO_NAME_SUGGESTION_CONTEXT|VGO_CODE_CONTEXT|GO_TESTS_PROMPT_GENERATOR|PYTHON_FUNCTION_FULL_CONTEXT_FUNCTION_TEXT|PYTHON_FUNCTION_FULL_CONTEXT_CLASS_TEXT|PYTHON_CLASS_SIGNATURE|PYTHON_DECLARATIONS_FOR_DEPENDENCY_VARIABLES|PYTHON_CODE_CONTEXT_USAGES|PYTHON_TEST_PROMPT_BUILD_CLASS_DESCRIPTION|PYTHON_JUPYTER_TEXT_ENDPOINT|JVM_STACKTRACE_CONTEXT_PROVIDER}", "{enum:CHAT_CONTEXT_TRIMMING}", "{enum:FOLDER_SIZE_EXCEEDED_TO_BE_ATTACHMENT}", "{enum:TOKENIZE_USER_INPUT_TASK|CLASSIFY_USERS_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEM_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEMS_PROMPT_ID_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_WITH_HISTORY_TASK|MAKE_WEB_SEARCH_REQUEST_TASK|SUMMARIZE_WEB_SEARCH_RAW_CONTENT_TASK|SUMMARIZE_CONTEXT_ITEM_TASK|REQUEST_REQUIRED_CLASSES_TASK|COMMIT_TASK_CHAT_BUILDER|LLM_BASE_COMMIT_MESSAGE|LOCAL_CHANGES_ENDPOINT|SLIDING_WINDOW|SLIDING_WINDOW_MESSAGES_WITHIN_TOK_LIMIT|VCS_ENDPOINT|APPLY_AI_RULE_TASK|ABSTRACT_CHAT_ACTION_ON_DATA_FRAME_ACTION|ABSTRACT_CHAT_INTENTION|CHAT_INTENTION_TASK|JUPYTER_CREATE_CHAT_AND_SEND_MESSAGE|PY_GENERATE_CHARTS_FOR_DATAFRAME_TASK|JUPYTER_BUILD_CHAT|DESCRIPTION_ENSURE_SOFT_TOKENS_LIMIT|WRITE_DOCUMENTATION_CODE_SNIPPET|FUNCTION_RESPONSE_TOKEN_LIMIT|LLM_COMMIT_MESSAGE_ACTION|LLM_REWORD_COMMIT_ACTION|COMMIT_MESSAGE_COMPLETION|CODE_DEPENDENCY_COLLECTOR|CURRENT_FILE_CONTEXT_ATTACHMENT|AUTOMATICALLY_ATTACHED_FILE_CONTEXT|MANUALLY_ATTACHED_FILE_CONTEXT|DIRECTORY_STRUCTURE_ATTACHED_CONTEXT|FILE_SIZE_EXCEEDED_WITHOUT_SUMMARIZATION|FILE_SIZE_EXCEEDED_TO_BE_ATTACHMENT|WRITE_DOCUMENTATION_EXAMPLE_DECLARATION_SIZE|WRITE_DOCUMENTATION_EXAMPLE_DOCUMENTATION_SIZE|CLASSIFY_CHAT_TASK|EDITOR_MODIFICATION_PROMPT_BUILDER_DEFAULT|EDITOR_MODIFICATION_PROMPT_BUILDER_FILE_INFORMATION|GENERATE_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_COMMIT_SUMMARY_TASK_USER|GENERATE_COMMIT_SUMMARY_TASK_COMMIT_MESSAGE|GENERATE_USER_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_USER_COMMIT_SUMMARY_TASK_USER|SHELVE_TITLE_TASK|IMAGE_CODE_TITLE_TASK|LLM_GENERATE_MICROSERVICES_EXAMPLE_ACTION|JUPYTER_DATA_RETRIEVER_CODE|JUPYTER_DATA_RETRIEVER_OUTPUT|GO_CODE_CONTEXT|GO_NAME_SUGGESTION_CONTEXT|VGO_CODE_CONTEXT|GO_TESTS_PROMPT_GENERATOR|PYTHON_FUNCTION_FULL_CONTEXT_FUNCTION_TEXT|PYTHON_FUNCTION_FULL_CONTEXT_CLASS_TEXT|PYTHON_CLASS_SIGNATURE|PYTHON_DECLARATIONS_FOR_DEPENDENCY_VARIABLES|PYTHON_CODE_CONTEXT_USAGES|PYTHON_TEST_PROMPT_BUILD_CLASS_DESCRIPTION|PYTHON_JUPYTER_TEXT_ENDPOINT|JVM_STACKTRACE_CONTEXT_PROVIDER}", "{enum:TOKENIZE_USER_INPUT_TASK|CLASSIFY_USERS_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEM_PROMPT_ID_TASK|CLASSIFY_CONTEXT_ITEMS_PROMPT_ID_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_TASK|SIMPLIFY_AND_DECOMPOSE_REQUEST_WITH_HISTORY_TASK|MAKE_WEB_SEARCH_REQUEST_TASK|SUMMARIZE_WEB_SEARCH_RAW_CONTENT_TASK|SUMMARIZE_CONTEXT_ITEM_TASK|REQUEST_REQUIRED_CLASSES_TASK|COMMIT_TASK_CHAT_BUILDER|LLM_BASE_COMMIT_MESSAGE|LOCAL_CHANGES_ENDPOINT|SLIDING_WINDOW|SLIDING_WINDOW_MESSAGES_WITHIN_TOK_LIMIT|VCS_ENDPOINT|APPLY_AI_RULE_TASK|ABSTRACT_CHAT_ACTION_ON_DATA_FRAME_ACTION|ABSTRACT_CHAT_INTENTION|CHAT_INTENTION_TASK|JUPYTER_CREATE_CHAT_AND_SEND_MESSAGE|PY_GENERATE_CHARTS_FOR_DATAFRAME_TASK|JUPYTER_BUILD_CHAT|DESCRIPTION_ENSURE_SOFT_TOKENS_LIMIT|WRITE_DOCUMENTATION_CODE_SNIPPET|FUNCTION_RESPONSE_TOKEN_LIMIT|LLM_COMMIT_MESSAGE_ACTION|LLM_REWORD_COMMIT_ACTION|COMMIT_MESSAGE_COMPLETION|CODE_DEPENDENCY_COLLECTOR|CURRENT_FILE_CONTEXT_ATTACHMENT|AUTOMATICALLY_ATTACHED_FILE_CONTEXT|MANUALLY_ATTACHED_FILE_CONTEXT|DIRECTORY_STRUCTURE_ATTACHED_CONTEXT|GENERIC_FILE_CONTEXT_ATTACHMENT|SELECTION_CONTEXT_ATTACHMENT|FILE_SIZE_EXCEEDED_WITHOUT_SUMMARIZATION|WRITE_DOCUMENTATION_EXAMPLE_DECLARATION_SIZE|WRITE_DOCUMENTATION_EXAMPLE_DOCUMENTATION_SIZE|CLASSIFY_CHAT_TASK|EDITOR_MODIFICATION_PROMPT_BUILDER_DEFAULT|EDITOR_MODIFICATION_PROMPT_BUILDER_FILE_INFORMATION|GENERATE_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_COMMIT_SUMMARY_TASK_USER|GENERATE_COMMIT_SUMMARY_TASK_COMMIT_MESSAGE|GENERATE_USER_COMMIT_SUMMARY_TASK_SYSTEM|GENERATE_USER_COMMIT_SUMMARY_TASK_USER|SHELVE_TITLE_TASK|IMAGE_CODE_TITLE_TASK|LLM_GENERATE_MICROSERVICES_EXAMPLE_ACTION|JUPYTER_DATA_RETRIEVER_CODE|JUPYTER_DATA_RETRIEVER_OUTPUT|GO_CODE_CONTEXT|GO_NAME_SUGGESTION_CONTEXT|VGO_CODE_CONTEXT|GO_TESTS_PROMPT_GENERATOR|PYTHON_FUNCTION_FULL_CONTEXT_FUNCTION_TEXT|PYTHON_FUNCTION_FULL_CONTEXT_CLASS_TEXT|PYTHON_CLASS_SIGNATURE|PYTHON_DECLARATIONS_FOR_DEPENDENCY_VARIABLES|PYTHON_CODE_CONTEXT_USAGES|PYTHON_TEST_PROMPT_BUILD_CLASS_DESCRIPTION|PYTHON_JUPYTER_TEXT_ENDPOINT|JVM_STACKTRACE_CONTEXT_PROVIDER}", "{enum:REGULAR_TEXT_CONTEXT_ATTACHMENT}", "{enum:UI_PICKER_CONTEXT_ATTACHMENT|AUTOLOADED_UI_PICKER_CONTEXT_ATTACHMENT}", "{enum:PROJECT_VIEW_CONTEXT_ATTACHMENT}", "{enum:EMBARK_QUERY_EXPANSION_REQUEST_TASK}" ],
         "prompt_trim_with_code_attachments" : [ "{enum#boolean}" ],
         "prompt_trunc_size_chars" : [ "{regexp#integer}" ],
         "token_quota" : [ "{regexp#integer}" ],
@@ -5541,6 +5634,7 @@
         "message_author" : [ "{enum:Assistant|User}" ],
         "message_edit_mode" : [ "{enum#boolean}" ],
         "message_id" : [ "{regexp#short_hash}" ],
+        "models" : [ "{util#llm_profile_id}" ],
         "modified_files_count" : [ "{regexp#integer}" ],
         "natural_language" : [ "{enum:other|english|mandarin|mandarin chinese|chinese|yue chinese|wu chinese|hindi|spanish|french|arabic|bengali|russian|portuguese|urdu|indonesian|german|japanese|swahili|marathi|telugu|turkish|tamil|korean|vietnamese|italian|thai|gujarati|persian|iranian|polish|ukrainian|malay|javanese|punjabi|romanian|yoruba|hausa|burmese|sundanese|amharic|filipino|serbian|croatian|dutch|igbo|uzbek|maithili|odia|khmer|nepali|sinhalese|xhosa|sotho|zulu|lao|finnish|bosnian|slovak|czech|georgian|armenian|bulgarian|danish|norwegian|swedish|azerbaijani|hebrew|tigrinya|malagasy|somali|chewa|rwanda|pashto|sindhi|madurese|tajik|kazakh|kirundi|tatar|bashkir|mongolian|belarusian|latin|welsh|scots gaelic|catalan|galician|breton|occitan|basque|luxembourgish|malayalam|burushaski|komi|kyrgyz|chuvash|tuvinian|adyghe|kabardian|sakha|kalmyk|sardinian|manx|esperanto|tok pisin|navajo|greenlandic|inuktitut|twi|fijian|marshallese|palauan|maori|samoan}" ],
         "navigation_button" : [ "{enum:PREVIOUS_FILE|PREVIOUS_DIFF|NEXT_FILE|NEXT_DIFF|UNKNOWN}" ],
@@ -5585,7 +5679,7 @@
       },
       "enums" : {
         "__error" : [ "GrazieAuthorizationException", "RequestTimeout", "AIAssistantForbiddenException", "TokenLimitExceededException", "ClassNotFoundException" ],
-        "__event_id" : [ "editUsageMessageFinished", "codeSnippetPresentationChanged", "editUserMessageStarted", "editUserMessageCancelled", "newChatCreated", "messageSent", "codeCopied", "allChatsClicked", "messageReceived", "messageReacted", "messageReceivingCancelled", "assistantChatSummarySent", "all.chats.clicked", "code.snippet.presentation.changed", "edit.usage.message.finished", "message.reacted", "assistant.chat.summary.sent", "edit.user.message.cancelled", "chat.from.history.opened", "code.copied", "edit.user.message.cancelled.with.mouse", "message.received", "edit.user.message.started", "code.inserted", "message.sent", "new.chat.created", "message.receiving.cancelled", "code.snippet.inserted.at.caret", "send.feedback.clicked", "log.in.to.jetbrains.ai", "log.out.from.jetbrains.ai", "ai.response.error", "function.called", "code.snippet.file.created", "text.copied", "alias.sent", "command.sent", "reference.attached", "chat.labels", "message.regenerate", "hashtag.clicked", "natural.language.promo.banner.shown.and.interacted", "natural.language.autodetected.banner.shown.and.interacted", "chosen.natural.language", "natural.language.setting.turned.off", "natural.language.setting.turned.on", "natural.language.setting.turned.off.after.automatic.detection", "natural.language.promo.banner.settings.clicked", "natural.language.setting.turned.on.automatically", "natural.language.autodetected.banner.settings.clicked", "text.inserted", "attachment.added.to.the.message", "attachment.deleted.from.the.context.panel.manually", "attachment.added.to.the.context.panel", "attachment.deleted.from.the.context.panel", "function.name.leaked", "reference.start.char.used", "ai.generated.action.button.clicked", "user.message.enriched", "user.intent", "attachment.plus.button.clicked", "send.with.rag.button.clicked", "chat.model.selected", "chat.model.provider.promotion.selected", "chat.model.selector.opened", "send.with.rag.timeout.exceeded", "send.with.rag.canceled", "ui.context.picker.finished", "ui.context.picker.canceled", "ui.context.picker.started", "send.with.rag.psi.search.result", "send.with.rag.cloud.ranker.result", "send.with.rag.pipeline.duration", "send.with.rag.recent.files.result", "chat.mode.chosen.with.shortcut", "chat.mode.selector.opened", "chat.mode.selected", "chat.copy", "send.button.clicked", "edit.mode.suggestion.generated", "edit.mode.suggestion.accepted.patch", "edit.mode.suggestion.accepted.all", "edit.mode.suggestion.discarded.all", "edit.mode.suggestion.discarded.patch", "chat.web.search.called", "chat.web.search.command.added.with.button", "codebase.toggle.value.changed", "edit.mode.suggestion.open.diff", "edit.mode.suggestion.accepted.changes", "edit.mode.suggestion.discarded.changes", "edit.mode.suggestion.open.file", "edit.mode.changes.navigation.clicked", "edit.mode.changes.tree.label.clicked", "chat.search.next.occurrence.clicked", "chat.search.previous.occurrence.clicked", "chat.search.closed", "chat.search.opened", "ai.rule.type.switched", "ai.rules.retrieving.timeout", "ai.rule.created", "ai.rule.deleted", "ai.rule.applied", "chat.model.selector.more.section.toggled", "chat.model.selector.tooltip.shown", "chat.model.auto.selected", "chat.model.auto.applied", "chat.model.selector.closed" ],
+        "__event_id" : [ "editUsageMessageFinished", "codeSnippetPresentationChanged", "editUserMessageStarted", "editUserMessageCancelled", "newChatCreated", "messageSent", "codeCopied", "allChatsClicked", "messageReceived", "messageReacted", "messageReceivingCancelled", "assistantChatSummarySent", "all.chats.clicked", "code.snippet.presentation.changed", "edit.usage.message.finished", "message.reacted", "assistant.chat.summary.sent", "edit.user.message.cancelled", "chat.from.history.opened", "code.copied", "edit.user.message.cancelled.with.mouse", "message.received", "edit.user.message.started", "code.inserted", "message.sent", "new.chat.created", "message.receiving.cancelled", "code.snippet.inserted.at.caret", "send.feedback.clicked", "log.in.to.jetbrains.ai", "log.out.from.jetbrains.ai", "ai.response.error", "function.called", "code.snippet.file.created", "text.copied", "alias.sent", "command.sent", "reference.attached", "chat.labels", "message.regenerate", "hashtag.clicked", "natural.language.promo.banner.shown.and.interacted", "natural.language.autodetected.banner.shown.and.interacted", "chosen.natural.language", "natural.language.setting.turned.off", "natural.language.setting.turned.on", "natural.language.setting.turned.off.after.automatic.detection", "natural.language.promo.banner.settings.clicked", "natural.language.setting.turned.on.automatically", "natural.language.autodetected.banner.settings.clicked", "text.inserted", "attachment.added.to.the.message", "attachment.deleted.from.the.context.panel.manually", "attachment.added.to.the.context.panel", "attachment.deleted.from.the.context.panel", "function.name.leaked", "reference.start.char.used", "ai.generated.action.button.clicked", "user.message.enriched", "user.intent", "attachment.plus.button.clicked", "send.with.rag.button.clicked", "chat.model.selected", "chat.model.provider.promotion.selected", "chat.model.selector.opened", "send.with.rag.timeout.exceeded", "send.with.rag.canceled", "ui.context.picker.finished", "ui.context.picker.canceled", "ui.context.picker.started", "send.with.rag.psi.search.result", "send.with.rag.cloud.ranker.result", "send.with.rag.pipeline.duration", "send.with.rag.recent.files.result", "chat.mode.chosen.with.shortcut", "chat.mode.selector.opened", "chat.mode.selected", "chat.copy", "send.button.clicked", "edit.mode.suggestion.generated", "edit.mode.suggestion.accepted.patch", "edit.mode.suggestion.accepted.all", "edit.mode.suggestion.discarded.all", "edit.mode.suggestion.discarded.patch", "chat.web.search.called", "chat.web.search.command.added.with.button", "codebase.toggle.value.changed", "edit.mode.suggestion.open.diff", "edit.mode.suggestion.accepted.changes", "edit.mode.suggestion.discarded.changes", "edit.mode.suggestion.open.file", "edit.mode.changes.navigation.clicked", "edit.mode.changes.tree.label.clicked", "chat.search.next.occurrence.clicked", "chat.search.previous.occurrence.clicked", "chat.search.closed", "chat.search.opened", "ai.rule.type.switched", "ai.rules.retrieving.timeout", "ai.rule.created", "ai.rule.deleted", "ai.rule.applied", "chat.model.selector.more.section.toggled", "chat.model.selector.tooltip.shown", "chat.model.auto.selected", "chat.model.auto.applied", "chat.model.selector.closed", "models.loading.started", "models.loading.success", "models.loading.failed" ],
         "__level" : [ "OSRegistry", "JvmFlag", "JBA", "Allowed", "UserSetting" ]
       }
     },
@@ -5783,6 +5877,37 @@
         "ux_mode" : [ "{enum:Independent|LookupItemWhenCollision}" ]
       }
     }
+  }, {
+    "id" : "llm.context.rules",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "1"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum#__event_id}" ],
+      "event_data" : {
+        "ai_rule_create_source" : [ "{enum:SETTINGS_BUTTON|SETTINGS_SHORTCUT|SETTINGS_EMPTY_STATE_LINK|CONTEXT_POPUP_BUTTON|MANUALLY}" ],
+        "ai_rule_delete_source" : [ "{enum:SETTINGS_SHORTCUT|MANUALLY}" ],
+        "applied_ai_rules_count" : [ "{regexp#integer}" ],
+        "attached_files_count" : [ "{regexp#integer}" ],
+        "chat_session_id" : [ "{regexp#date_short_hash}" ],
+        "message_id" : [ "{regexp#short_hash}" ],
+        "rule_content_size" : [ "{regexp#integer}" ],
+        "rule_type" : [ "{enum:ALWAYS|MANUALLY|BY_MODEL_DECISION|BY_FILE_PATTERNS|OFF|UNKNOWN}" ],
+        "rule_type_from" : [ "{enum:ALWAYS|MANUALLY|BY_MODEL_DECISION|BY_FILE_PATTERNS|OFF|UNKNOWN}" ],
+        "rule_type_to" : [ "{enum:ALWAYS|MANUALLY|BY_MODEL_DECISION|BY_FILE_PATTERNS|OFF|UNKNOWN}" ]
+      },
+      "enums" : {
+        "__event_id" : [ "ai.rules.retrieving.timeout", "ai.rule.type.switched", "ai.rule.applied", "ai.rule.deleted", "ai.rule.created" ]
+      }
+    },
+    "anonymized_fields" : [ {
+      "event" : "ai.rules.retrieving.timeout",
+      "fields" : [ "chat_session_id" ]
+    }, {
+      "event" : "ai.rule.applied",
+      "fields" : [ "message_id", "chat_session_id" ]
+    } ]
   }, {
     "id" : "llm.hub",
     "builds" : [ ],
@@ -6099,9 +6224,30 @@
       "from" : "1"
     } ],
     "rules" : {
-      "event_id" : [ "{enum:feedback}" ],
+      "event_id" : [ "{enum:feedback|review.started|review.finished}" ],
       "event_data" : {
-        "rating" : [ "{enum:None|Like|Dislike}" ]
+        "changes_count" : [ "{regexp#integer}" ],
+        "chars_added" : [ "{regexp#integer}" ],
+        "chars_removed" : [ "{regexp#integer}" ],
+        "deleted_files" : [ "{regexp#integer}" ],
+        "duration_ms" : [ "{regexp#integer}" ],
+        "files_count" : [ "{regexp#integer}" ],
+        "guidelines_length" : [ "{regexp#integer}" ],
+        "ide_activity_id" : [ "{regexp#integer}" ],
+        "lang_percentage1" : [ "{regexp#integer}" ],
+        "lang_percentage2" : [ "{regexp#integer}" ],
+        "lang_percentage3" : [ "{regexp#integer}" ],
+        "language1" : [ "{util#lang}" ],
+        "language2" : [ "{util#lang}" ],
+        "language3" : [ "{util#lang}" ],
+        "lines_added" : [ "{regexp#integer}" ],
+        "lines_removed" : [ "{regexp#integer}" ],
+        "modified_files" : [ "{regexp#integer}" ],
+        "moved_files" : [ "{regexp#integer}" ],
+        "new_files" : [ "{regexp#integer}" ],
+        "rating" : [ "{enum:None|Like|Dislike}" ],
+        "renamed_files" : [ "{regexp#integer}" ],
+        "request_id" : [ "{regexp#integer}" ]
       }
     }
   }, {
@@ -6301,6 +6447,7 @@
     "rules" : {
       "event_id" : [ "{enum#__event_id}" ],
       "event_data" : {
+        "auth_state" : [ "{enum:AIE_BLOCKED|AIP_BLOCKED|EAP_LICENSE_AGREEMENT|JBA_UNAUTHENTICATED|LICENSE_AGREEMENT|MISSING_AIP_LICENSE|STEP_FAIL|UNKNOWN}" ],
         "chain_id" : [ "{regexp#short_hash}" ],
         "checked" : [ "{enum#boolean}" ],
         "confirm" : [ "{enum#boolean}" ],
@@ -6311,26 +6458,17 @@
         "speed_mode" : [ "{enum:Speed|Quality}" ]
       },
       "enums" : {
-        "__event_id" : [ "task.done.button.clicked", "task.reopen.from.history", "task.ask.confirmation.answered", "task.cancel.step.button.clicked", "task.description.input", "task.go.back.button.clicked", "task.command.auto.approve.checked", "task.description.focus", "task.recent.files.removed", "task.recent.files.selected", "task.rollback.button.clicked", "task.ask.confirmation.showed", "task.recent.files.button.clicked", "task.stop.button.clicked", "task.delete.menu.clicked", "task.start.again.menu.clicked", "task.stop.menu.clicked", "task.start.again.button.clicked", "task.decline.button.clicked", "task.rollback.menu.clicked", "task.delete.all.menu.clicked", "task.example.clicked", "task.submit", "task.command.speed.mode.changed" ]
+        "__event_id" : [ "task.done.button.clicked", "task.reopen.from.history", "task.ask.confirmation.answered", "task.cancel.step.button.clicked", "task.description.input", "task.go.back.button.clicked", "task.command.auto.approve.checked", "task.description.focus", "task.recent.files.removed", "task.recent.files.selected", "task.rollback.button.clicked", "task.ask.confirmation.showed", "task.recent.files.button.clicked", "task.stop.button.clicked", "task.delete.menu.clicked", "task.start.again.menu.clicked", "task.stop.menu.clicked", "task.start.again.button.clicked", "task.decline.button.clicked", "task.rollback.menu.clicked", "task.delete.all.menu.clicked", "task.example.clicked", "task.submit", "task.command.speed.mode.changed", "initial.screen.not.logged.showed", "initial.screen.register.clicked", "initial.screen.login.jb.clicked" ]
       }
     },
     "anonymized_fields" : [ {
       "event" : "task.done.button.clicked",
       "fields" : [ "issue_id", "chain_id" ]
     }, {
-      "event" : "task.start.again.button.clicked",
-      "fields" : [ "issue_id", "chain_id" ]
-    }, {
       "event" : "task.stop.menu.clicked",
       "fields" : [ "chain_id" ]
     }, {
       "event" : "task.decline.button.clicked",
-      "fields" : [ "issue_id", "chain_id" ]
-    }, {
-      "event" : "task.ask.confirmation.showed",
-      "fields" : [ "issue_id", "chain_id" ]
-    }, {
-      "event" : "task.rollback.button.clicked",
       "fields" : [ "issue_id", "chain_id" ]
     }, {
       "event" : "task.start.again.menu.clicked",
@@ -6341,6 +6479,21 @@
     }, {
       "event" : "task.recent.files.removed",
       "fields" : [ "file_id" ]
+    }, {
+      "event" : "task.cancel.step.button.clicked",
+      "fields" : [ "issue_id", "chain_id" ]
+    }, {
+      "event" : "task.recent.files.selected",
+      "fields" : [ "file_id" ]
+    }, {
+      "event" : "task.start.again.button.clicked",
+      "fields" : [ "issue_id", "chain_id" ]
+    }, {
+      "event" : "task.ask.confirmation.showed",
+      "fields" : [ "issue_id", "chain_id" ]
+    }, {
+      "event" : "task.rollback.button.clicked",
+      "fields" : [ "issue_id", "chain_id" ]
     }, {
       "event" : "task.rollback.menu.clicked",
       "fields" : [ "chain_id" ]
@@ -6353,12 +6506,6 @@
     }, {
       "event" : "task.ask.confirmation.answered",
       "fields" : [ "issue_id", "chain_id" ]
-    }, {
-      "event" : "task.cancel.step.button.clicked",
-      "fields" : [ "issue_id", "chain_id" ]
-    }, {
-      "event" : "task.recent.files.selected",
-      "fields" : [ "file_id" ]
     }, {
       "event" : "task.delete.all.menu.clicked",
       "fields" : [ "chain_id" ]
@@ -6473,6 +6620,18 @@
       }
     }
   }, {
+    "id" : "mcpserver.events",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "1"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum:mcp.tool.call}" ],
+      "event_data" : {
+        "tool_name" : [ "{util#tool_name_validator_id}" ]
+      }
+    }
+  }, {
     "id" : "mermaid.count",
     "builds" : [ ],
     "versions" : [ {
@@ -6549,8 +6708,8 @@
       "event_id" : [ "{enum:indexing.loaded|search.finished|indexing.saved|indexing.finished}" ],
       "event_data" : {
         "duration_ms" : [ "{regexp#integer}" ],
-        "enabled_indices" : [ "{enum:actions|files|classes|symbols}", "{enum:symbol_bodies|class_bodies}" ],
-        "index" : [ "{enum:actions|files|classes|symbols}", "{enum:symbol_bodies|class_bodies}" ],
+        "enabled_indices" : [ "{enum:actions|files|classes|symbols}", "{enum:symbol_bodies|class_bodies}", "{enum:text_chunks}" ],
+        "index" : [ "{enum:actions|files|classes|symbols}", "{enum:symbol_bodies|class_bodies}", "{enum:text_chunks}" ],
         "index_type" : [ "{enum:actions|file-based}" ],
         "model_version" : [ "{regexp:\\d+.\\d+.\\d+}" ],
         "used_memory_mb" : [ "{regexp#float}" ],
@@ -6850,7 +7009,7 @@
       },
       "enums" : {
         "__event_id" : [ "action.invoked", "balloon.collapsed", "balloon.expanded", "closed.by.user", "event.log.balloon.shown", "hyperlink.clicked", "logged", "settings.clicked", "shown" ],
-        "notification_id" : [ "ignored.to.exclude.synchronization.notification", "externally.added.files.notification", "project.configuration.files.added.notification", "manage.ignore.files.notification", "github.missing.default.account", "github.pull.request.cannot.set.tracking.branch", "github.clone.unable.to.create.destination.dir", "github.clone.unable.to.find.destination", "github.open.in.browser.file.is.not.under.repo", "github.open.in.browser.cannot.get.last.revision", "github.rebase.success", "github.gist.cannot.create", "github.pull.request.cannot.load.branches", "github.pull.request.cannot.collect.additional.data", "github.pull.request.cannot.load.forks", "github.pull.request.failed.to.add.remote", "github.pull.request.push.failed", "github.pull.request.creation.error", "github.pull.request.cannot.collect.diff.data", "github.pull.request.cannot.find.repo", "github.pull.request.created", "github.pull.request.cannot.process.remote", "github.pull.request.no.current.branch", "github.rebase.cannot.validate.upstream.remote", "github.rebase.upstream.is.own.repo", "github.rebase.cannot.get.user.info", "github.rebase.cannot.retrieve.upstream.info", "github.rebase.cannot.configure.upstream.remote", "github.rebase.repo.not.found", "github.rebase.cannot.load.repo.info", "github.rebase.repo.is.not.a.fork", "github.share.cannot.find.git.repo", "github.share.cannot.create.repo", "github.share.project.successfully.shared", "github.share.empty.repo.created", "github.share.project.created.init.commit.failed", "github.share.init.push.failed", "github.gist.created", "github.git.repo.init.error", "unknown", "hg.update.unresolved.conflicts.error", "git.merge.local.changes.detected", "vcs.patch.apply.rollback.failed", "hg.qrefresh.error", "git.revert.abort.failed", "git.fetch.success", "git.branch.operation.success", "git.pull.failed", "hg.merge.warning", "vcs.commit.finished.with.warnings", "vcs.shelve.successful", "git.merge.reset.error", "git.stage.commit.successful", "git.clone.unable.to.create.destination.dir", "git.rebase.cannot.continue", "vcs.commit.canceled", "git.branch.rename.rollback.success", "hg.merge.error", "hg.rebase.error", "git.update.no.tracked.branch.error", "git.rebase.update.project.error", "hg.tag.creation.error", "git.local.changes.not.restored", "hg.clone.destination.error", "vcs.shelve.failed", "hg.merging.with.ancestor.skipped", "vcs.patch.apply.aborted", "hg.pushed.successfully", "git.remote.branch.deletion.success", "hg.repository.created", "git.tag.created", "hg.qpop.completed.with.errors", "git.branch.operation.error", "hg.compare.with.branch.error", "git.fetch.error", "hg.nothing.to.push", "git.rebase.cannot.abort", "hg.unsupported.extensions", "vcs.patch.partially.applied", "git.branches.update.successful", "hg.exception.during.merge.commit", "git.init.failed", "git.rebase.not.allowed", "hg.qfold.error", "hg.qfinish.error", "git.merge.abort.success", "git.init.error", "git.rebase.commit.edit.undo.error.repo.changed", "git.reset.failed", "git.update.detached.head.error", "git.create.branch.rollback.successful", "git.branch.checkout.failed", "git.delete.branch.on.merge", "vcs.root.added", "git.stash.failed", "vcs.patch.copied.to.clipboard", "git.merge.abort.failed", "vcs.could.not.compare.with.branch", "git.reset.successful", "git.branch.creation.failed", "git.branch.deletion.rollback.error", "hg.graft.continue.error", "hg.merge.exception", "git.rebase.abort.succeeded", "hg.debugancestor.error", "hg.log.command.execution.error", "hg.unable.to.run.executable", "hg.bookmark.error", "git.rebase.commit.edit.undo.error", "git.unstash.with.unresolved.conflicts", "git.unstash.failed", "hg.qgoto.error", "hg.clone.error", "git.clone.failed", "git.rebase.abort.failed", "hg.remote.auth.error", "vcs.uncommitted.changes.saving.error", "git.update.nothing.to.update", "git.merge.rollback.error", "hg.qnew.error", "git.checkout.success", "git.update.error", "git.cannot.resolve.conflict", "git.unstash.with.conflicts", "space.sharing.not.finished", "hg.rebase.continue.error", "git.checkout.rollback.error", "git.reset.partially.failed", "git.remote.branch.deletion.error", "hg.qrename.error", "hg.unsupported.version", "hg.repo.creation.error", "space.git.repo.init.error", "git.tag.remote.deletion.error", "hg.push.error", "vcs.cherry.pick.error", "git.repository.created", "vcs.roots.invalid", "git.stash.local.changes.detected", "git.could.not.compare.with.branch", "git.rebase.not.started", "space.project.shared.successfully", "vcs.compare.failed", "vcs.patch.apply.success.applied", "hg.qdelete.error", "hg.branch.creation.error", "git.cherry.pick.abort.failed", "git.rebase.rollback.failed", "git.merge.error", "vcs.patch.apply.cannot.find.patch.file", "git.rebase.commit.edit.undo.error.protected.branch", "git.rebase.successful", "vcs.commit.failed", "git.could.not.load.changes.of.commit", "git.unresolved.conflicts", "vcs.patch.apply.new.files.error", "hg.rebase.abort.error", "git.revert.abort.success", "git.stage.commit.error", "git.tag.not.created", "git.create.branch.rollback.error", "git.fix.tracked.not.on.branch", "vcs.shelve.deletion.undo", "hg.tag.creation.failed", "git.tag.deletion.rollback.error", "hg.update.error", "vcs.roots.registered", "hg.status.command.error", "hg.qimport.error", "vcs.patch.apply.not.patch.type.file", "vcs.commit.finished", "git.could.not.save.uncommitted.changes", "hg.rename.failed", "git.branch.rename.rollback.failed", "git.cherry.pick.abort.success", "hg.qpop.error", "git.conflict.resolving.error", "git.merge.failed", "hg.pull.error", "git.unstash.patch.applied", "hg.bookmark.name.is.empty", "hg.pull.auth.required", "git.rebase.abort", "vcs.patch.already.applied", "git.checkout.new.branch.operation.rollback.error", "hg4idea.changesets.error", "vcs.patch.creation.failed", "hg.graft.error", "hg.qpush.error", "git.checkout.new.branch.operation.rollback.successful", "github.rebase.remote.origin.not.found", "github.rebase.account.not.found", "github.rebase.multi.repo.not.supported", "rebase.error.failed.to.match.gh.repo", "git.branch.set.upstream.failed", "git.log.could.not.load.changes.of.commit", "vcs.project.partially.updated", "vcs.shelf.undo.delete", "vcs.branch.operations.are.executed.on.all.roots", "git.rebase.collect.updated.changes.error", "git.push.not.supported", "vcs.inactive.ranges.damaged", "git.commit.cancelled", "git.fetch.result", "git.tag.remote.deletion.success", "git.fetch.cancelled", "git.fetch.details", "git.project.updated", "git.all.files.are.up.to.date", "git.fetch.result.error", "git.project.partially.updated", "git.push.result", "git.branch.deleted", "git.tag.restored", "git.files.updated.after.merge", "vcs.project.update.finished", "git.tag.deleted", "git.commit.edit.success", "space.other", "gradle.jvm.invalid", "gradle.jvm.configured", "gradle.configuration.error", "sh.update.shellcheck.error", "sh.update.shellcheck.success", "sh.update.formatter.success", "sh.install.formatter.error", "sh.update.formatter.error", "sh.install.formatter", "sh.update.shellcheck", "sh.update.formatter", "sh.install.formatter.success", "git.bad.executable", "git.init.stage.failed", "git.rebase.failed", "diff.external.too.many.selected", "ignored.to.exclude.not.found", "git.rebase.stopped.for.editing", "vcs.cannot.load.annotations", "untracked.files.overwritten", "diff.external.cant.load.changes", "vcs.obsolete.plugin.unbundled", "vcs.suggested.plugin.install.failed", "diff.merge.intenral.error", "git.rebase.stopped.due.to.conflicts", "vcs.commit.checks.failed", "git.tags.loading.failed", "vcs.commit.checks.only.failed", "vcs.add.unversioned.error", "vcs.post.commit.checks.failed", "grazie.pro.advertisement", "git.open.in.browser.error", "git.ignore.file.generation.error", "review.branch.checkout.failed", "space.merge.request.creation.failed", "space.merge.request.created", "space.git.repo.foldernotfound", "git.stage.operation.error", "vcs.log.navigation.error", "vcs.log.commit.not.found", "file.history.load.details.error", "vcs.log.fatal.error", "vcs.log.not.available", "git.stash.non.empty.index.detected", "git.stash.successful", "space.review.create", "gitlab.merge.request.create", "github.pull.request.create", "maven.workspace.first.import.notification", "maven.wrapper.file.not.found.notification", "maven.workspace.external.storage.notification", "maven.wrapper.downloading.error.notification", "project.structure.automatically.detected.notification.id", "build.script.found.notification.id", "maven.wrapper.information.notification", "maven.wrapper.empty.url.notification", "github.pull.request.branch.update.failed", "lvcs.storage.corrupted", "lvcs.label.created", "git.update.force.pushed.branch.success", "git.update.force.pushed.branch.not.all.cherry.picked", "PrepareIntrospectionDiagnostic.finished", "DiagnosticRefreshAction.finished", "DumpToDdlDataSourceAction.no.db.data.source", "SaveLobAsAction.structure.changed", "SaveLobAsAction.error", "DatabaseModelLoader.single.db.mode.required", "DetailsSyncHelper.sync.required", "database.undo.is.impossible", "git.apply.changes.conflicts", "CopyDdlFromDbAction.error", "CliNotificationManagerBase.dump.finished", "DataSourceUtil.generic.notification", "PasswordExpirationConnectionInterceptor.successful", "CancelProgressAuditor.too.long", "DataSourceConfigurable.storage.move.failed", "CliNotificationManagerBase.restore.finished", "SchemaScripts.generation.finished", "DatabaseEditorHelper.Auditor.print", "DatabaseConfigFileWatcher.found", "RevertFix.failed", "DumpToDdlDataSourceAction.dump.error", "ImportHead.import.finished", "ImportHead.import.failed", "git.apply.changes.success", "DumpToDdlDataSourceAction.no.introspected.schemas", "DbSrcValidator.introspection.suggested", "ImportAction.error", "HandleErrorTask.cant.access", "git.apply.changes.local.changes.detected", "SaveLobAsAction.finished", "ScriptFileLayoutPanel.finished", "DumpToDdlDataSourceAction.no.objects", "DbSrcValidator.stale.pruned", "SaveLobAsAction.failed", "RemoteConsoleProcessSupport.before.task.cycle.prevented", "UseMyFix.failed", "SessionLogger.query.finished", "MergeFix.failed", "SqlAddExternalRelationIntention.stored", "DatabaseEditorHelper.Auditor.warn", "OutdatedCheck.failed", "ScriptFileLayoutPanel.error", "git.apply.changes.error", "DumpToDdlDataSourceAction.no.ddl.data.source", "db.import.failed", "DbSrcValidator.regeneration.suggested", "MsPlanModelBuilder.unable.to.find.table", "DumpToDdlDataSourceAction.failed.to.create.layout", "DataSourceConfigurable.set.default.dialect", "DatabaseEditorHelper.Auditor.error", "git.gpg.agent.configuration.propose", "git.gpg.agent.configuration.success", "git.gpg.agent.configuration.propose.suggestion", "git.gpg.agent.configuration.error", "git.unshallow.success", "invalid.rust.std.lib.source", "could.not.reach.crates.io", "install.target.error", "org.rust.database.plugin.suggestion", "visual.studio.installer", "project.not.found", "target.is.not.installed", "rustfmt.not.installed", "rust.version.not.supported", "component.not.available", "bad.answer.from.crates.io", "rustfmt.error", "defmap.rebuilt", "running.tests.with.sudo", "rustup.not.available", "cannot.load.rustc.for.debugger", "rustup.update.finished", "rustfmt.enabled.by.default", "file.was.shared.on.playground", "crate.is.not.installed", "feedback.form.prompted", "failure.to.share.on.playground", "failed.to.create.mod", "install.component.error", "command.not.available", "git.commit.modal.deprecation", "vcs.git.repo.init.error", "vcs.share.cannot.find.git.repo", "vcs.share.init.push.failed", "vcs.share.cannot.create.repo", "vcs.share.project.successfully.shared", "vcs.share.project.created.init.commit.failed", "vcs.share.empty.repo.created", "vcs.commit.finished.initial", "toolbox.open.project.error", "git.rebase.log.changes.drop.failed" ]
+        "notification_id" : [ "ignored.to.exclude.synchronization.notification", "externally.added.files.notification", "project.configuration.files.added.notification", "manage.ignore.files.notification", "github.missing.default.account", "github.pull.request.cannot.set.tracking.branch", "github.clone.unable.to.create.destination.dir", "github.clone.unable.to.find.destination", "github.open.in.browser.file.is.not.under.repo", "github.open.in.browser.cannot.get.last.revision", "github.rebase.success", "github.gist.cannot.create", "github.pull.request.cannot.load.branches", "github.pull.request.cannot.collect.additional.data", "github.pull.request.cannot.load.forks", "github.pull.request.failed.to.add.remote", "github.pull.request.push.failed", "github.pull.request.creation.error", "github.pull.request.cannot.collect.diff.data", "github.pull.request.cannot.find.repo", "github.pull.request.created", "github.pull.request.cannot.process.remote", "github.pull.request.no.current.branch", "github.rebase.cannot.validate.upstream.remote", "github.rebase.upstream.is.own.repo", "github.rebase.cannot.get.user.info", "github.rebase.cannot.retrieve.upstream.info", "github.rebase.cannot.configure.upstream.remote", "github.rebase.repo.not.found", "github.rebase.cannot.load.repo.info", "github.rebase.repo.is.not.a.fork", "github.share.cannot.find.git.repo", "github.share.cannot.create.repo", "github.share.project.successfully.shared", "github.share.empty.repo.created", "github.share.project.created.init.commit.failed", "github.share.init.push.failed", "github.gist.created", "github.git.repo.init.error", "unknown", "hg.update.unresolved.conflicts.error", "git.merge.local.changes.detected", "vcs.patch.apply.rollback.failed", "hg.qrefresh.error", "git.revert.abort.failed", "git.fetch.success", "git.branch.operation.success", "git.pull.failed", "hg.merge.warning", "vcs.commit.finished.with.warnings", "vcs.shelve.successful", "git.merge.reset.error", "git.stage.commit.successful", "git.clone.unable.to.create.destination.dir", "git.rebase.cannot.continue", "vcs.commit.canceled", "git.branch.rename.rollback.success", "hg.merge.error", "hg.rebase.error", "git.update.no.tracked.branch.error", "git.rebase.update.project.error", "hg.tag.creation.error", "git.local.changes.not.restored", "hg.clone.destination.error", "vcs.shelve.failed", "hg.merging.with.ancestor.skipped", "vcs.patch.apply.aborted", "hg.pushed.successfully", "git.remote.branch.deletion.success", "hg.repository.created", "git.tag.created", "hg.qpop.completed.with.errors", "git.branch.operation.error", "hg.compare.with.branch.error", "git.fetch.error", "hg.nothing.to.push", "git.rebase.cannot.abort", "hg.unsupported.extensions", "vcs.patch.partially.applied", "git.branches.update.successful", "hg.exception.during.merge.commit", "git.init.failed", "git.rebase.not.allowed", "hg.qfold.error", "hg.qfinish.error", "git.merge.abort.success", "git.init.error", "git.rebase.commit.edit.undo.error.repo.changed", "git.reset.failed", "git.update.detached.head.error", "git.create.branch.rollback.successful", "git.branch.checkout.failed", "git.delete.branch.on.merge", "vcs.root.added", "git.stash.failed", "vcs.patch.copied.to.clipboard", "git.merge.abort.failed", "vcs.could.not.compare.with.branch", "git.reset.successful", "git.branch.creation.failed", "git.branch.deletion.rollback.error", "hg.graft.continue.error", "hg.merge.exception", "git.rebase.abort.succeeded", "hg.debugancestor.error", "hg.log.command.execution.error", "hg.unable.to.run.executable", "hg.bookmark.error", "git.rebase.commit.edit.undo.error", "git.unstash.with.unresolved.conflicts", "git.unstash.failed", "hg.qgoto.error", "hg.clone.error", "git.clone.failed", "git.rebase.abort.failed", "hg.remote.auth.error", "vcs.uncommitted.changes.saving.error", "git.update.nothing.to.update", "git.merge.rollback.error", "hg.qnew.error", "git.checkout.success", "git.update.error", "git.cannot.resolve.conflict", "git.unstash.with.conflicts", "space.sharing.not.finished", "hg.rebase.continue.error", "git.checkout.rollback.error", "git.reset.partially.failed", "git.remote.branch.deletion.error", "hg.qrename.error", "hg.unsupported.version", "hg.repo.creation.error", "space.git.repo.init.error", "git.tag.remote.deletion.error", "hg.push.error", "vcs.cherry.pick.error", "git.repository.created", "vcs.roots.invalid", "git.stash.local.changes.detected", "git.could.not.compare.with.branch", "git.rebase.not.started", "space.project.shared.successfully", "vcs.compare.failed", "vcs.patch.apply.success.applied", "hg.qdelete.error", "hg.branch.creation.error", "git.cherry.pick.abort.failed", "git.rebase.rollback.failed", "git.merge.error", "vcs.patch.apply.cannot.find.patch.file", "git.rebase.commit.edit.undo.error.protected.branch", "git.rebase.successful", "vcs.commit.failed", "git.could.not.load.changes.of.commit", "git.unresolved.conflicts", "vcs.patch.apply.new.files.error", "hg.rebase.abort.error", "git.revert.abort.success", "git.stage.commit.error", "git.tag.not.created", "git.create.branch.rollback.error", "git.fix.tracked.not.on.branch", "vcs.shelve.deletion.undo", "hg.tag.creation.failed", "git.tag.deletion.rollback.error", "hg.update.error", "vcs.roots.registered", "hg.status.command.error", "hg.qimport.error", "vcs.patch.apply.not.patch.type.file", "vcs.commit.finished", "git.could.not.save.uncommitted.changes", "hg.rename.failed", "git.branch.rename.rollback.failed", "git.cherry.pick.abort.success", "hg.qpop.error", "git.conflict.resolving.error", "git.merge.failed", "hg.pull.error", "git.unstash.patch.applied", "hg.bookmark.name.is.empty", "hg.pull.auth.required", "git.rebase.abort", "vcs.patch.already.applied", "git.checkout.new.branch.operation.rollback.error", "hg4idea.changesets.error", "vcs.patch.creation.failed", "hg.graft.error", "hg.qpush.error", "git.checkout.new.branch.operation.rollback.successful", "github.rebase.remote.origin.not.found", "github.rebase.account.not.found", "github.rebase.multi.repo.not.supported", "rebase.error.failed.to.match.gh.repo", "git.branch.set.upstream.failed", "git.log.could.not.load.changes.of.commit", "vcs.project.partially.updated", "vcs.shelf.undo.delete", "vcs.branch.operations.are.executed.on.all.roots", "git.rebase.collect.updated.changes.error", "git.push.not.supported", "vcs.inactive.ranges.damaged", "git.commit.cancelled", "git.fetch.result", "git.tag.remote.deletion.success", "git.fetch.cancelled", "git.fetch.details", "git.project.updated", "git.all.files.are.up.to.date", "git.fetch.result.error", "git.project.partially.updated", "git.push.result", "git.branch.deleted", "git.tag.restored", "git.files.updated.after.merge", "vcs.project.update.finished", "git.tag.deleted", "git.commit.edit.success", "space.other", "gradle.jvm.invalid", "gradle.jvm.configured", "gradle.configuration.error", "sh.update.shellcheck.error", "sh.update.shellcheck.success", "sh.update.formatter.success", "sh.install.formatter.error", "sh.update.formatter.error", "sh.install.formatter", "sh.update.shellcheck", "sh.update.formatter", "sh.install.formatter.success", "git.bad.executable", "git.init.stage.failed", "git.rebase.failed", "diff.external.too.many.selected", "ignored.to.exclude.not.found", "git.rebase.stopped.for.editing", "vcs.cannot.load.annotations", "untracked.files.overwritten", "diff.external.cant.load.changes", "vcs.obsolete.plugin.unbundled", "vcs.suggested.plugin.install.failed", "diff.merge.intenral.error", "git.rebase.stopped.due.to.conflicts", "vcs.commit.checks.failed", "git.tags.loading.failed", "vcs.commit.checks.only.failed", "vcs.add.unversioned.error", "vcs.post.commit.checks.failed", "grazie.pro.advertisement", "git.open.in.browser.error", "git.ignore.file.generation.error", "review.branch.checkout.failed", "space.merge.request.creation.failed", "space.merge.request.created", "space.git.repo.foldernotfound", "git.stage.operation.error", "vcs.log.navigation.error", "vcs.log.commit.not.found", "file.history.load.details.error", "vcs.log.fatal.error", "vcs.log.not.available", "git.stash.non.empty.index.detected", "git.stash.successful", "space.review.create", "gitlab.merge.request.create", "github.pull.request.create", "maven.workspace.first.import.notification", "maven.wrapper.file.not.found.notification", "maven.workspace.external.storage.notification", "maven.wrapper.downloading.error.notification", "project.structure.automatically.detected.notification.id", "build.script.found.notification.id", "maven.wrapper.information.notification", "maven.wrapper.empty.url.notification", "github.pull.request.branch.update.failed", "lvcs.storage.corrupted", "lvcs.label.created", "git.update.force.pushed.branch.success", "git.update.force.pushed.branch.not.all.cherry.picked", "PrepareIntrospectionDiagnostic.finished", "DiagnosticRefreshAction.finished", "DumpToDdlDataSourceAction.no.db.data.source", "SaveLobAsAction.structure.changed", "SaveLobAsAction.error", "DatabaseModelLoader.single.db.mode.required", "DetailsSyncHelper.sync.required", "database.undo.is.impossible", "git.apply.changes.conflicts", "CopyDdlFromDbAction.error", "CliNotificationManagerBase.dump.finished", "DataSourceUtil.generic.notification", "PasswordExpirationConnectionInterceptor.successful", "CancelProgressAuditor.too.long", "DataSourceConfigurable.storage.move.failed", "CliNotificationManagerBase.restore.finished", "SchemaScripts.generation.finished", "DatabaseEditorHelper.Auditor.print", "DatabaseConfigFileWatcher.found", "RevertFix.failed", "DumpToDdlDataSourceAction.dump.error", "ImportHead.import.finished", "ImportHead.import.failed", "git.apply.changes.success", "DumpToDdlDataSourceAction.no.introspected.schemas", "DbSrcValidator.introspection.suggested", "ImportAction.error", "HandleErrorTask.cant.access", "git.apply.changes.local.changes.detected", "SaveLobAsAction.finished", "ScriptFileLayoutPanel.finished", "DumpToDdlDataSourceAction.no.objects", "DbSrcValidator.stale.pruned", "SaveLobAsAction.failed", "RemoteConsoleProcessSupport.before.task.cycle.prevented", "UseMyFix.failed", "SessionLogger.query.finished", "MergeFix.failed", "SqlAddExternalRelationIntention.stored", "DatabaseEditorHelper.Auditor.warn", "OutdatedCheck.failed", "ScriptFileLayoutPanel.error", "git.apply.changes.error", "DumpToDdlDataSourceAction.no.ddl.data.source", "db.import.failed", "DbSrcValidator.regeneration.suggested", "MsPlanModelBuilder.unable.to.find.table", "DumpToDdlDataSourceAction.failed.to.create.layout", "DataSourceConfigurable.set.default.dialect", "DatabaseEditorHelper.Auditor.error", "git.gpg.agent.configuration.propose", "git.gpg.agent.configuration.success", "git.gpg.agent.configuration.propose.suggestion", "git.gpg.agent.configuration.error", "git.unshallow.success", "invalid.rust.std.lib.source", "could.not.reach.crates.io", "install.target.error", "org.rust.database.plugin.suggestion", "visual.studio.installer", "project.not.found", "target.is.not.installed", "rustfmt.not.installed", "rust.version.not.supported", "component.not.available", "bad.answer.from.crates.io", "rustfmt.error", "defmap.rebuilt", "running.tests.with.sudo", "rustup.not.available", "cannot.load.rustc.for.debugger", "rustup.update.finished", "rustfmt.enabled.by.default", "file.was.shared.on.playground", "crate.is.not.installed", "feedback.form.prompted", "failure.to.share.on.playground", "failed.to.create.mod", "install.component.error", "command.not.available", "git.commit.modal.deprecation", "vcs.git.repo.init.error", "vcs.share.cannot.find.git.repo", "vcs.share.init.push.failed", "vcs.share.cannot.create.repo", "vcs.share.project.successfully.shared", "vcs.share.project.created.init.commit.failed", "vcs.share.empty.repo.created", "vcs.commit.finished.initial", "toolbox.open.project.error", "git.rebase.log.changes.drop.failed", "git.in.memory.operation.failed", "some.requirements.from.base.files.were.not.updated", "all.files.are.up.to.date", "ssh.configuration.created", "installation.failed", "using.future.imports", "download.notebook.package.started", "could.not.upload.helpers.for.remote.interpreter", "stale.python.version", "api.key.invalid", "server.restarted", "server.runner.not.found", "reload.file.from.server.error", "table.data.exception.raised", "jupyter.cell.edited.during.sessions", "server.connection.error", "analyze.entries.in.requirements.file.failed", "exception.raised", "connection.failed", "requirements.have.been.ignored", "download.notebook.package.finished", "api.keys.found", "reconnected.kernel.busy", "python.package.deleted", "provide.path.to.settings.py", "cython.extension.speeds.up.python.debugging", "download.file.is.finished", "refresh.skeletons.for.remote.interpreter.failed", "python.installation.interrupted", "api.key.valid", "deployment.configuration.created", "jupyter.other.cell.under.debugger", "cannot.delete.non.empty.directory", "execution.exception", "jupyter.server.detached", "using.six.package", "no.interpreter.configured", "cannot.delete", "remote.file.rename.exception", "sdk.has.been.configured.as.the.project.interpreter", "reconnected.kernel.idle", "local.files.are.not.synchronized.with.the.server", "jupyter.cell.edited.between.sessions", "jupyter.server.starting", "jupyter.server.started", "kernel.changed", "all.plots.are.saved", "nbstripout.filter", "sync.still.enabled", "create.requirements.file.failed", "run.pipenv.lock.suggestion", "loading.cancelled", "remote.interpreter.support.is.not.available", "unknown.remote.file.status.copying.aborted", "installation.succeeded", "python.package.installed", "file.saved", "black.formatter.support", "cell.execution.finished", "api.keys.imported" ]
       }
     }
   }, {
@@ -7662,7 +7821,7 @@
       "from" : "1"
     } ],
     "rules" : {
-      "event_id" : [ "{enum:slicing.applied|data.opened|formatting.applied}" ],
+      "event_id" : [ "{enum:slicing.applied|data.opened|formatting.applied|reload.applied}" ],
       "event_data" : {
         "columns_count" : [ "{regexp#integer}" ],
         "dimensions" : [ "{enum:ONE|TWO|THREE|MULTIPLE|UNKNOWN}" ],
@@ -7705,12 +7864,13 @@
       "from" : "1"
     } ],
     "rules" : {
-      "event_id" : [ "{enum:input.coverage.loaded|total.coverage.reported|fresh.coverage.reported}" ],
+      "event_id" : [ "{enum:input.coverage.loaded|total.coverage.reported|fresh.coverage.reported|deprecated.input.coverage.loaded}" ],
       "event_data" : {
+        "analysisKind" : [ "{enum:REGULAR|INCREMENTAL|OTHER|IDE}" ],
         "fresh_coverage_value" : [ "{regexp#integer}" ],
         "is_fresh_computed" : [ "{enum#boolean}" ],
         "is_total_computed" : [ "{enum#boolean}" ],
-        "language" : [ "{enum:JVM|PHP|JavaScript|None|Other}", "{enum:Go|Python}" ],
+        "language" : [ "{enum:JVM|PHP|JavaScript|Python|Go|None|Other}" ],
         "total_coverage_value" : [ "{regexp#integer}" ]
       }
     }
@@ -7724,6 +7884,7 @@
       "event_id" : [ "{enum#__event_id}" ],
       "event_data" : {
         "activityKind" : [ "{enum:LINTER_EXECUTION|PROJECT_OPENING|PROJECT_CONFIGURATION|PROJECT_ANALYSIS}" ],
+        "analysisKind" : [ "{enum:REGULAR|INCREMENTAL|OTHER|IDE}" ],
         "analyzedCount" : [ "{regexp#integer}" ],
         "duration" : [ "{regexp#integer}" ],
         "filesCount" : [ "{regexp#integer}" ],
@@ -7910,7 +8071,7 @@
         "ide_activity_id" : [ "{regexp#integer}" ],
         "is_seamless_reconnect" : [ "{enum#boolean}" ],
         "is_unattended" : [ "{enum#boolean}" ],
-        "link_flow_type" : [ "{enum:Gateway|Toolbox}" ],
+        "link_flow_type" : [ "{enum:Gateway|Toolbox}", "{enum:toolbox|gateway}" ],
         "mode" : [ "{enum:Readonly|EditFiles|FullAccess|Custom}" ],
         "parentProductCode" : [ "{enum:|unknown|IU|RM|WS|PS|PY|DS|OC|CL|DB|RD|GO|GW}" ],
         "participants_max" : [ "{regexp#integer}" ],
@@ -8059,6 +8220,15 @@
       }
     }
   }, {
+    "id" : "recent.projects.panel",
+    "builds" : [ ],
+    "versions" : [ {
+      "from" : "1"
+    } ],
+    "rules" : {
+      "event_id" : [ "{enum:learn.more.button.clicked|go.to.projects.button.clicked}" ]
+    }
+  }, {
     "id" : "refactoring",
     "builds" : [ ],
     "versions" : [ {
@@ -8164,7 +8334,7 @@
       "from" : "1"
     } ],
     "rules" : {
-      "event_id" : [ "{enum:frame.became.interactive|first.ui.shown|frame.became.visible|code.loaded.and.visible.in.editor}" ],
+      "event_id" : [ "{enum#__event_id}" ],
       "event_data" : {
         "duration_ms" : [ "{regexp#integer}" ],
         "file_type" : [ "{util#file_type}" ],
@@ -8176,10 +8346,15 @@
         "loaded_cached_markup" : [ "{enum#boolean}" ],
         "loaded_cached_parameter_hints_markup" : [ "{enum#boolean}" ],
         "no_editors_to_open" : [ "{enum#boolean}" ],
+        "number_of_projects" : [ "{regexp#integer}" ],
+        "project_order" : [ "{regexp#integer}" ],
         "projects_type" : [ "{enum:Reopened|FromFilesToLoad|FromArgs|Unknown}" ],
         "source_of_selected_editor" : [ "{enum:TextEditor|UnknownEditor|FoundReadmeFile}" ],
         "type" : [ "{enum:Splash|Frame}" ],
         "violation" : [ "{enum:MightBeLightEditProject|MultipleProjects|NoProjectFound|WelcomeScreenShown|OpeningURI|ApplicationStarter|HasOpenedProject}" ]
+      },
+      "enums" : {
+        "__event_id" : [ "frame.became.interactive", "first.ui.shown", "frame.became.visible", "code.loaded.and.visible.in.editor", "multiple.project.frame.became.interactive", "multiple.project.frame.became.visible", "multiple.project.code.loaded.and.visible.in.editor" ]
       }
     }
   }, {
@@ -8240,10 +8415,11 @@
       "event_id" : [ "{enum:started|ui.shown|finished}" ],
       "event_data" : {
         "additional.alternative_jre_version" : [ "{regexp#integer}" ],
+        "additional.device_kind" : [ "{enum:unity_usb_device|unity_custom_player|unity_remote_player|unity_local_player|unity_local_uwp_player|unity_editor|unity_virtual_player|ios_connected_device|ios_simulator|nintendo_switch_devkit|ps5_devkit|xbox_devkit}" ],
         "additional.file_type" : [ "{enum:JS|TS|OTHER}" ],
         "additional.is_scratch" : [ "{enum#boolean}" ],
         "additional.lang" : [ "{util#lang}" ],
-        "additional.launch_settings_command" : [ "{enum:executable|iis|iisexpress|project}" ],
+        "additional.launch_settings_command" : [ "{enum:executable|iis|iisexpress|project}", "{enum:debugroslyncomponent}" ],
         "additional.node_version_major" : [ "{regexp#integer}" ],
         "additional.typescript_loader" : [ "{enum:none|bundled}" ],
         "dumb" : [ "{enum#boolean}" ],
@@ -8516,6 +8692,7 @@
         "attachment_type" : [ "{enum:Rust File|Rust File Attached}", "{enum:Rust File in Dumb Mode}" ],
         "candiate_modules_count" : [ "{regexp#integer}" ],
         "crate_name" : [ "{enum#crate_name}" ],
+        "directory_renamed" : [ "{enum#boolean}" ],
         "duration_ms" : [ "{regexp#integer}" ],
         "duration_seconds" : [ "{regexp#integer}" ],
         "error_code" : [ "{util#rust_error_code_validation_rule}" ],
@@ -8535,6 +8712,8 @@
         "mir_error" : [ "{enum:UnexpectedIndexBase|OnlyIntegersSupportedDiv|OnlyIntegersSupportedNeg|NoEnclosingBreakableScope|DropTreeForContinueDoesNotExist|CouldNotGetReturnTypeOfConst|CouldNotFindReturnTypeSourceOfConst|CouldNotGetTypeReferenceFromFunctionReturnType|CouldNotGetBlockOfFunction1|CouldNotGetBlockOfFunction2|CouldNotGetTypeReferenceFromLambdaReturnType|CouldNotGetBlockOfLambda1|CouldNotGetBlockOfLambda2|CannotFindEnumVariant|BadCapture|CorrespondingScopeIsNotFound|ShouldNotCallStatementExprOnGeneralExpressionWithoutStatementScope|CouldNotFindVariable|BlockIsExpectedToBeSetHere|OrPatternsShouldHaveAlreadyBeenHandled|SimplifiablePatternFound|UnexpectedFakeVariableInCapture|CouldNotCratePlaceFromPlaceBuilder|NoReturnBreakableScope|CannotUseNonFieldProjectionOnDowncastedPlace|TerminatorIsExpectedToBeSpecifiedByThisMoment|TerminatorIsNotUnwindable|Impossible}" ],
         "mir_incomplete" : [ "{enum:NotEnoughCastsSupported|NoDowncastInLoweringEnumsField|ReferenceOfSpanIsNullLoweringMatch|ReferenceOfSpanIsUnexpectedLoweringMatch|UnhandledVariableInPlaceIntoPattern|UnhandledNullMatchPlaceInPlaceIntoPattern|UnhandledLhsThatNeedsDrop|UnhandledLiteral|UnhandledNonHirLiteral|UnhandledConstParam|UnhandledConstBlock|UnhandledStaticRef|UnhandledOtherConstant}" ],
         "name" : [ "{enum#crate_name}" ],
+        "package_and_directory_with_the_same_name" : [ "{enum#boolean}" ],
+        "package_renamed" : [ "{enum#boolean}" ],
         "plugin" : [ "{util#plugin}" ],
         "plugin_type" : [ "{util#plugin_type}" ],
         "plugin_version" : [ "{util#plugin_version}" ],
@@ -8552,7 +8731,7 @@
         "type_text_presentation_source" : [ "{enum:RustRover|ExternalLinter}" ]
       },
       "enums" : {
-        "__event_id" : [ "new_project_creation", "crate.imported.on.completion", "chained.method.completed", "full.function.parameter.completed", "parentheses.skipped.on.function.completion", "rust.attach.file.quickfix.invoked", "rust.new.file.created", "fix.add.crate.dependency", "toolchain.updated", "cfg.disabled.item.completed", "rust.created.file.attached.to.module", "cargo.reload.disabled.from.balloon", "intention.called", "implement.members.invoked.from.hint", "macro.task.duration", "auto.imports.added", "terminal.path.clicked", "self.prefix.completed", "moved.e0382.value.completed", "projects.to.attach.number", "derive.trait.fix.called", "library.file.content.restored", "full.named.field.decl.completed", "mir.for.borrowch.building.result.throttled", "mir.for.borrowch.building.completed", "multispot.highlighting.hidden", "multispot.highlighting.shown", "multispot.highlighting.connection.hint.shown", "inline.descriptions.disabled.via.popup", "inline.explanations.disabled.via.popup", "inline.error.shown", "inline.problem.shown", "lookup.with.error.selected", "rust.new.module.created", "inspection.popup.shown", "inspection.popup.hidden", "type.mismatch.view.rendering.status" ],
+        "__event_id" : [ "new_project_creation", "crate.imported.on.completion", "chained.method.completed", "full.function.parameter.completed", "parentheses.skipped.on.function.completion", "rust.attach.file.quickfix.invoked", "rust.new.file.created", "fix.add.crate.dependency", "toolchain.updated", "cfg.disabled.item.completed", "rust.created.file.attached.to.module", "cargo.reload.disabled.from.balloon", "intention.called", "implement.members.invoked.from.hint", "macro.task.duration", "auto.imports.added", "terminal.path.clicked", "self.prefix.completed", "moved.e0382.value.completed", "projects.to.attach.number", "derive.trait.fix.called", "library.file.content.restored", "full.named.field.decl.completed", "mir.for.borrowch.building.result.throttled", "mir.for.borrowch.building.completed", "multispot.highlighting.hidden", "multispot.highlighting.shown", "multispot.highlighting.connection.hint.shown", "inline.descriptions.disabled.via.popup", "inline.explanations.disabled.via.popup", "inline.error.shown", "inline.problem.shown", "lookup.with.error.selected", "rust.new.module.created", "inspection.popup.shown", "inspection.popup.hidden", "type.mismatch.view.rendering.status", "rename.package.directory.action.called" ],
         "__thir_incomplete" : [ "PatConstTyAdtNotEnum", "PatConstTyAdtUnresolvedVariant", "UnknownConstantPat", "PatConstTyAdtUnknownVariantIndex", "PatConstTyAdtNotPathExpr", "UnknownPatConst", "UnknownPatMacroUnexpanded", "UnknownPatStructFieldDeclOutOfIndex", "UnknownPatTuplePathIsNotEnum", "UnknownPatStructIsNotTyAdt", "UnknownPat", "UnknownPatIdentResolution", "UnknownPatTupleIsNotTyAdt", "UnknownPatTupleIsNotTyTuple", "UnknownPatStructFieldDeclUnresolved", "UnknownPatternEnumIsNotAdt", "UnknownPatStructPathIsNotFieldsOwner", "UnknownPatSlice", "UnknownPatStructUnknownPatField" ]
       }
     },
@@ -9945,6 +10124,7 @@
       "event_data" : {
         "column_spacing" : [ "{regexp#float}" ],
         "enabled" : [ "{enum#boolean}" ],
+        "engine" : [ "{enum:REWORKED|CLASSIC|NEW_TERMINAL}" ],
         "font_size" : [ "{regexp#float}" ],
         "line_spacing" : [ "{regexp#float}" ],
         "option_name" : [ "{enum:enable_audible_bell|close_on_session_end|report_mouse|copy_on_selection|paste_on_middle_mouse_button|override_ide_shortcuts|enable_shell_integration|highlight_hyperlinks|use_option_as_meta|run_commands_using_ide}", "{enum:show_separators_between_commands}" ],
@@ -9952,7 +10132,7 @@
         "style" : [ "{enum:SINGLE_LINE|DOUBLE_LINE|SHELL}" ]
       },
       "enums" : {
-        "__event_id" : [ "non.default.tab.name", "non.default.options", "non.default.prompt.style", "non.default.shell", "non.default.cursor.shape", "non.default.font.name", "non.default.column.spacing", "non.default.font.size", "non.default.line.spacing" ]
+        "__event_id" : [ "non.default.tab.name", "non.default.options", "non.default.prompt.style", "non.default.shell", "non.default.cursor.shape", "non.default.font.name", "non.default.column.spacing", "non.default.font.size", "non.default.line.spacing", "non.default.engine" ]
       }
     }
   }, {
@@ -11631,7 +11811,7 @@
       "int_pw_of_2" : "-?(1|2|4|8|16|32|64|128|256|512|1024|2048|4096|8192|16384|32768|65536|131072|262144|524288|1048576|2097152|4194304|8388608|16777216|33554432|67108864|134217728|268435456|536870912|1073741824)",
       "integer" : "-?\\d+(\\+)?",
       "kotlin_version" : "(\\d+-)?\\d\\.\\d\\.\\d{1,3}-(dev|eap|release)-(\\d+-)?(AppCode|CLion|IJ|Studio)[0-9\\-\\.]+",
-      "license_metadata" : "[0-9]{10}[A-Z]{4}[-0-9X]{6}[A-Z]?",
+      "license_metadata" : "(01[0-9]{8}[CPEOLF][PSX][JAFN][MANX]([0-9]{3}|-[0-9]{2}|XXX){2})|(02[0-9]{8}[CPEOLF][PSX][JAFN][MANX]([0-9]{3}|-[0-9]{2}|XXX){2}[ADSX])|(03[0-9]{8}[CPEOLF][PSX][JAFN][MANX]([0-9]{3}|-[0-9]{2}|XXX){2}[ADSX][A-Z0-9]{6})|(04[0-9]{8}[CPEOLF][PSX][JAFN][MANX]([0-9]{3}|-[0-9]{2}|XXX){2}[ADSX][A-Z0-9]{6}[YXN])",
       "long" : "-?\\d{1,19}",
       "long_pw_of_2" : "(-9223372036854775808|(-?(1|2|4|8|16|32|64|128|256|512|1024|2048|4096|8192|16384|32768|65536|131072|262144|524288|1048576|2097152|4194304|8388608|16777216|33554432|67108864|134217728|268435456|536870912|1073741824|2147483648|4294967296|8589934592|17179869184|34359738368|68719476736|137438953472|274877906944|549755813888|1099511627776|2199023255552|4398046511104|8796093022208|17592186044416|35184372088832|70368744177664|140737488355328|281474976710656|562949953421312|1125899906842624|2251799813685248|4503599627370496|9007199254740992|18014398509481984|36028797018963968|72057594037927936|144115188075855872|288230376151711744|576460752303423488|1152921504606846976|2305843009213693952|4611686018427387904)))",
       "mcu_name" : "UNKNOWN|UPDATE_FAILED|(STM32[A-Z]{1,2}\\w+)",
@@ -11644,5 +11824,5 @@
       "version" : "Unknown|unknown.format|unknown|UNKNOWN|((\\d+\\.?)*\\d+)"
     }
   },
-  "version" : "5986"
+  "version" : "6074"
 }
