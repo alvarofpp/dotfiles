@@ -109,3 +109,6 @@ eval "$(atuin init zsh)"
 # if [ $? -ne 0 ]; then
 #   ssh-add -t 5d ~/.ssh/id_rsa && echo "SSH agent created!"
 # fi
+
+# Docker
+alias dc="docker compose"
