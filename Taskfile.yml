@@ -1,9 +1,10 @@
 # https://taskfile.dev
 
 version: '3'
-silent: true
+silent: false
 
 includes:
+  cc: ./taskfiles/ClaudeCode.yml
   docker: ./taskfiles/Docker.yml
   op: ./taskfiles/Operations.yml
   py: ./taskfiles/Python.yml

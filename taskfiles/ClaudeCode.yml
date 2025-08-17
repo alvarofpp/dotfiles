@@ -1,0 +1,21 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+
+tasks:
+  usage:
+    desc: "Shows the use of Claude Code."
+    summary: |
+      Shows the use of Claude Code.
+      Doc: https://github.com/ryoppippi/ccusage
+      
+      Arguments:
+        - CLI_ARGS: The arguments to pass to the `ccusage`.
+      
+      Examples:
+        - task cc:usage
+        - task cc:usage -- daily --instances
+        - task cc:usage -- monthly
+    cmds:
+      - deno run --allow-read -E -S=homedir -N='raw.githubusercontent.com:443' npm:ccusage@15.9.7 {{ .CLI_ARGS }}
