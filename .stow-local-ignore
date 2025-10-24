@@ -11,4 +11,6 @@ LICENSE
 setup.sh
 windows-terminal-settings.json
 iterm/
-.config/JetBrains/
+home/.config/JetBrains/
+stow.sh
+.editorconfig
