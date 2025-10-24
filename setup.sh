@@ -104,6 +104,7 @@ IT_PACKAGES=(
   "node"
   "deno"
   "docker"
+  "pulumi"
 )
 for IT_PACKAGE in "${IT_PACKAGES[@]}"; do
   installPackage "${INSTALL_CMD}" "${IT_PACKAGE}" "${LIST_PACKAGES}"
@@ -115,5 +116,8 @@ for IT_PACKAGE in "${IT_PACKAGES[@]}"; do
     npm install -g @anthropic-ai/claude-code
   fi
 done
+
+# Install UV
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 echo "🎆 Done"

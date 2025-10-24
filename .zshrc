@@ -1,4 +1,5 @@
 WSL_USER="alvaro"
+WINDOWS_DIR="/mnt/c/Documents\ and\ Settings/alvar/"
 
 # Homebrew
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
@@ -52,6 +53,7 @@ export NVM_DIR="$HOME/.nvm"
 # Others
 autoload -U +X bashcompinit && bashcompinit
 complete -o nospace -C /usr/bin/terraform terraform
+alias unstow='stow --delete'
 
 # fzf
 source <(fzf --zsh)
@@ -88,7 +90,7 @@ _fzf_compgen_dir() {
 }
 
 # bat (better cat)
-export BAT_THEME=tokyonight_night
+export BAT_THEME="Monokai Extended Origin"
 alias cat="bat"
 
 # zoxide (better cd)
@@ -112,3 +114,10 @@ eval "$(atuin init zsh)"
 
 # Docker
 alias dc="docker compose"
+
+# Vagrant
+# export VAGRANT_HYPERV_ADMIN_ACCESS="1"
+export VAGRANT_DEFAULT_PROVIDER="virtualbox"
+export VAGRANT_WSL_ENABLE_WINDOWS_ACCESS="1"
+export PATH="$PATH:/mnt/c/Program Files/Oracle/VirtualBox"
+export VAGRANT_WSL_WINDOWS_ACCESS_USER_HOME_PATH="/mnt/c/Vagrant"
