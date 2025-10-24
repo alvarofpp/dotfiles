@@ -1,0 +1,94 @@
+# EditorConfig is awesome: https://editorconfig.org
+
+# Configuração raiz - aplicada a todos os arquivos
+root = true
+
+# Configurações padrão para todos os arquivos
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Arquivos Ruby
+[*.rb]
+indent_style = space
+indent_size = 2
+max_line_length = 80
+
+# Arquivos Python
+[*.py]
+indent_style = space
+indent_size = 4
+max_line_length = 88
+
+# Arquivos TypeScript/JavaScript
+[*.{ts,tsx,js,jsx}]
+indent_style = space
+indent_size = 2
+max_line_length = 100
+
+# Arquivos JSON
+[*.json]
+indent_style = space
+indent_size = 2
+
+# Arquivos YAML
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Arquivos XML/HTML
+[*.{xml,html}]
+indent_style = space
+indent_size = 2
+
+# Arquivos CSS/SCSS/SASS
+[*.{css,scss,sass,less}]
+indent_style = space
+indent_size = 2
+
+# Arquivos de configuração específicos
+[*.{toml,ini}]
+indent_style = space
+indent_size = 4
+
+# Markdown - permitir trailing whitespace (necessário para quebras de linha)
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false
+
+# Arquivos de package managers
+[{package.json,*.lock}]
+indent_style = space
+indent_size = 2
+
+# Arquivos Python específicos
+[{requirements*.txt,Pipfile}]
+indent_style = space
+indent_size = 4
+
+# Arquivos de configuração do Python
+[{setup.py,setup.cfg,pyproject.toml}]
+indent_style = space
+indent_size = 4
+
+# Dockerfiles
+[{Dockerfile,Dockerfile.*}]
+indent_style = space
+indent_size = 2
+
+# Arquivos de configuração do TypeScript
+[{tsconfig*.json,*.config.js}]
+indent_style = space
+indent_size = 2
+
+# Makefile (deve usar tabs)
+[Makefile]
+indent_style = tab
+
+# Arquivos .gitignore e similares
+[.gitignore]
+indent_style = space
+indent_size = 2
