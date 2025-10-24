@@ -1,5 +1,5 @@
 WSL_USER="alvaro"
-WINDOWS_DIR="/mnt/c/Documents\ and\ Settings/alvar/"
+WINDOWS_DIR="/mnt/c/Users/alvar"
 
 # Homebrew
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
