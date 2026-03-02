@@ -120,4 +120,7 @@ done
 # Install UV
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# Submodule
+git submodule update --init --recursive
+
 echo "🎆 Done"

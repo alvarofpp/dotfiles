@@ -49,6 +49,7 @@ the script installs the following packages:
 git clone git@github.com:alvarofpp/dotfiles.git
 cd dotfiles
 stow .
+stow ai
 ```
 
 ## Appearance

@@ -5,6 +5,10 @@
 .git
 .gitignore
 
+# Git modules
+.gitmodules
+^/ai$
+
 # Repository
 ^/README.*
 LICENSE
