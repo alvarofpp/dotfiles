@@ -10,8 +10,11 @@ plugins=(fzf-tab)
 source $ZSH/oh-my-zsh.sh
 export LESS=FRX
 
+# HCloud
+fpath+=(~/.config/hcloud/completion/zsh)
+
 # Autocomplete
-autoload -U compinit; compinit -i
+autoload -Uz compinit; compinit -i
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   # Theme
@@ -121,3 +124,6 @@ export VAGRANT_DEFAULT_PROVIDER="virtualbox"
 export VAGRANT_WSL_ENABLE_WINDOWS_ACCESS="1"
 export PATH="$PATH:/mnt/c/Program Files/Oracle/VirtualBox"
 export VAGRANT_WSL_WINDOWS_ACCESS_USER_HOME_PATH="/mnt/c/Vagrant"
+
+# Flutter
+export PATH="$HOME/flutter/bin:$PATH"
