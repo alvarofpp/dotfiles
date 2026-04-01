@@ -127,3 +127,6 @@ export VAGRANT_WSL_WINDOWS_ACCESS_USER_HOME_PATH="/mnt/c/Vagrant"
 
 # Flutter
 export PATH="$HOME/flutter/bin:$PATH"
+
+# RTK
+export RTK_TELEMETRY_DISABLED=1
