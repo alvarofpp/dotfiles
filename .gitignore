@@ -1,3 +1,4 @@
 .idea
 bin
 home/.config/JetBrains/
+home/.config/gh/hosts.yml
