@@ -45,6 +45,7 @@ PACKAGES=(
   "eza"
   "fd"
   "fzf"
+  "gh"
   "go-task"
   "httpie"
   "jq"
