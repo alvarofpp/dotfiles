@@ -11,6 +11,7 @@
 
 # Repository
 ^/README.*
+CLAUDE.md
 LICENSE
 setup.sh
 windows-terminal-settings.json
