@@ -17,5 +17,6 @@ setup.sh
 windows-terminal-settings.json
 iterm/
 home/.config/JetBrains/
+home/.config/libreoffice/
 stow.sh
 .editorconfig
