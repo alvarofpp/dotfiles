@@ -30,19 +30,6 @@
   - `/tmp/skills-audit-fase2-20260425-1139.md` (rubric 28 skills)
   - `/tmp/skills-audit-plano-20260425-1139.md` (plano 6 batches)
 
-## Decisions made (2026-04-25)
+## Decisões e convenções
 
-- **Plugin SEO upstream**: `github.com/AgriciDaniel/claude-seo` (pinned a `v1.9.0` no install.sh). Sempre que reinstalar, conferir versão e diferenças com `gh api repos/AgriciDaniel/claude-seo/contents/install.sh`.
-
-- **Convenção de escopo de skills**:
-  - Global (`~/.claude/skills/`) → projeto-agnóstico, funciona em qualquer repo
-  - Projeto (`~/<projeto>/.claude/skills/`) → conteúdo específico (tokens, paths, vozes)
-  - Skills com refs Matria foram split: snapshot completo em Matria + versão limpa global
-
-- **Frontmatter válido em skills** — apenas `name`, `description`, `license`. Campos como `allowed-tools`, `argument-hint`, `user-invokable`, `compatibility`, `metadata.*`, `origin` são silenciosamente ignorados (são de commands, não skills).
-
-- **`name` deve casar com slug do diretório** — caso contrário runtime falha lookup. Renomeados: `ln-643-api-contract-auditor` → `api-contract-auditor`, `web-scraping` → `web-scraper`.
-
-- **Progressive disclosure** — SKILL.md deve ficar < ~250 linhas focado em triggers + decision tree + pointers; conteúdo profundo vai para `references/<topic>.md` carregado on-demand.
-
-- **`.venv` em skills** — adicionado `.claude/skills/*/.venv/` ao `.gitignore` do submódulo `dotfiles-ai`. Venvs nunca entram no repo.
+Movidas para [`ai/docs/skills-conventions.md`](ai/docs/skills-conventions.md). Cobre frontmatter válido, regra de `name` casando com slug, escopo global vs projeto, description de gatilho, progressive disclosure, e setup do plugin SEO.
