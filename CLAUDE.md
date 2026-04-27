@@ -26,7 +26,7 @@ stow --delete home     # Unlink a single package (alias: unstow)
 ## Architecture Notes
 
 - **`ai/` is a git submodule** pointing to `alvarofpp/dotfiles-ai`. Changes there require separate commits/pushes. The main repo tracks a submodule pointer.
-- **`.stow-local-ignore`** excludes non-dotfile assets (README, setup.sh, iterm/, etc.) from stow operations. Edit this when adding new top-level files that shouldn't be symlinked.
+- **`.stow-local-ignore`** excludes non-dotfile assets (README, setup.sh, iterm/, etc.) from stow operations. Edit this when adding new top-level files that shouldn't be symlinked. The `ai/` submodule has its **own** `.stow-local-ignore` that filters Claude Code runtime dirs (`backups/`, `cache/`, `file-history/`, `sessions/`, `history.jsonl`, etc.) so `stow ai` only links stable config (`commands/`, `agents/`, `skills/`, `rules/`, `hooks/`, `plugins/`, `CLAUDE.md`, `RTK.md`, `settings.json`).
 - **Taskfiles** (`home/Taskfile.yml` + `home/taskfiles/`) provide global tasks via `task` (aliased as `t`). Namespaces: `cc:` (Claude Code), `docker:`, `op:`, `py:`.
 - **RTK (Rust Token Killer)** is installed via brew and configured at `home/.config/rtk/filters.toml`. Claude Code hooks transparently rewrite commands through `rtk` for token savings.
 - **Shell**: zsh with oh-my-zsh, headline theme, Catppuccin Mocha syntax highlighting, fzf-tab plugin.
