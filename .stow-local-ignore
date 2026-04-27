@@ -22,3 +22,7 @@ home/.config/Emdash/
 home/.config/dconf/
 stow.sh
 .editorconfig
+
+# Hermes setup workspace
+^/hermes-setup.zip$
+^/hermes-setup$

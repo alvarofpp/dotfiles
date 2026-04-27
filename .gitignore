@@ -5,3 +5,7 @@ home/.config/gh/hosts.yml
 home/.config/libreoffice/
 home/.config/Emdash/
 home/.config/dconf/
+
+# Hermes setup workspace — material privado, não vai pro repo
+hermes-setup.zip
+hermes-setup/
