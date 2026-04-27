@@ -18,5 +18,6 @@ windows-terminal-settings.json
 iterm/
 home/.config/JetBrains/
 home/.config/libreoffice/
+home/.config/Emdash/
 stow.sh
 .editorconfig
