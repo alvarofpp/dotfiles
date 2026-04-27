@@ -24,6 +24,10 @@
 - **Criar `~/.zshrc.local`** com `MINIMAX_API_KEY` (não commitado). Sem isso a função `claude-mini` falha com mensagem instrutiva. Pega chave em https://platform.minimax.io/.
 - **Validar emdash spawn de agentes** — bug `stripAnsi` (`Cannot find module '@shared/text/stripAnsi'`) que afetava v0.4.50 sumiu na v1.1.3 (instalada 2026-04-27 via `releases.emdash.sh`). Ainda assim, abrir um worktree e confirmar que `claude-mini` funciona dentro dele antes de remover esta nota. Bonus: a v1 trouxe auto-update embutido pra `.deb`, então provavelmente não precisa mais baixar `.deb` manualmente.
 
+### Stow do submódulo `ai/` (2026-04-27)
+
+- **Symlinks ad-hoc em `~/.claude/`** — durante a sessão de hoje criei manualmente os 9 symlinks de config (`commands`, `agents`, `hooks`, `plugins`, `rules`, `skills`, `CLAUDE.md`, `RTK.md`, `settings.json`) porque `stow ai` ainda não tinha o ignore de runtime. Após o submodule bump (`849a4c3` em `ai/`, `9b6b2ef` no parent), `stow ai` agora roda limpo. Pra padronizar e tornar `stow -D ai` reversível: `rm` os 9 symlinks ad-hoc e rodar `stow ai` pra recriar via stow. Comportamento funcional idêntico, só fica "owned by stow" em vez de manual.
+
 ## Pending tasks
 
 - **Banana extension não instalada** — o plugin claude-seo tem `extensions/banana/` (geração de imagem via Gemini/MCP) que não foi copiado. Se quiser usar `seo-image-gen` em modo geração real, rodar install.sh oficial do plugin com `CLAUDE_SEO_TAG=v1.9.0` ou copiar manualmente.
