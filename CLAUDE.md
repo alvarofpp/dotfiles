@@ -11,7 +11,7 @@ A dotfiles repo managed with [GNU Stow](https://www.gnu.org/software/stow/). Sto
 | Package | Target | Contents |
 |---------|--------|----------|
 | `home/` | `$HOME` | zsh, fzf, bat, eza, zoxide, atuin, git, taskfiles, rtk config |
-| `ai/` | `$HOME` | Claude Code config (`.claude/`). **Separate git submodule** (`dotfiles-ai`) |
+| `ai/` | `$HOME` | Claude Code config (`.claude/`) + shell drop-ins (`.zshrc.d/`). **Separate git submodule** (`dotfiles-ai`) |
 | `etc/` | `/etc` | `wsl.conf` (requires sudo) |
 | `windows/` | `/mnt/c/Users/alvar` | `.wslconfig` (requires sudo) |
 
@@ -30,4 +30,5 @@ stow --delete home     # Unlink a single package (alias: unstow)
 - **Taskfiles** (`home/Taskfile.yml` + `home/taskfiles/`) provide global tasks via `task` (aliased as `t`). Namespaces: `cc:` (Claude Code), `docker:`, `op:`, `py:`.
 - **RTK (Rust Token Killer)** is installed via brew and configured at `home/.config/rtk/filters.toml`. Claude Code hooks transparently rewrite commands through `rtk` for token savings.
 - **Shell**: zsh with oh-my-zsh, headline theme, Catppuccin Mocha syntax highlighting, fzf-tab plugin.
+- **Shell drop-ins**: `home/.zshrc` sources `$HOME/.zshrc.d/*.zsh` (drop-in dir, populated by the `ai/` submodule — keeps AI-related shell helpers out of the dotfiles root) and `$HOME/.zshrc.local` if present (uncommitted secrets/overrides like `MINIMAX_API_KEY`).
 - **Platform**: WSL2 (Linux on Windows). The `windows/` package targets the Windows host filesystem.
