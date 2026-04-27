@@ -40,8 +40,9 @@ alias python="python3.13"
 # Reference: https://stackoverflow.com/a/370192
 export PATH=`echo ${PATH} | awk -v RS=: -v ORS=: '/2.7/ {next} {print}'`
 
-# Taskfile
-export PATH="${PATH}:/home/${WSL_USER}/.local/bin"
+# User-local bins ganham precedência sobre /usr/bin (deixa wrappers em
+# ~/.local/bin/ — ex.: emdash do submódulo ai/ — interceptarem binários globais).
+export PATH="/home/${WSL_USER}/.local/bin:${PATH}"
 alias t=task --global
 eval "$(task --completion zsh)"
 
