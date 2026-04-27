@@ -22,7 +22,7 @@
 ### Multi-model setup (2026-04-26)
 
 - **Criar `~/.zshrc.local`** com `MINIMAX_API_KEY` (não commitado). Sem isso a função `claude-mini` falha com mensagem instrutiva. Pega chave em https://platform.minimax.io/.
-- **Validar emdash spawn de agentes** — startup de `emdash` v0.4.50 emite `Failed to initializeShellEnvironment: Cannot find module '@shared/text/stripAnsi'`. Pode quebrar PATH/funções nos worktrees spawnados (`claude-mini` não estaria disponível). Testar abrindo um worktree e tentando `claude-mini` — se falhar, configurar agente custom com path absoluto ou aguardar v0.4.51.
+- **Validar emdash spawn de agentes** — bug `stripAnsi` (`Cannot find module '@shared/text/stripAnsi'`) que afetava v0.4.50 sumiu na v1.1.3 (instalada 2026-04-27 via `releases.emdash.sh`). Ainda assim, abrir um worktree e confirmar que `claude-mini` funciona dentro dele antes de remover esta nota. Bonus: a v1 trouxe auto-update embutido pra `.deb`, então provavelmente não precisa mais baixar `.deb` manualmente.
 
 ## Pending tasks
 
