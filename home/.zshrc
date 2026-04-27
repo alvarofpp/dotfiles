@@ -130,3 +130,13 @@ export PATH="$HOME/flutter/bin:$PATH"
 
 # RTK
 export RTK_TELEMETRY_DISABLED=1
+
+# Drop-in shell config (usado pelo submódulo ai/)
+if [[ -d $HOME/.zshrc.d ]]; then
+  for f in $HOME/.zshrc.d/*.zsh(N); do
+    source "$f"
+  done
+fi
+
+# Overrides locais / segredos (não comitados)
+[[ -f $HOME/.zshrc.local ]] && source $HOME/.zshrc.local
