@@ -119,6 +119,36 @@ for IT_PACKAGE in "${IT_PACKAGES[@]}"; do
   fi
 done
 
+# AI coding agents
+echo "🤖 Installing AI coding agents..."
+
+# opencode (anomalyco tap — usado pra rotear MiniMax via Anthropic-compat).
+# Não usa installPackage porque `brew list` mostra "opencode" curto, não o tap.
+if ! brew list opencode >/dev/null 2>&1; then
+  echo "Installing opencode (anomalyco/tap)..."
+  brew install anomalyco/tap/opencode && echo "🎉 opencode was successfully installed" || echo "❌ opencode"
+else
+  echo "✅ opencode is already installed"
+fi
+
+# Linux-only system packages (apt)
+# - gnome-keyring: backend de libsecret pra Emdash/opencode guardarem tokens em
+#   sessões WSL2 sem desktop. Sem isso, "org.freedesktop.secrets was not provided".
+if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v apt-get >/dev/null 2>&1; then
+  APT_PACKAGES=(
+    "gnome-keyring"
+  )
+  echo "🐧 Installing apt packages..."
+  for APT_PACKAGE in "${APT_PACKAGES[@]}"; do
+    if /usr/bin/dpkg -s "${APT_PACKAGE}" >/dev/null 2>&1; then
+      echo "✅ ${APT_PACKAGE} is already installed"
+    else
+      echo "Installing ${APT_PACKAGE}..."
+      sudo apt-get install -y "${APT_PACKAGE}" && echo "🎉 ${APT_PACKAGE} was successfully installed" || echo "❌ ${APT_PACKAGE}"
+    fi
+  done
+fi
+
 # Install UV
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
