@@ -12,6 +12,10 @@
 
 - **Limpar stow do submódulo `ai/`** — `stow ai` ainda falha por conflitos pré-existentes em `~/.hermes/SOUL.md`, `~/.hermes/config.yaml` e dirs de `~/.claude/` que não estão no `.stow-local-ignore`. Hoje o `~/.taskfiles/AI.yml` (que stow gerenciaria após `stow ai`) não está symlinkado, mas o include do `home/Taskfile.yml` usa path absoluto `$HOME/dotfiles/ai/taskfiles/AI.yml` então funciona. Pra um stow limpo do `ai/`, ignorar `.hermes/SOUL.md`, `.hermes/config.yaml` e os outros conflitos no `.stow-local-ignore`.
 
+### opencode standalone (2026-04-28)
+
+- **Revisar UX mobile do opencode** — após uns dias usando `opencode serve` via Tailscale pelo celular (`http://100.64.95.14:4097`), avaliar se a UI oficial (Astro + Solid.js, focada em desktop) é boa o suficiente em smartphone. Se a experiência ficar ruim, plugar [`hosenur/portal`](https://github.com/hosenur/portal) — frontend community mobile-first que conecta no mesmo backend via API do `opencode serve`. Setup, arquitetura e migration path documentados em [`ai/docs/opencode.md`](ai/docs/opencode.md).
+
 ### Pós-auditoria de skills (2026-04-25)
 
 - **Setup do venv do plugin SEO** — manual, fora do git:
