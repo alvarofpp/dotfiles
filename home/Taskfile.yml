@@ -8,6 +8,9 @@ includes:
   docker: ./taskfiles/Docker.yml
   op: ./taskfiles/Operations.yml
   py: ./taskfiles/Python.yml
+  ai:
+    taskfile: $HOME/dotfiles/ai/taskfiles/AI.yml
+    optional: true
 
 tasks:
   default:
