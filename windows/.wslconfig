@@ -2,3 +2,4 @@
 processors=16
 memory=16GB
 swap=8GB
+networkingMode=mirrored
