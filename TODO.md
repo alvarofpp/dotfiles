@@ -4,9 +4,9 @@
 
 ### Hermes WebUI + plugin claude_code (2026-04-28)
 
-- **Tailscale serve HTTPS pendente** — tentei expor o Hermes WebUI via `tailscale serve` (HTTPS com cert Let's Encrypt) tanto do WSL quanto do Windows. Daemon listening certo, firewall OK, ping direct funciona, mas TCP :443 via tunnel Tailscale trava (iPhone, e até WSL via interface tailscale0). Reverti pra HTTP plain via Tailscale IP (`http://alienware-wsl.tail8c21c2.ts.net:8787`) que funciona. Worth revisitar quando atualizar Tailscale ou testar outras configs. Investigação completa documentada na página Notion "Tailscale" e em `ai/docs/hermes-overview.md`.
+- ~~**Tailscale serve HTTPS pendente**~~ — **resolvido em 2026-04-30**. Causa real: ACL do tailnet bloqueando porta 443. `tailscale debug netmap` mostra explicitamente quais portas inbound são aceitas (no caso, 80, 8080, 8787, 4097). Workaround sem mexer em ACL: rodar `tailscale serve --https=8080` em vez de 443. URL fica `https://<host>.<tailnet>.ts.net:8080`, cert continua válido. Para fix definitivo, editar ACL no admin (https://login.tailscale.com/admin/acls) liberando 443. Diagnóstico completo capturado na skill `tailscale-diag`.
 
-- **WSL2 mirrored networking falhou** — adicionei `networkingMode=mirrored` ao `.wslconfig` mas mesmo após `wsl --shutdown`, eth0 continuou em range NAT (`172.27.x.x`). Talvez bug de fallback silencioso; reverti. Se Windows update mudar comportamento, vale tentar de novo.
+- **WSL2 mirrored networking falhou** — retentado em 2026-04-30 com Docker Desktop encerrado completamente, `firewall=false` no `.wslconfig`, e `wsl --shutdown` limpo. Mesmo assim eth0 voltou em `172.27.x.x` e `tailscale status --json` mantém `Self.Endpoints=None`. Sem visibility no Event Viewer (precisa admin no PowerShell), diagnóstico esgotado. Pivotamos pra rodar `tailscale serve` no Windows host (peer `alienware-win` tem endpoints anunciáveis e alcança WSL via NAT forwarding default). Se algum Windows update mudar comportamento, retestar mirrored.
 
 - **Outros projetos no `projects.yaml`** — adicionados `infra` e `cozinha-app`. Faltam outros se vierem (ai-agency etc.). Agora dá pra adicionar via `task ai:projects-add NAME=foo PATH=/abs/path` ou via tool no chat do Hermes (`claude_code_add_project`).
 
@@ -66,6 +66,22 @@ Detalhamento em [`ai/docs/hermes-overview.md`](ai/docs/hermes-overview.md) e [`a
 - **Workspaces do Hermes WebUI** — `~/.hermes/webui/workspaces.json` lista dotfiles, infra, cozinha-app, Home. Default trocado de `dummy-project` pra `dotfiles`.
 - **Tasks `ai:*`** — health/restart/logs dos services + projects-list/add/remove pra gerenciar projects.yaml do plugin via CLI. Definidas em `ai/taskfiles/AI.yml`, incluídas pelo `home/Taskfile.yml` via path absoluto `$HOME/dotfiles/ai/taskfiles/AI.yml` (path relativo `../ai/...` quebra com symlink do stow).
 - **`.hermes.md` per-projeto** — Matria tem o seu (políticas LGPD/RDS prod/Swarm). `~/.hermes/SOUL.md` cobre identidade/políticas globais. Hermes carrega ambos automaticamente.
+
+### Skills + agente alienware (2026-04-30)
+
+Criadas 4 skills + 1 agente envelope no submodule `ai/.claude/`, fruto da sessão de debug do Tailscale serve do ai-agency:
+
+- **`hermes-ops`** (original) — operação dos services Hermes em systemd-user (gateway/cc-bridge/webui), plugin hermes-expose (lockfile, expose_*, projects.yaml), drop-ins versionados, gotcha do dir-real vs symlink-de-dir
+- **`tailscale-diag`** (original) — diagnóstico de `tailscale serve` self-hosted: árvore de decisão em 6 passos, leitura de packet filter via `tailscale debug netmap`, distinção Lock vs ACL, interpretação de `Self.Endpoints=None`, antipadrão "deve ser ACL" quando 403 vem do app
+- **`wsl-networking`** (original) — modos NAT vs mirrored, Docker Desktop bloqueando shutdown, plano B (Tailscale-no-Windows), regra dura "nunca Funnel"
+- **`linux-ops`** (fork MIT) — sysadmin Linux genérico baseado em [`majiayu000/claude-skill-registry/administering-linux`](https://github.com/majiayu000/claude-skill-registry) + references/* derivados de [`L3DigitalNet/Claude-Code-Plugins/linux-sysadmin`](https://github.com/L3DigitalNet/Claude-Code-Plugins) (systemd, sysctl, lvm/btrfs/ext4, sshd/fail2ban/apparmor/selinux, nftables/iptables/ufw/firewalld) + troubleshooting-guide próprio. Atribuição em `linux-ops/NOTICE.md`.
+- **`alienware`** (agent) — orquestrador cross-domain das 3 skills core (hermes-ops, tailscale-diag, wsl-networking) + adjacentes (linux-ops, docker-patterns, runbook-authoring, python-expert). Triagem antes de rodar comando + sequência padrão de diagnóstico em 6 passos + 3 playbooks por sintoma + regras duras (não Funnel, confirmar destrutivos, paths absolutos).
+
+Drop-ins systemd novos (`ai/.config/systemd/user/`):
+- `restart.conf` em hermes-{gateway,cc-bridge,webui} — `Restart=always` + `RestartSec=60` + `StartLimitIntervalSec=0` pra resiliência a queda longa de net
+- Conversão de **symlink-de-dir** pra **dir-real + symlink-de-files** nos 3 `*.service.d/` runtime (systemd-user não segue symlink-de-dir; gotcha capturado em `hermes-ops` skill)
+
+Mensagem de erro mais explícita no `orchestrator.py` do plugin hermes-expose quando `task` não está no PATH.
 
 ### Multi-model (2026-04-26)
 
