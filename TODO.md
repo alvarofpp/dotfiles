@@ -8,7 +8,7 @@
 
 - **WSL2 mirrored networking falhou** — retentado em 2026-04-30 com Docker Desktop encerrado completamente, `firewall=false` no `.wslconfig`, e `wsl --shutdown` limpo. Mesmo assim eth0 voltou em `172.27.x.x` e `tailscale status --json` mantém `Self.Endpoints=None`. Sem visibility no Event Viewer (precisa admin no PowerShell), diagnóstico esgotado. Pivotamos pra rodar `tailscale serve` no Windows host (peer `alienware-win` tem endpoints anunciáveis e alcança WSL via NAT forwarding default). Se algum Windows update mudar comportamento, retestar mirrored.
 
-- **Outros projetos no `projects.yaml`** — adicionados `infra` e `cozinha-app`. Faltam outros se vierem (ai-agency etc.). Agora dá pra adicionar via `task ai:projects-add NAME=foo PATH=/abs/path` ou via tool no chat do Hermes (`claude_code_add_project`).
+- **Outros projetos no `projects.yaml`** — adicionados `infra` e `cozinha-app`. Faltam outros se vierem (ai-agency etc.). Agora dá pra adicionar via `task ai:projects-add NAME=foo PATH=/abs/path`, via tool no chat do Hermes (`claude_code_add_project`), ou — preferível, desde 2026-05-02 — via `project_register` do plugin `hermes-projects`, que cadastra nos manifests de claude-code + expose num fluxo só.
 
 - **Limpar stow do submódulo `ai/`** — `stow ai` ainda falha por conflitos pré-existentes em `~/.hermes/SOUL.md`, `~/.hermes/config.yaml` e dirs de `~/.claude/` que não estão no `.stow-local-ignore`. Hoje o `~/.taskfiles/AI.yml` (que stow gerenciaria após `stow ai`) não está symlinkado, mas o include do `home/Taskfile.yml` usa path absoluto `$HOME/dotfiles/ai/taskfiles/AI.yml` então funciona. Pra um stow limpo do `ai/`, ignorar `.hermes/SOUL.md`, `.hermes/config.yaml` e os outros conflitos no `.stow-local-ignore`.
 
@@ -59,12 +59,13 @@
 
 Movidas para [`ai/docs/skills-conventions.md`](ai/docs/skills-conventions.md). Cobre frontmatter válido, regra de `name` casando com slug, escopo global vs projeto, description de gatilho, progressive disclosure, e setup do plugin SEO.
 
-### Hermes — plugin claude_code (2026-04-28)
+### Hermes — plugin claude_code (2026-04-28, atualizado 2026-05-02)
 
-Detalhamento em [`ai/docs/hermes-overview.md`](ai/docs/hermes-overview.md) e [`ai/docs/hermes-claude-code.md`](ai/docs/hermes-claude-code.md). Resumo das decisões:
+Detalhamento em [`ai/docs/hermes-overview.md`](ai/docs/hermes-overview.md), [`ai/docs/hermes-claude-code.md`](ai/docs/hermes-claude-code.md) e [`ai/docs/hermes-projects.md`](ai/docs/hermes-projects.md). Resumo das decisões:
 
-- **Bridge daemon host↔container** — Hermes corre o agent em container Docker (`terminal.backend: docker`, hardening etapa 5). Plugin `hermes-claude-code` precisa rodar tmux + claude no host. Solução: daemon systemd no host (`hermes-cc-bridge.service`) escuta Unix socket; plugin (no container) é cliente fino via socket bind-mounted path-preserving.
-- **`/remote-control` Anthropic-only** — exige claude.ai OAuth, não funciona com providers terceiros. Toolset suporta apenas opus/sonnet/haiku. MiniMax fica fora, é usado direto via Hermes WebUI nativo apontando workspace pro projeto.
+- **Bridge daemon host↔container** — Hermes corre o agent em container Docker (`terminal.backend: docker`, hardening etapa 5). Plugin `hermes-claude-code` precisa rodar tmux + claude no host. Solução: daemon systemd no host (`hermes-cc-bridge.service`) escuta Unix socket; plugin (no container) é cliente fino via socket bind-mounted path-preserving. (Hoje rodando em `backend: local`, mas a indireção foi mantida pra lifecycle/restart resiliente.)
+- **MiniMax suportado via `claude-mini`** (2026-05-02) — premissa antiga de "Anthropic-only" caiu: `/remote-control` funciona dentro do `claude-mini` porque o bridge usa OAuth claude.ai do usuário independente do backend de inferência. Modelos suportados agora: `opus` (default), `sonnet`, `haiku`, `minimax` (alias `mini`). Permite dirigir uma sessão Claude Code rodando MiniMax remotamente pelo app — útil pra economia de quota da assinatura Pro/Max.
+- **Plugin `hermes-projects` pra cadastro unificado** (2026-05-02) — fachada acima de `hermes-claude-code` + `hermes-expose`. `project_register(name, path)` cadastra no claude-code e detecta `Taskfile.{yml,yaml}` no path, devolvendo candidatos de up/down pra confirmação humana antes de cadastrar no expose. `project_register(name, path, expose={...})` cadastra direto nos dois quando já se sabe os services. Sem Taskfile, devolve warning explícito. Os YAMLs continuam donos por cada plugin de baixo (sem fonte única).
 - **Workspaces do Hermes WebUI** — `~/.hermes/webui/workspaces.json` lista dotfiles, infra, cozinha-app, Home. Default trocado de `dummy-project` pra `dotfiles`.
 - **Tasks `ai:*`** — health/restart/logs dos services + projects-list/add/remove pra gerenciar projects.yaml do plugin via CLI. Definidas em `ai/taskfiles/AI.yml`, incluídas pelo `home/Taskfile.yml` via path absoluto `$HOME/dotfiles/ai/taskfiles/AI.yml` (path relativo `../ai/...` quebra com symlink do stow).
 - **`.hermes.md` per-projeto** — Matria tem o seu (políticas LGPD/RDS prod/Swarm). `~/.hermes/SOUL.md` cobre identidade/políticas globais. Hermes carrega ambos automaticamente.
