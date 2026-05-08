@@ -59,6 +59,20 @@
 
 Movidas para [`ai/docs/skills-conventions.md`](ai/docs/skills-conventions.md). Cobre frontmatter válido, regra de `name` casando com slug, escopo global vs projeto, description de gatilho, progressive disclosure, e setup do plugin SEO.
 
+### Commands globais novos + housekeeping (2026-05-08)
+
+Em `ai/.claude/commands/` (e linkado pra `~/.claude/commands/` via stow):
+
+- **`/commit`** — triagem do `git status` arquivo a arquivo: rastreáveis viram commit (Conventional Commits, escopos separados), runtime/cache/segredos vão pro `.gitignore` com `git rm --cached` quando já indexados. Trata submódulo (`ai/`) com commit interno + bump no parent como commits separados. Pergunta antes de classificar arquivo ambíguo.
+- **`/contracts`** — somente leitura de `docs/contracts/`. Ordena pendentes por urgência (`em-andamento/` → `aprovados/` → `rascunhos/`, FIFO por `created`), sugere modelo LLM por fase (Opus pra design/auditoria/copy, MiniMax pra execução de checklist firmado). Respeita `model:` se já estiver no frontmatter.
+- **`/session-end` evoluído** — antes só "update doc", agora cobre criação: README mínimo se ausente, CHANGELOG (Keep-a-Changelog), DECISION_LOG, contratos cross-agente, diagramas Mermaid novos, GLOSSARY/DEV_ONBOARDING, scaffold mínimo de `docs/` quando 1-2 arquivos pertencem ali. Não auto-scaffold estruturas amplas — propõe e espera confirmação ou sugere `/scaffold`.
+- **Rule `containerization.md`** — adicionada em `ai/.claude/rules/`. Regra global: nada de `php artisan serve` / `npm run dev` / banco nativo no host quando o projeto tem compose. Trata processo avulso como bug arquitetural, não como estado normal.
+
+Decisões correlatas:
+
+- **`home/.config/psysh/` → ignored** — REPL history do PHP psysh vaza queries SQL e código testado no shell. Adicionado ao `.gitignore` raiz + `git rm --cached` no `psysh_history` (manteve no disco). Passou a tratar tudo de `home/.config/psysh/` como runtime.
+- **`ai/.hermes/cron/jobs.json` continua rastreado** — apesar do diff ser 100% state runtime (counter `completed`, `last_run_at`, `updated_at`), o arquivo já tem precedente de tracking (commit `73419e4`) e o usuário confirmou manter. Decisão estrutural ficou em aberto pra outra sessão.
+
 ### Hermes — plugin claude_code (2026-04-28, atualizado 2026-05-02)
 
 Detalhamento em [`ai/docs/hermes-overview.md`](ai/docs/hermes-overview.md), [`ai/docs/hermes-claude-code.md`](ai/docs/hermes-claude-code.md) e [`ai/docs/hermes-projects.md`](ai/docs/hermes-projects.md). Resumo das decisões:
