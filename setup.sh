@@ -155,4 +155,50 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Submodule
 git submodule update --init --recursive
 
+# Health check final — reporta o que está instalado e o que falta.
+echo ""
+echo "🩺 Health check"
+function checkBin() {
+  local bin="$1"
+  if command -v "$bin" >/dev/null 2>&1; then
+    echo "  ✅ $bin → $(command -v "$bin")"
+  else
+    echo "  ❌ $bin NOT FOUND"
+  fi
+}
+
+echo "  -- shell/stow --"
+for bin in zsh stow git curl wget gh task fzf bat eza fd jq yq atuin zoxide rtk; do
+  checkBin "$bin"
+done
+
+echo "  -- IT --"
+for bin in python3 node deno docker uv; do
+  checkBin "$bin"
+done
+
+echo "  -- AI tooling --"
+for bin in claude opencode; do
+  checkBin "$bin"
+done
+
+echo "  -- repo state --"
+if [ -d "$HOME/dotfiles" ]; then
+  echo "  ✅ ~/dotfiles existe"
+  if [ -f "$HOME/dotfiles/ai/README.md" ]; then
+    echo "  ✅ submódulo ai/ inicializado"
+  else
+    echo "  ⚠️  submódulo ai/ não inicializado — rode 'git submodule update --init --recursive'"
+  fi
+else
+  echo "  ⚠️  ~/dotfiles não existe — clone manualmente"
+fi
+
+echo ""
 echo "🎆 Done"
+echo ""
+echo "Próximos passos:"
+echo "  1. cd ~/dotfiles && ./stow.sh --dry-run   # revise os symlinks"
+echo "  2. cd ~/dotfiles && ./stow.sh             # aplique"
+echo "  3. exec zsh                                # nova shell com tudo carregado"
+echo "  4. setup AI (opcional)                     # veja ai/docs/DEV_ONBOARDING.md"
