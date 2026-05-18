@@ -10,3 +10,7 @@ home/.config/psysh/
 # Hermes setup workspace — material privado, não vai pro repo
 hermes-setup.zip
 hermes-setup/
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json
