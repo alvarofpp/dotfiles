@@ -19,9 +19,18 @@ A dotfiles repo managed with [GNU Stow](https://www.gnu.org/software/stow/). Sto
 
 ```bash
 ./stow.sh              # Symlink all packages to their targets
+./stow.sh --dry-run    # Preview without applying (detects WSL2 vs other platforms)
 stow --delete home     # Unlink a single package (alias: unstow)
-./setup.sh             # Full system bootstrap (brew, packages, fonts, plugins)
+./setup.sh             # Full system bootstrap (brew, packages, fonts, plugins, health check)
 ```
+
+## Docs
+
+- [`TODO.md`](TODO.md) — pendências forward-looking do parent (sem conteúdo de IA).
+- [`CHANGELOG.md`](CHANGELOG.md) — mudanças release-worthy (Keep-a-Changelog).
+- [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — decisões médias do parent.
+
+Conteúdo relacionado a IA / Claude Code / Hermes / opencode vive **só no submódulo `ai/`** ([`ai/README.md`](ai/README.md), [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md), [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md), [`ai/docs/DEV_ONBOARDING.md`](ai/docs/DEV_ONBOARDING.md), [`ai/docs/GLOSSARY.md`](ai/docs/GLOSSARY.md)). Parent é repo público; não adicionar IA na raiz.
 
 ## Architecture Notes
 
