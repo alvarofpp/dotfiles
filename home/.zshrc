@@ -97,6 +97,10 @@ _fzf_compgen_dir() {
 export BAT_THEME="Monokai Extended Origin"
 alias cat="bat"
 
+# Android SDK
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
 # zoxide (better cd)
 eval "$(zoxide init zsh)"
 alias cd="z"
