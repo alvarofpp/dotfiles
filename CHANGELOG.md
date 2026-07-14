@@ -10,6 +10,7 @@ Segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) — releases a
 
 - `docs/` (parent), `CHANGELOG.md`, `docs/DECISION_LOG.md` — adere à regra global `docs-as-second-brain`.
 - `home/.config/psysh/` ignorado (REPL history vaza queries SQL e código testado).
+- `windows-terminal-settings.json` ganhou `initialCols: 120` / `initialRows: 40` — janela do Windows Terminal abre em 120×40 (antes caía no default 120×30). Arquivo ressincronizado com a config viva do WT.
 
 ### Mudado
 
