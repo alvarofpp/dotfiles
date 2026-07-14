@@ -8,6 +8,14 @@ Formato fixo: `YYYY-MM-DD — Título — Contexto — Decisão — Refs`.
 
 ---
 
+## 2026-07-14 — `windows-terminal-settings.json` é cópia sincronizada, não symlink
+
+**Contexto:** Tentativa de tornar o arquivo do repo a fonte de verdade via symlink em `/mnt/c/.../WindowsTerminal_.../LocalState/settings.json`. Teste empírico com arquivo descartável: `ln -s` em `/mnt/c` apontando pro ext4 do WSL vira um `<JUNCTION>` que o Windows não consegue seguir (PowerShell/API nativa dá `IOException: Não é possível o acesso ao arquivo`). Somam-se dois bloqueios: (1) app Windows não atravessa symlink pro ext4 do WSL; (2) o Windows Terminal reescreve o `settings.json` com escrita atômica (temp + rename) a cada mudança, o que substituiria o symlink por arquivo comum no primeiro save.
+
+**Decisão:** Manter `windows-terminal-settings.json` na raiz como **cópia física** fora do stow, sincronizada à mão (`cp` bidirecional entre repo e `LocalState/`). Não symlinkar. Não criar tasks dedicadas (sync é raro; `cp` na hora basta). O arquivo do repo tende a dessincronizar porque o WT reescreve o real — ao mexer, copiar o real → repo antes de commitar.
+
+**Refs:** commit `88248cb` (sync + `initialCols`/`initialRows`), [`windows-terminal-settings.json`](../windows-terminal-settings.json).
+
 ## 2026-05-18 — Estrutura `docs/` no parent (aderir a docs-as-second-brain)
 
 **Contexto:** Parent dotfiles tinha `README.md`, `CLAUDE.md`, `TODO.md` mas faltava `CHANGELOG.md` e `DECISION_LOG.md`. A regra global `docs-as-second-brain` (carregada via Claude Code) recomenda os dois explicitamente.
