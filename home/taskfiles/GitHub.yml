@@ -6,6 +6,13 @@ silent: true
 vars:
   PROJECT_OWNER: alvarofpp
   PROJECT_NUMBER: 3
+  # Repos de terceiros. O GitHub recusa linkar um projeto pessoal a repo de
+  # outro dono ("Only projects owned by the same owner as the repository can
+  # be linked"), mas `gh project item-add` atravessa. Lista só a exceção —
+  # repo seu entra por `task gh:link`, sem tocar aqui.
+  EXTRA_REPOS: >-
+    jpbmoura/lucida-monorepo
+    mvinnicius22/cozinha-app
 
 tasks:
   repos:
@@ -13,8 +20,9 @@ tasks:
     summary: |
       Lists the repos linked to the GitHub Project.
 
-      The project's linked repos ARE the source of truth — there is no
-      hardcoded list anywhere. `task gh:link` is how a repo joins.
+      Repos seus vêm dos linkados ao projeto — não há lista no código,
+      `task gh:link` é como um entra. Repos de terceiros não podem ser
+      linkados pelo GitHub e vêm do var EXTRA_REPOS.
 
       Examples:
         - task gh:repos
@@ -23,8 +31,8 @@ tasks:
         gh api graphql \
           -f query='query($o:String!,$n:Int!){ user(login:$o){ projectV2(number:$n){ repositories(first:100){ nodes{ nameWithOwner isArchived } } } } }' \
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
-          --jq '.data.user.projectV2.repositories.nodes[] | select(.isArchived==false) | .nameWithOwner' \
-          | sort
+          --jq '.data.user.projectV2.repositories.nodes[] | select(.isArchived==false) | .nameWithOwner'
+        for repo in {{.EXTRA_REPOS}}; do echo "$repo"; done
 
   link:
     desc: "Link a repo to the GitHub Project. REPO=owner/name (owner optional)."
@@ -46,7 +54,14 @@ tasks:
           */*) repo="{{.REPO}}" ;;
           *)   repo="{{.PROJECT_OWNER}}/{{.REPO}}" ;;
         esac
-        gh project link {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo"
+        case "$repo" in
+          {{.PROJECT_OWNER}}/*)
+            gh project link {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo" ;;
+          *)
+            echo "'$repo' é de outro dono — o GitHub não permite linkar."
+            echo "Adicione em EXTRA_REPOS no home/taskfiles/GitHub.yml; o gh:sync cobre o resto."
+            exit 1 ;;
+        esac
 
   sync:
     desc: "Add every open issue from the linked repos to the GitHub Project."
@@ -61,7 +76,7 @@ tasks:
         - task gh:sync
     cmds:
       - |
-        task gh:repos | while read -r repo; do
+        task gh:repos | sort -u | while read -r repo; do
           gh issue list -R "$repo" --state open --limit 500 --json url --jq '.[].url'
         done | while read -r url; do
           gh project item-add {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --url "$url" >/dev/null \
