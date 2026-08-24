@@ -64,10 +64,10 @@ tasks:
         esac
 
   sync:
-    desc: "Add every open issue from the linked repos to the GitHub Project."
+    desc: "Add every open issue and PR from the linked repos to the GitHub Project."
     summary: |
-      Adds every open issue of every linked repo to the GitHub Project.
-      Idempotent: an issue already on the board is not duplicated.
+      Adds every open issue AND open pull request of every linked repo to the
+      GitHub Project. Idempotent: item already on the board is not duplicated.
 
       Repos come from `task gh:repos`, so a newly linked repo is picked up
       with no edit to this file.
@@ -78,6 +78,7 @@ tasks:
       - |
         task gh:repos | sort -u | while read -r repo; do
           gh issue list -R "$repo" --state open --limit 500 --json url --jq '.[].url'
+          gh pr    list -R "$repo" --state open --limit 500 --json url --jq '.[].url'
         done | while read -r url; do
           gh project item-add {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --url "$url" >/dev/null \
             && echo "  + $url"
