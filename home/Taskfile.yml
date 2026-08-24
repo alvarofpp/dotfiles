@@ -11,6 +11,9 @@ includes:
   ai:
     taskfile: $HOME/dotfiles/ai/taskfiles/AI.yml
     optional: true
+  svc:
+    taskfile: $HOME/dotfiles/ai/taskfiles/Services.yml
+    optional: true
 
 tasks:
   default:
