@@ -1,4 +1,8 @@
 [wsl2]
 processors=16
-memory=16GB
+# Windows has 31.7GB physical. 16GB left half the machine idle while the VM hit the
+# oom-killer under parallel test suites; 24GB still leaves 8GB for Windows itself.
+memory=24GB
 swap=8GB
+# Return freed memory to Windows instead of holding the peak for the whole session.
+autoMemoryReclaim=gradual
