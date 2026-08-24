@@ -6,6 +6,7 @@ silent: false
 includes:
   cc: ./taskfiles/ClaudeCode.yml
   docker: ./taskfiles/Docker.yml
+  gh: ./taskfiles/GitHub.yml
   op: ./taskfiles/Operations.yml
   py: ./taskfiles/Python.yml
   ai:

@@ -1,0 +1,70 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+
+vars:
+  PROJECT_OWNER: alvarofpp
+  PROJECT_NUMBER: 3
+
+tasks:
+  repos:
+    desc: "List the repos linked to the GitHub Project."
+    summary: |
+      Lists the repos linked to the GitHub Project.
+
+      The project's linked repos ARE the source of truth — there is no
+      hardcoded list anywhere. `task gh:link` is how a repo joins.
+
+      Examples:
+        - task gh:repos
+    cmds:
+      - |
+        gh api graphql \
+          -f query='query($o:String!,$n:Int!){ user(login:$o){ projectV2(number:$n){ repositories(first:100){ nodes{ nameWithOwner isArchived } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.repositories.nodes[] | select(.isArchived==false) | .nameWithOwner' \
+          | sort
+
+  link:
+    desc: "Link a repo to the GitHub Project. REPO=owner/name (owner optional)."
+    summary: |
+      Links a repo to the GitHub Project so `task gh:sync` starts picking up
+      its issues.
+
+      Arguments:
+        - REPO: repo to link. A bare name assumes {{.PROJECT_OWNER}}.
+
+      Examples:
+        - task gh:link REPO=cozinha-app
+        - task gh:link REPO=lucida-ia/lucida-monorepo
+    requires:
+      vars: [REPO]
+    cmds:
+      - |
+        case "{{.REPO}}" in
+          */*) repo="{{.REPO}}" ;;
+          *)   repo="{{.PROJECT_OWNER}}/{{.REPO}}" ;;
+        esac
+        gh project link {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo"
+
+  sync:
+    desc: "Add every open issue from the linked repos to the GitHub Project."
+    summary: |
+      Adds every open issue of every linked repo to the GitHub Project.
+      Idempotent: an issue already on the board is not duplicated.
+
+      Repos come from `task gh:repos`, so a newly linked repo is picked up
+      with no edit to this file.
+
+      Examples:
+        - task gh:sync
+    cmds:
+      - |
+        task gh:repos | while read -r repo; do
+          gh issue list -R "$repo" --state open --limit 500 --json url --jq '.[].url'
+        done | while read -r url; do
+          gh project item-add {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --url "$url" >/dev/null \
+            && echo "  + $url"
+        done
+        echo "sync concluído"
