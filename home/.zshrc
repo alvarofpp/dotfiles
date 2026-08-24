@@ -41,7 +41,7 @@ alias python="python3.13"
 export PATH=`echo ${PATH} | awk -v RS=: -v ORS=: '/2.7/ {next} {print}'`
 
 # User-local bins ganham precedência sobre /usr/bin (deixa wrappers em
-# ~/.local/bin/ — ex.: emdash do submódulo ai/ — interceptarem binários globais).
+# ~/.local/bin/ — ex.: claude-mini do submódulo ai/ — interceptarem binários globais).
 export PATH="/home/${WSL_USER}/.local/bin:${PATH}"
 alias t=task --global
 eval "$(task --completion zsh)"

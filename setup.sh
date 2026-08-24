@@ -132,7 +132,7 @@ else
 fi
 
 # Linux-only system packages (apt)
-# - gnome-keyring: backend de libsecret pra Emdash/opencode guardarem tokens em
+# - gnome-keyring: backend de libsecret pra Orca/opencode guardarem tokens em
 #   sessões WSL2 sem desktop. Sem isso, "org.freedesktop.secrets was not provided".
 if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v apt-get >/dev/null 2>&1; then
   APT_PACKAGES=(
