@@ -30,7 +30,7 @@ stow --delete home     # Unlink a single package (alias: unstow)
 - [`CHANGELOG.md`](CHANGELOG.md) — mudanças release-worthy (Keep-a-Changelog).
 - [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — decisões médias do parent.
 
-Conteúdo relacionado a IA / Claude Code / Hermes / opencode vive **só no submódulo `ai/`** ([`ai/README.md`](ai/README.md), [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md), [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md), [`ai/docs/DEV_ONBOARDING.md`](ai/docs/DEV_ONBOARDING.md), [`ai/docs/GLOSSARY.md`](ai/docs/GLOSSARY.md)). Parent é repo público; não adicionar IA na raiz.
+O submódulo `ai/` é o repositório **privado** — o critério de admissão é privacidade, não o tema. Nasceu focado em IA, mas hoje abriga também config de serviços self-hosted (`.hermes/`, `docker/`, `.config/homepage/`). Conteúdo de IA / Claude Code / Hermes / opencode e qualquer config privada vivem **só nele** ([`ai/README.md`](ai/README.md), [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md), [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md), [`ai/docs/DEV_ONBOARDING.md`](ai/docs/DEV_ONBOARDING.md), [`ai/docs/GLOSSARY.md`](ai/docs/GLOSSARY.md)). Parent é repo público; não adicionar IA na raiz.
 
 ## Architecture Notes
 
