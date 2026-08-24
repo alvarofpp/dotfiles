@@ -106,6 +106,7 @@ IT_PACKAGES=(
   "node"
   "deno"
   "docker"
+  "devcontainer"
   "pulumi"
 )
 for IT_PACKAGE in "${IT_PACKAGES[@]}"; do
