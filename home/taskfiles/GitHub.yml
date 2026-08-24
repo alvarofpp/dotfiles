@@ -83,3 +83,25 @@ tasks:
             && echo "  + $url"
         done
         echo "sync concluído"
+
+  unlink:
+    desc: "Unlink a repo from the GitHub Project. REPO=owner/name (owner optional)."
+    summary: |
+      Desliga um repo do projeto — ele para de aparecer no `gh:repos` e o
+      `gh:sync` deixa de puxar issues dele. Itens já no board continuam lá;
+      remova na UI se quiser.
+
+      Arguments:
+        - REPO: repo a desligar. Nome sem barra assume {{.PROJECT_OWNER}}.
+
+      Examples:
+        - task gh:unlink REPO=afiliados
+    requires:
+      vars: [REPO]
+    cmds:
+      - |
+        case "{{.REPO}}" in
+          */*) repo="{{.REPO}}" ;;
+          *)   repo="{{.PROJECT_OWNER}}/{{.REPO}}" ;;
+        esac
+        gh project unlink {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo"
