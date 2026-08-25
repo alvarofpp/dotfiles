@@ -106,3 +106,36 @@ tasks:
           *)   repo="{{.PROJECT_OWNER}}/{{.REPO}}" ;;
         esac
         gh project unlink {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo"
+
+  orca:
+    desc: "Abre uma issue do board numa worktree Orca já linkada. ISSUE=owner/repo#N|url"
+    summary: |
+      Cria uma worktree Orca pro repo da issue, com a issue linkada no card
+      (`linkedIssue`) e um agente já rodando com o contexto dela.
+
+      É o único ponto de contato real entre o board e o Orca: a aba de tasks
+      do Orca só fala Linear, mas a worktree guarda o número da issue do
+      GitHub. Estado do card volta pro board na mão (ou pelo próprio PR).
+
+      Arguments:
+        - ISSUE: `owner/repo#N` ou a URL da issue.
+        - AGENT: agente a subir no primeiro terminal (default: claude).
+
+      Examples:
+        - task gh:orca ISSUE=alvarofpp/matria#12
+        - task gh:orca ISSUE=https://github.com/alvarofpp/matria/issues/12 AGENT=codex
+    requires:
+      vars: [ISSUE]
+    vars:
+      AGENT: '{{.AGENT | default "claude"}}'
+    cmds:
+      - |
+        ref=$(printf '%s' "{{.ISSUE}}" | sed -E 's#^https://github\.com/##; s#/issues/#\##')
+        repo="${ref%\#*}"; num="${ref##*\#}"
+        title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
+        orca worktree create \
+          --project "github:$repo" --host local \
+          --name "issue-$num" --issue "$num" --comment "$title" \
+          --agent "{{.AGENT}}" \
+          --prompt "Trabalhe na issue $repo#$num — \"$title\". Leia o enunciado com: gh issue view $num -R $repo --comments"
+        echo "worktree issue-$num criada em $repo e linkada à issue #$num"
