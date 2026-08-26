@@ -13,6 +13,11 @@ vars:
   EXTRA_REPOS: >-
     jpbmoura/lucida-monorepo
     mvinnicius22/cozinha-app
+  # Defaults aplicados pelo `gh:defaults` em item sem valor. O workflow
+  # built-in "Item added to project" está desligado no projeto e não há
+  # mutation pra reabilitá-lo, então quem preenche é o `gh:sync`.
+  DEFAULT_STATUS: Backlog
+  DEFAULT_PRIORITY: P3
 
 tasks:
   repos:
@@ -83,7 +88,71 @@ tasks:
           gh project item-add {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --url "$url" >/dev/null \
             && echo "  + $url"
         done
-        echo "sync concluído"
+      - task: defaults
+      - echo "sync concluído"
+
+  defaults:
+    desc: "Fill empty Status/Priority on the board's open items with the defaults."
+    summary: |
+      Preenche Status e Priority dos itens ABERTOS que estão sem valor, com
+      {{.DEFAULT_STATUS}} e {{.DEFAULT_PRIORITY}}. Item que já tem valor não é
+      tocado, então rodar de novo é seguro.
+
+      Existe porque o workflow built-in "Item added to project" está desligado
+      no projeto e o GitHub não expõe mutation pra religá-lo — o default sai
+      daqui, não da UI. Item fechado/merged fica de fora de propósito: o filtro
+      da view "All work" já o esconde, e marcá-lo como Backlog seria mentira.
+
+      Chamado no fim do `gh:sync`; rode solto só pra consertar o board.
+
+      Examples:
+        - task gh:defaults
+    cmds:
+      - |
+        ids=$(gh api graphql -f query='
+          query($o:String!,$n:Int!){ user(login:$o){ projectV2(number:$n){ id
+            status:field(name:"Status"){ ... on ProjectV2SingleSelectField{ id options{ id name } } }
+            priority:field(name:"Priority"){ ... on ProjectV2SingleSelectField{ id options{ id name } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}})
+
+        pick() { printf '%s' "$ids" | jq -r --arg f "$1" --arg v "$2" --arg k "$3" \
+          'if $k == "field" then .data.user.projectV2[$f].id
+           else (.data.user.projectV2[$f].options[] | select(.name | startswith($v)) | .id) end'; }
+
+        project=$(printf '%s' "$ids" | jq -r .data.user.projectV2.id)
+        status_field=$(pick status '{{.DEFAULT_STATUS}}' field)
+        status_option=$(pick status '{{.DEFAULT_STATUS}}' option)
+        prio_field=$(pick priority '{{.DEFAULT_PRIORITY}}' field)
+        prio_option=$(pick priority '{{.DEFAULT_PRIORITY}}' option)
+        for v in "$project" "$status_field" "$status_option" "$prio_field" "$prio_option"; do
+          [ -n "$v" ] || { echo "não resolvi os ids do projeto/campos — abortando"; exit 1; }
+        done
+
+        gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ id
+                content{ ... on Issue{ state } ... on PullRequest{ state } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } }
+                priority:fieldValueByName(name:"Priority"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.state == "OPEN")
+                | .id + " " + (if .status then "-" else "status" end) + " " + (if .priority then "-" else "priority" end)' \
+        | while read -r item want_status want_priority; do
+            set -- ; n=0
+            [ "$want_status" = "status" ] && { set -- "$@" "$status_field:$status_option"; }
+            [ "$want_priority" = "priority" ] && { set -- "$@" "$prio_field:$prio_option"; }
+            for pair in "$@"; do
+              gh api graphql -f query='
+                mutation($p:ID!,$i:ID!,$f:ID!,$v:String!){ updateProjectV2ItemFieldValue(
+                  input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$v}}){ clientMutationId } }' \
+                -f p="$project" -f i="$item" -f f="${pair%%:*}" -f v="${pair##*:}" >/dev/null
+              n=$((n+1))
+            done
+            [ "$n" -gt 0 ] && echo "  ~ $item ($n campo(s))"
+          done
+        echo "defaults aplicados"
 
   unlink:
     desc: "Unlink a repo from the GitHub Project. REPO=owner/name (owner optional)."
