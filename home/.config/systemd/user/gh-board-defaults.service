@@ -1,0 +1,14 @@
+[Unit]
+# O workflow "Item added to project" do GitHub só aplica default a UM campo
+# (Status). Priority fica de fora, então quem preenche é o `task gh:defaults`.
+Description=Defaults de Status/Priority no GitHub Project "Agentes"
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=/home/alvaro/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+WorkingDirectory=%h
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:defaults
+StandardOutput=journal
+StandardError=journal
