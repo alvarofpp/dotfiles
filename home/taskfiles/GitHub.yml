@@ -286,9 +286,9 @@ tasks:
       worktree, então o tick seguinte do timer não despacha a mesma issue duas
       vezes. Se a criação falhar, o card volta pra Ready.
 
-      Precisa do runtime do Orca de pé (`orca status`). Sem ele a task sai em
-      silêncio e o card fica em Ready pro próximo tick — não é erro, é o
-      notebook estando desligado.
+      Só roda com a stack `svc:` de pé — ver `gh:agents-ready`. Sem ela a task
+      sai em silêncio e o card fica em Ready pro próximo tick; não é erro, é o
+      piloto automático desligado.
 
       Chamado pelo timer `gh-board-defaults.timer` a cada 15 min.
 
@@ -301,10 +301,7 @@ tasks:
       AGENT: '{{.AGENT | default "claude"}}'
     cmds:
       - |
-        if ! orca status 2>/dev/null | grep -q '^runtimeReachable: true'; then
-          echo "runtime do Orca fora do ar — nada despachado"
-          exit 0
-        fi
+        task gh:agents-ready || exit 0
 
         task gh:ready | while read -r ref item; do
           echo "→ $ref"
@@ -315,6 +312,51 @@ tasks:
             task gh:status ITEM="$item" VALUE="Ready"
           fi
         done
+
+  agents-ready:
+    desc: "Precondição do fluxo autônomo: stack svc de pé e runtime do Orca alcançável."
+    summary: |
+      A stack `svc:` de pé é o **consentimento**: enquanto ela não está rodando,
+      nenhum agente é despachado sozinho nesta máquina. Não é um teste técnico
+      de dependência — o fluxo não usa Traefik pra nada — é o interruptor.
+      `task svc:down` desliga o piloto automático inteiro.
+
+      Com o consentimento dado, o runtime do Orca é consequência: se estiver
+      fora, esta task sobe o `orca-serve.service` e espera ele responder. Sem
+      isso, trocar o gate não resolveria nada — o `worktree create` falharia
+      igual e o card só ficaria batendo de Ready pra Ready.
+
+      O `orca serve` precisa de unit própria, não de `&` no fim da linha: o
+      timer é `Type=oneshot` e o systemd mata o que sobrar no cgroup quando o
+      ExecStart termina.
+
+      Sai não-zero (com o motivo) quando não dá pra despachar. Chamado pelo
+      `gh:dispatch` e pelo `gh:pr-tick`; rode solto pra saber por que o fluxo
+      está parado.
+
+      Examples:
+        - task gh:agents-ready
+    cmds:
+      - |
+        if [ -z "$(docker ps -q --filter name=svc-traefik --filter status=running)" ]; then
+          echo "stack svc: fora do ar — fluxo autônomo desligado (task svc:up pra ligar)"
+          exit 1
+        fi
+
+        if ! orca status 2>/dev/null | grep -q '^runtimeReachable: true'; then
+          echo "subindo o runtime do Orca..."
+          systemctl --user start orca-serve.service || true
+          n=0
+          while [ "$n" -lt 15 ]; do
+            sleep 2; n=$((n+1))
+            orca status 2>/dev/null | grep -q '^runtimeReachable: true' && break
+          done
+        fi
+
+        if ! orca status 2>/dev/null | grep -q '^runtimeReachable: true'; then
+          echo "runtime do Orca não respondeu — nada despachado (journalctl --user -u orca-serve)"
+          exit 1
+        fi
 
   labels:
     desc: "Cria (idempotente) os labels de estado do fluxo de agentes num repo. REPO=owner/name"
@@ -387,13 +429,18 @@ tasks:
 
       Pra cada PR listado pelo `gh:prs`:
 
-        revisar   → terminal NOVO na worktree do PR. Contexto limpo é o que
-                    mantém o revisor independente do autor, mesmo os dois
-                    rodando no mesmo checkout. Ele pede mudança (põe
-                    `agente:mudancas`) ou resolve conflito com a main e mergeia.
-        corrigir  → terminal novo na mesma worktree; o autor lê os comentários,
-                    aplica, faz push e tira o `agente:mudancas`, o que devolve
-                    o PR pra fila de revisão no tick seguinte.
+        revisar   → primeira passada: `/review-pr <n>` + `--post`. Terminal NOVO
+                    na worktree — contexto limpo é o que mantém o revisor
+                    independente do autor, mesmo no mesmo checkout.
+        corrigir  → o autor lê as threads, aplica, faz push e tira o
+                    `agente:mudancas`, devolvendo o PR pra fila.
+        recheck   → `revisar` num PR que já tem review vira `/review-pr --check`:
+                    confere achado por achado se foi atendido e fecha as threads
+                    resolvidas, em vez de revisar tudo de novo do zero.
+
+      Aprovado em qualquer uma das duas rodadas de revisão, o próprio agente
+      traz a main, resolve conflito e mergeia — não há review `APPROVED` porque
+      autor e revisor são a mesma conta do GitHub.
 
       O label `agente:rodando` é o lock, posto aqui antes de abrir o terminal e
       removido pelo agente no fim. Sem ele o tick de 15 min empilharia um
@@ -406,24 +453,25 @@ tasks:
       A worktree é resolvida por `issue:<N>`, o vínculo que o `gh:orca` gravou
       no card do Orca — daí o `Closes #N` obrigatório no corpo do PR.
 
+      A revisão em si é o `/review-pr` global (`ai/.claude/commands/`), portado
+      do lucida-monorepo: worktree próprio no head do PR, 1 a 5 revisores em
+      paralelo escolhidos pelos agentes do repo, um compilador que deduplica e
+      corta achado sem evidência, e um `--check` que confere item a item o que
+      foi pedido e fecha as threads resolvidas. Repo com `/review-pr` próprio
+      (o lucida tem) usa o dele — comando de projeto ganha do global.
+
       Arguments:
-        - CLAUDE_FLAGS: flags do agente. O default aceita edições sozinho mas
-          AINDA pergunta em `git`/`gh`; sem allowlist no `.claude/settings.json`
-          do repo (ou `--dangerously-skip-permissions`) o agente para no
-          primeiro push esperando você.
+        - CLAUDE_FLAGS: flags extras do agente. Vazio por default: as permissões
+          já vêm do `~/.claude/settings.json` global, que libera `git` e `gh`.
 
       Examples:
         - task gh:pr-tick
-        - task gh:pr-tick CLAUDE_FLAGS=--dangerously-skip-permissions
     vars:
       MAX_ROUNDS: 3
-      CLAUDE_FLAGS: '{{.CLAUDE_FLAGS | default "--permission-mode acceptEdits"}}'
+      CLAUDE_FLAGS: '{{.CLAUDE_FLAGS | default ""}}'
     cmds:
       - |
-        if ! orca status 2>/dev/null | grep -q '^runtimeReachable: true'; then
-          echo "runtime do Orca fora do ar — nada despachado"
-          exit 0
-        fi
+        task gh:agents-ready || exit 0
 
         task gh:prs | while read -r ref action; do
           repo="${ref%\#*}"; num="${ref##*\#}"
@@ -442,6 +490,10 @@ tasks:
             continue
           fi
 
+          # PR que já passou por revisor não é revisto do zero: o `/review-pr --check`
+          # confere item a item o que foi pedido, e só ele fecha as threads resolvidas.
+          [ "$action" = "revisar" ] && [ "$rounds" -gt 0 ] && action=recheck
+
           if ! orca worktree show --worktree "issue:$issue" >/dev/null 2>&1; then
             echo "$ref: worktree issue:$issue não existe mais, pulando"
             continue
@@ -449,10 +501,13 @@ tasks:
 
           case "$action" in
             revisar)
-              prompt="Revise o PR $repo#$num, que é a branch desta worktree. Procure em .claude/commands/ o comando de code review deste projeto (ex.: /flow-code-review) e rode-o com os agentes do próprio repositório; se não houver, revise o diff contra a main você mesmo. Poste os achados com: gh pr review $num -R $repo --comment --body '<achados>'. Se houver QUALQUER alteração a pedir, marque: gh pr edit $num -R $repo --add-label agente:mudancas. Se estiver tudo certo, NÃO ponha esse label; em vez disso traga a main (git fetch origin main && git merge origin/main), resolva conflitos se houver, e mergeie com: gh pr merge $num -R $repo --squash --delete-branch. Faça por último, SEMPRE, aconteça o que acontecer: gh pr edit $num -R $repo --remove-label agente:rodando"
+              prompt="Rode /review-pr $num e, quando o relatório estiver pronto, /review-pr --post. Este PR tem o label 'agente': o lock em .claude/reviews/ é de outra sessão por construção, então reivindique-o em vez de parar. Se o --post pediu mudanças (qualquer comentário ancorado), marque: gh pr edit $num -R $repo --add-label agente:mudancas. Se a revisão não teve achado nenhum, NÃO ponha esse label; em vez disso traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, e mergeie: gh pr merge $num -R $repo --squash --delete-branch. Encerre com /review-pr --close. Faça por último, SEMPRE, aconteça o que acontecer: gh pr edit $num -R $repo --remove-label agente:rodando"
+              ;;
+            recheck)
+              prompt="Rode /review-pr --check no PR $num, que já foi revisado e depois corrigido. Este PR tem o label 'agente': reivindique o lock de .claude/reviews/ em vez de parar. Se o veredito for 'pode aprovar', traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, mergeie com gh pr merge $num -R $repo --squash --delete-branch e rode /review-pr --close. Se ainda falta coisa, poste o que falta no PR e marque: gh pr edit $num -R $repo --add-label agente:mudancas. Faça por último, SEMPRE: gh pr edit $num -R $repo --remove-label agente:rodando"
               ;;
             corrigir)
-              prompt="O PR $repo#$num recebeu pedidos de alteração numa revisão. Leia com: gh pr view $num -R $repo --comments. Aplique todas as sugestões pertinentes; das que não fizerem sentido, discorde por escrito num comentário do PR em vez de ignorar em silêncio. Rode os testes do projeto e só siga com tudo verde. Faça commit e push. Faça por último, SEMPRE: gh pr edit $num -R $repo --remove-label agente:mudancas --remove-label agente:rodando"
+              prompt="O PR $repo#$num recebeu pedidos de alteração numa revisão. Leia com: gh pr view $num -R $repo --comments e gh api repos/$repo/pulls/$num/comments. Aplique todas as sugestões pertinentes; das que não fizerem sentido, discorde por escrito na própria thread em vez de ignorar em silêncio. Rode os testes do projeto e só siga com tudo verde. Faça commit e push. Faça por último, SEMPRE: gh pr edit $num -R $repo --remove-label agente:mudancas --remove-label agente:rodando"
               ;;
           esac
 
