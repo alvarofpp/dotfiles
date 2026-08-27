@@ -304,6 +304,7 @@ tasks:
         task gh:agents-ready || exit 0
 
         task gh:ready | while read -r ref item; do
+          task gh:review-ready REPO="${ref%\#*}" || continue
           echo "→ $ref"
           task gh:labels REPO="${ref%\#*}"
           task gh:status ITEM="$item" VALUE="In Progress"
@@ -355,6 +356,41 @@ tasks:
 
         if ! orca status 2>/dev/null | grep -q '^runtimeReachable: true'; then
           echo "runtime do Orca não respondeu — nada despachado (journalctl --user -u orca-serve)"
+          exit 1
+        fi
+
+  review-ready:
+    desc: "Diz se um repo cumpre o pré-requisito do fluxo: AGENTS.md válido. REPO=owner/name"
+    summary: |
+      O `AGENTS.md` é **pré-requisito** pra o repo entrar no fluxo autônomo: é
+      dele que o `/review-pr` tira quem revisa o quê. Sem ele o revisor não tem
+      nada além de "revise o diff", que é o pior review possível — pior do que
+      não revisar, porque carimba o PR de revisado.
+
+      Por isso o `gh:dispatch` e o `gh:pr-tick` pulam o repo em vez de degradar
+      a revisão. Escrever o arquivo é o `/agents-doc` (comando global).
+
+      O caminho local sai do `orca repo list` — é o mesmo registro que o
+      `gh:orca` usa pra criar worktree, então repo que o fluxo consegue
+      despachar é repo que ele consegue conferir.
+
+      Arguments:
+        - REPO: `owner/name` (ou só `name`).
+
+      Examples:
+        - task gh:review-ready REPO=alvarofpp/matria
+    requires:
+      vars: [REPO]
+    cmds:
+      - |
+        nome=$(printf '%s' "{{.REPO}}" | sed 's#.*/##')
+        path=$(orca repo list 2>/dev/null | awk -v n="$nome" '$2 == n {print $3}' | head -1)
+        if [ -z "$path" ]; then
+          echo "  ! $nome: não está registrado no Orca — o fluxo não tem checkout local pra conferir"
+          exit 1
+        fi
+        if ! task ai:agents-doc REPO="$path" MODE=check >/dev/null 2>&1; then
+          echo "  ! $nome: AGENTS.md ausente ou inválido — rode /agents-doc lá (pré-requisito do fluxo)"
           exit 1
         fi
 
@@ -475,6 +511,7 @@ tasks:
 
         task gh:prs | while read -r ref action; do
           repo="${ref%\#*}"; num="${ref##*\#}"
+          task gh:review-ready REPO="$repo" || continue
 
           issue=$(gh pr view "$num" -R "$repo" --json body --jq .body \
             | grep -oiE 'closes #[0-9]+' | head -1 | grep -oE '[0-9]+')
