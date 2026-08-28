@@ -374,6 +374,11 @@ tasks:
       `gh:orca` usa pra criar worktree, então repo que o fluxo consegue
       despachar é repo que ele consegue conferir.
 
+      Barra também repo de outro dono. Os de `EXTRA_REPOS` estão no board de
+      propósito — dá pra acompanhar issue e PR deles —, mas o fluxo autônomo
+      abre PR e **mergeia sozinho**, e isso não se faz no repo dos outros. Lá o
+      caminho é rodar `/review-pr <n>` na mão.
+
       Arguments:
         - REPO: `owner/name` (ou só `name`).
 
@@ -383,7 +388,16 @@ tasks:
       vars: [REPO]
     cmds:
       - |
-        nome=$(printf '%s' "{{.REPO}}" | sed 's#.*/##')
+        repo="{{.REPO}}"
+        case "$repo" in
+          */*) owner="${repo%%/*}" ;;
+          *)   owner="{{.PROJECT_OWNER}}" ;;
+        esac
+        if [ "$owner" != "{{.PROJECT_OWNER}}" ]; then
+          echo "  ! $repo: repo de outro dono — fora do fluxo autônomo (revise na mão com /review-pr)"
+          exit 1
+        fi
+        nome="${repo##*/}"
         path=$(orca repo list 2>/dev/null | awk -v n="$nome" '$2 == n {print $3}' | head -1)
         if [ -z "$path" ]; then
           echo "  ! $nome: não está registrado no Orca — o fluxo não tem checkout local pra conferir"
@@ -557,3 +571,81 @@ tasks:
             gh pr edit "$num" -R "$repo" --remove-label agente:rodando >/dev/null
           fi
         done
+
+  reap:
+    desc: "Solta o lock `agente:rodando` dos PRs cujo agente morreu."
+    summary: |
+      Quem tira o `agente:rodando` é o próprio agente, na última linha do
+      prompt. Sessão que morre antes disso — contexto estourado, Orca
+      reiniciado, máquina desligada no meio — deixa o label preso, e o PR sai
+      do fluxo **em silêncio**: o `gh:prs` filtra `agente:rodando`, então nem
+      aparece na fila. Sem esta task, cada agente morto custa um PR parado até
+      alguém reparar na mão.
+
+      O sinal de vida é o terminal do Orca na worktree da issue, não um
+      timeout: agente vivo numa revisão longa não pode ser reapado, senão o
+      tick seguinte empilha um segundo agente no mesmo checkout.
+
+      Roda depois do `gh:agents-ready` de propósito. Com o Orca fora do ar
+      nenhuma worktree teria terminal vivo e a task soltaria todos os locks de
+      uma vez — exatamente o contrário do que ela existe pra fazer.
+
+      Chamado pelo timer antes do `gh:pr-tick`, pro PR liberado ser pego no
+      mesmo tick.
+
+      Examples:
+        - task gh:reap
+    cmds:
+      - |
+        task gh:agents-ready || exit 0
+
+        task gh:repos | sort -u | while read -r repo; do
+          gh pr list -R "$repo" --state open --label agente:rodando --limit 100 \
+            --json number --jq '.[].number' 2>/dev/null \
+          | while read -r num; do
+              issue=$(gh pr view "$num" -R "$repo" --json body --jq .body \
+                | grep -oiE 'closes #[0-9]+' | head -1 | grep -oE '[0-9]+')
+              [ -n "$issue" ] || continue
+              # Procura a chave `id` em vez de decodificar o JSON: a forma da
+              # resposta do `terminal list` é do Orca, não nossa, e lista vazia
+              # não tem `id` em forma nenhuma.
+              if orca terminal list --worktree "issue:$issue" --json 2>/dev/null | grep -q '"id"'; then
+                continue
+              fi
+              echo "  ~ $repo#$num: nenhum terminal vivo em issue:$issue — soltando o lock"
+              gh pr edit "$num" -R "$repo" --remove-label agente:rodando >/dev/null
+            done
+        done
+
+  done:
+    desc: "Move pra Done os itens do board cuja issue/PR já fechou."
+    summary: |
+      O `gh:dispatch` põe o card em "In Progress" e ninguém tira: merge fecha a
+      issue no GitHub, mas o board segue mostrando trabalho em andamento que
+      não existe. Board que mente é pior que board vazio — é por ele que você
+      decide o que arrastar pra Ready.
+
+      Só mexe em item já fechado (issue CLOSED, PR MERGED ou CLOSED) que ainda
+      não está em Done. Item aberto não é tocado, então rodar de novo é seguro.
+
+      "Dropped" fica por sua conta: distinguir abandonado de concluído é
+      decisão, não estado derivável.
+
+      Examples:
+        - task gh:done
+    cmds:
+      - |
+        gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ id
+                content{ ... on Issue{ state } ... on PullRequest{ state } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.state != null and .content.state != "OPEN")
+                | select((.status.name // "") != "Done")
+                | .id' \
+        | while read -r item; do
+            task gh:status ITEM="$item" VALUE=Done && echo "  ~ $item → Done"
+          done
