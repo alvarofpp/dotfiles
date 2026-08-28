@@ -473,6 +473,11 @@ tasks:
       o systemd não dispara um oneshot que ainda está rodando, então dois ticks
       nunca triam a mesma issue.
 
+      Consequência: `systemctl --user start gh-board-defaults.service` fica
+      parado uns 3 a 4 minutos por issue triada, sem imprimir nada. Não travou —
+      é uma sessão de agente inteira rodando. Pra acompanhar:
+      `journalctl --user -u gh-board-defaults.service -f`.
+
       Examples:
         - task gh:prep
     vars:
