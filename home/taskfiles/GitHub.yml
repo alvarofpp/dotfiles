@@ -176,63 +176,6 @@ tasks:
         esac
         gh project unlink {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo"
 
-  orca:
-    desc: "Abre uma issue do board numa worktree Orca já linkada. ISSUE=owner/repo#N|url"
-    summary: |
-      Cria uma worktree Orca pro repo da issue, com a issue linkada no card
-      (`linkedIssue`) e um agente já rodando com o contexto dela.
-
-      É o único ponto de contato real entre o board e o Orca: a aba de tasks
-      do Orca só fala Linear, mas a worktree guarda o número da issue do
-      GitHub. Estado do card volta pro board na mão (ou pelo próprio PR).
-
-      O agente começa pelo `/issue-prep`, não pelo código: é ele que decide se
-      ainda há o que fazer (a issue pode já ter sido satisfeita por PR mesclado),
-      deixa o enunciado executável, classifica com labels e linka a branch no
-      **Development** da issue. Veredito `fechada` ou `humano` encerra a sessão
-      sem uma linha escrita.
-
-      O PR sai com `Refs #N`, **nunca `Closes #N`**: uma issue pode precisar de
-      mais de um PR, e o primeiro merge fecharia a issue no meio do caminho.
-      Quem fecha é o `/issue-prep` da rodada seguinte, olhando o conjunto.
-
-      Despachado em lote pelo `gh:dispatch`.
-
-      Arguments:
-        - ISSUE: `owner/repo#N` ou a URL da issue.
-        - AGENT: agente a subir no primeiro terminal (default: claude).
-
-      Examples:
-        - task gh:orca ISSUE=alvarofpp/matria#12
-        - task gh:orca ISSUE=https://github.com/alvarofpp/matria/issues/12 AGENT=codex
-    requires:
-      vars: [ISSUE]
-    vars:
-      AGENT: '{{.AGENT | default "claude"}}'
-    cmds:
-      - |
-        ref=$(printf '%s' "{{.ISSUE}}" | sed -E 's#^https://github\.com/##; s#/issues/#\##')
-        repo="${ref%\#*}"; num="${ref##*\#}"
-        title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
-
-        # Segunda rodada na mesma issue (o `gh:reanalyze` devolveu o card pra
-        # Ready) normalmente encontra a worktree já removida no merge. Quando
-        # ela sobrevive — agente morto antes de abrir o PR —, criar de novo
-        # falharia e o card ficaria batendo Ready→Ready a cada 15 min.
-        if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
-          echo "worktree issue-$num já existe — abrindo terminal nela"
-          orca terminal create --worktree "issue:$num" --title "issue #$num" \
-            --command "claude \"Retome a issue $repo#$num — \\\"$title\\\". COMECE por /issue-prep $repo#$num: esta worktree é de uma rodada anterior, então confira o que já foi entregue antes de escrever qualquer coisa. Traga a main antes de continuar (git fetch origin main && git merge origin/main).\""
-          exit 0
-        fi
-
-        orca worktree create \
-          --project "github:$repo" --host local \
-          --name "issue-$num" --issue "$num" --comment "$title" \
-          --agent "{{.AGENT}}" \
-          --prompt "Trabalhe na issue $repo#$num — \"$title\". COMECE por /issue-prep $repo#$num, antes de qualquer código: ele confere se a issue já foi satisfeita por PR mesclado, deixa o enunciado executável, classifica com labels e linka a branch no Development. Se o veredito for 'fechada' ou 'humano', PARE — não implemente nada. Se for 'implementar', o escopo desta rodada é o que ele definiu. Ninguém vai te responder durante a sessão: ambiguidade de execução você decide e declara no PR; só ambiguidade de produto vira 'humano'. Implemente, rode os testes do projeto e, com tudo verde, faça commit, push e abra o PR com: gh pr create -R $repo --fill --body \"Refs #$num\" --label agente — Refs, NUNCA Closes, porque quem fecha a issue é o /issue-prep da próxima rodada"
-        echo "worktree issue-$num criada em $repo e linkada à issue #$num"
-
   status:
     desc: "Set the Status field of one board item. ITEM=<itemId> VALUE=<option>"
     summary: |
@@ -269,97 +212,34 @@ tasks:
             input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$v}}){ clientMutationId } }' \
           -f p="$project" -f i="{{.ITEM}}" -f f="$field" -f v="$option" >/dev/null
 
-  ready:
-    desc: "List the open issues sitting in Status=Ready. Two columns: ref and itemId."
-    summary: |
-      Lista as issues ABERTAS na coluna Ready do board, uma por linha, no
-      formato `owner/repo#N <itemId>`.
-
-      PR é filtrado de propósito: Ready significa "pronta pra alguém pegar", e
-      quem pega PR é o fluxo de review, não o de implementação.
-
-      Issue com `agente:humano` também sai da lista: ela parou esperando uma
-      decisão sua, e redespachar só produziria o mesmo veredito toda vez.
-
-      É a fonte do `gh:dispatch`. Rode solto pra ver o que está na fila.
-
-      Examples:
-        - task gh:ready
-    cmds:
-      - |
-        gh api graphql --paginate -f query='
-          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
-            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
-              nodes{ id
-                content{ __typename ... on Issue{ number state repository{ nameWithOwner }
-                  labels(first:30){ nodes{ name } } } }
-                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
-          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
-          --jq '.data.user.projectV2.items.nodes[]
-                | select(.content.__typename == "Issue")
-                | select(.content.state == "OPEN")
-                | select([.content.labels.nodes[].name] | index("agente:humano") | not)
-                | select(.status.name // "" | startswith("Ready"))
-                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id'
-
-  dispatch:
-    desc: "Abre uma worktree Orca pra cada issue em Ready e move o card pra In progress."
-    summary: |
-      O gatilho do fluxo autônomo: toda issue que você arrasta pra Ready no
-      board vira uma worktree Orca com um agente já trabalhando nela.
-
-      A mudança pra "In progress" é o lock — acontece ANTES de criar a
-      worktree, então o tick seguinte do timer não despacha a mesma issue duas
-      vezes. Se a criação falhar, o card volta pra Ready.
-
-      Só roda com a stack `svc:` de pé — ver `gh:agents-ready`. Sem ela a task
-      sai em silêncio e o card fica em Ready pro próximo tick; não é erro, é o
-      piloto automático desligado.
-
-      Chamado pelo timer `gh-board-defaults.timer` a cada 15 min.
-
-      Arguments:
-        - AGENT: agente a subir na worktree (default: claude).
-
-      Examples:
-        - task gh:dispatch
-    vars:
-      AGENT: '{{.AGENT | default "claude"}}'
-    cmds:
-      - |
-        task gh:agents-ready || exit 0
-
-        task gh:ready | while read -r ref item; do
-          task gh:review-ready REPO="${ref%\#*}" || continue
-          echo "→ $ref"
-          task gh:labels REPO="${ref%\#*}"
-          task gh:status ITEM="$item" VALUE="In Progress"
-          if ! task gh:orca ISSUE="$ref" AGENT={{.AGENT}}; then
-            echo "  falhou — devolvendo o card pra Ready"
-            task gh:status ITEM="$item" VALUE="Ready"
-          fi
-        done
+  # ---------------------------------------------------------------------------
+  # Fluxo autônomo. O estado é o **Status da issue no board**, não um arquivo:
+  #
+  #   Ready       gh:prep      /issue-prep triando (repo apto? enunciado? labels?)
+  #   In Progress gh:dispatch  agente implementando, ou aplicando review de PR
+  #   In Review   gh:pr-tick   PR aberto, ciclo de revisão rodando
+  #   Blocked     gh:unblock   esperando resposta humana na issue
+  #   Done        gh:close     critérios satisfeitos -> fecha issue e worktree
+  #   Dropped     gh:close     desistido -> fecha issue e worktree
+  #
+  # Os labels `agent:*` são secundários: `agent:running` é o lock, o resto é
+  # sinal na UI. Nomes em inglês pra casar com o resto do GitHub.
+  # ---------------------------------------------------------------------------
 
   agents-ready:
-    desc: "Precondição do fluxo autônomo: stack svc de pé e runtime do Orca alcançável."
+    desc: "Precondição do fluxo: stack svc de pé e runtime do Orca alcançável."
     summary: |
-      A stack `svc:` de pé é o **consentimento**: enquanto ela não está rodando,
-      nenhum agente é despachado sozinho nesta máquina. Não é um teste técnico
-      de dependência — o fluxo não usa Traefik pra nada — é o interruptor.
-      `task svc:down` desliga o piloto automático inteiro.
+      A stack `svc:` de pé é o **consentimento**: enquanto ela não roda, nenhum
+      agente é despachado sozinho nesta máquina. Não é dependência técnica — o
+      fluxo não usa Traefik pra nada — é o interruptor. `task svc:down` desliga
+      o piloto automático inteiro.
 
-      Com o consentimento dado, o runtime do Orca é consequência: se estiver
-      fora, esta task sobe o `orca-serve.service` e espera ele responder. Sem
-      isso, trocar o gate não resolveria nada — o `worktree create` falharia
-      igual e o card só ficaria batendo de Ready pra Ready.
+      Dado o consentimento, o runtime do Orca é consequência: a task sobe o
+      `orca-serve.service` e espera responder. A unit escolhe sozinha entre o
+      display do WSLg e um Xvfb descartável, então não depende de sessão gráfica
+      aberta.
 
-      O `orca serve` precisa de unit própria, não de `&` no fim da linha: o
-      timer é `Type=oneshot` e o systemd mata o que sobrar no cgroup quando o
-      ExecStart termina.
-
-      Sai não-zero (com o motivo) quando não dá pra despachar. Chamado pelo
-      `gh:dispatch` e pelo `gh:pr-tick`; rode solto pra saber por que o fluxo
-      está parado.
+      Sai não-zero com o motivo. Rode solto pra saber por que o fluxo parou.
 
       Examples:
         - task gh:agents-ready
@@ -385,29 +265,38 @@ tasks:
           exit 1
         fi
 
+  repo-path:
+    desc: "Caminho local de um repo, pelo registro do Orca. REPO=owner/name"
+    summary: |
+      O checkout local sai do `orca repo list` — o mesmo registro que o
+      `gh:orca` usa pra criar worktree, então repo que o fluxo consegue
+      despachar é repo que ele consegue ler.
+
+      Repo de terceiro é caso normal aqui (o `lucida-monorepo` e o
+      `cozinha-app` estão no fluxo): o que decide não é o dono, é estar
+      registrado no Orca e ter `AGENTS.md`.
+
+      Examples:
+        - task gh:repo-path REPO=alvarofpp/matria
+    requires:
+      vars: [REPO]
+    cmds:
+      - |
+        nome=$(printf '%s' "{{.REPO}}" | sed 's#.*/##')
+        path=$(orca repo list 2>/dev/null | awk -v n="$nome" '$2 == n {print $3}' | head -1)
+        [ -n "$path" ] || { echo "  ! $nome: não está registrado no Orca" >&2; exit 1; }
+        echo "$path"
+
   review-ready:
     desc: "Diz se um repo cumpre o pré-requisito do fluxo: AGENTS.md válido. REPO=owner/name"
     summary: |
-      O `AGENTS.md` é **pré-requisito** pra o repo entrar no fluxo autônomo: é
-      dele que o `/review-pr` tira quem revisa o quê. Sem ele o revisor não tem
-      nada além de "revise o diff", que é o pior review possível — pior do que
-      não revisar, porque carimba o PR de revisado.
+      O `AGENTS.md` é pré-requisito: é dele que o `/review-pr` tira quem revisa
+      o quê. Sem ele o revisor não tem nada além de "revise o diff", que é pior
+      que não revisar — carimba o PR de revisado.
 
-      Por isso o `gh:dispatch` e o `gh:pr-tick` pulam o repo em vez de degradar
-      a revisão. Escrever o arquivo é o `/agents-doc` (comando global).
-
-      O caminho local sai do `orca repo list` — é o mesmo registro que o
-      `gh:orca` usa pra criar worktree, então repo que o fluxo consegue
-      despachar é repo que ele consegue conferir.
-
-      Barra também repo de outro dono. Os de `EXTRA_REPOS` estão no board de
-      propósito — dá pra acompanhar issue e PR deles —, mas o fluxo autônomo
-      edita a issue, cria label, publica branch e abre PR **sem ninguém
-      olhando**, e isso não se faz no repo dos outros. Lá o caminho é rodar
-      `/review-pr <n>` na mão.
-
-      Arguments:
-        - REPO: `owner/name` (ou só `name`).
+      Quem escreve o arquivo é o `/agents-doc`. O `/issue-prep` checa isto na
+      triagem e manda a issue pra Blocked com o motivo, em vez de o fluxo pular
+      o repo em silêncio.
 
       Examples:
         - task gh:review-ready REPO=alvarofpp/matria
@@ -415,48 +304,31 @@ tasks:
       vars: [REPO]
     cmds:
       - |
-        repo="{{.REPO}}"
-        case "$repo" in
-          */*) owner="${repo%%/*}" ;;
-          *)   owner="{{.PROJECT_OWNER}}" ;;
-        esac
-        if [ "$owner" != "{{.PROJECT_OWNER}}" ]; then
-          echo "  ! $repo: repo de outro dono — fora do fluxo autônomo (revise na mão com /review-pr)"
-          exit 1
-        fi
-        nome="${repo##*/}"
-        path=$(orca repo list 2>/dev/null | awk -v n="$nome" '$2 == n {print $3}' | head -1)
-        if [ -z "$path" ]; then
-          echo "  ! $nome: não está registrado no Orca — o fluxo não tem checkout local pra conferir"
-          exit 1
-        fi
+        path=$(task gh:repo-path REPO="{{.REPO}}" 2>/dev/null) || exit 1
         if ! task ai:agents-doc REPO="$path" MODE=check >/dev/null 2>&1; then
-          echo "  ! $nome: AGENTS.md ausente ou inválido — rode /agents-doc lá (pré-requisito do fluxo)"
+          echo "  ! {{.REPO}}: AGENTS.md ausente ou inválido — rode /agents-doc lá"
           exit 1
         fi
 
   labels:
-    desc: "Cria (idempotente) os labels de estado do fluxo de agentes num repo. REPO=owner/name"
+    desc: "Cria (idempotente) os labels de estado do fluxo num repo. REPO=owner/name"
     summary: |
-      O fluxo de PR não tem banco: o estado mora nos labels do próprio PR,
-      visível na UI do GitHub e legível por uma chamada de `gh`.
+      O fluxo não tem banco. O estado principal é o Status da issue no board;
+      os labels são o que aparece na UI do GitHub e o que uma chamada de `gh`
+      consegue ler:
 
-        agente            no fluxo (posto pelo agente ao abrir o PR)
-        agente:rodando    já tem agente trabalhando — o tick não despacha outro
-        agente:mudancas   revisor pediu alteração; a bola é do autor
-        agente:aprovado   passou na revisão — esperando o SEU merge
-        agente:humano     terminal: estourou o teto de rodadas ou deu ruim
+        agent           PR no fluxo (posto pelo agente ao abrir)
+        agent:running   sessão de agente ativa nesta issue — é o lock
+        agent:changes   revisão pediu alteração; a bola é do autor
+        agent:approved  passou na revisão — esperando o SEU merge
+        agent:human     parou esperando decisão humana
 
-      `agente:aprovado` é o fim da linha do agente. O merge é seu, e é o único
-      ponto do fluxo em que você entra — daí ele precisar de estado próprio:
-      review `APPROVED` no próprio PR é recusado com 422 (autor e revisor são a
-      mesma conta), então o label é o único jeito de "aprovado" existir.
+      `agent:approved` existe porque o merge é seu: review `APPROVED` no próprio
+      PR é recusado com 422 (autor e revisor são a mesma conta), então o label é
+      o único jeito de "aprovado" ter estado.
 
-      `--force` torna a criação idempotente. Chamado pelo `gh:dispatch`, então
-      repo novo entra no fluxo sem passo manual.
-
-      Arguments:
-        - REPO: owner/name do repositório.
+      Labels de classificação (tipo, contexto) não saem daqui — quem cria é o
+      `/issue-prep`, que sabe o vocabulário do repo.
 
       Examples:
         - task gh:labels REPO=alvarofpp/matria
@@ -465,238 +337,428 @@ tasks:
     cmds:
       - |
         printf '%s\n' \
-          'agente|0e8a16|no fluxo de agentes' \
-          'agente:rodando|fbca04|agente trabalhando agora' \
-          'agente:mudancas|d93f0b|revisor pediu alteração' \
-          'agente:aprovado|0e8a16|passou na revisão — pronto pro merge' \
-          'agente:humano|b60205|precisa de você' \
+          'agent|0e8a16|PR no fluxo de agentes' \
+          'agent:running|fbca04|sessão de agente ativa' \
+          'agent:changes|d93f0b|revisão pediu alteração' \
+          'agent:approved|0e8a16|passou na revisão — pronto pro merge' \
+          'agent:human|b60205|precisa de um humano' \
         | while IFS='|' read -r name color desc; do
             gh label create "$name" -R "{{.REPO}}" --color "$color" --description "$desc" --force >/dev/null
           done
 
-  prs:
-    desc: "List the agent-flow PRs and the action each one is waiting for."
+  issues:
+    desc: "Lista as issues abertas num Status do board. STATUS=Ready|In Progress|..."
     summary: |
-      Lista os PRs abertos com o label `agente`, um por linha, no formato
-      `owner/repo#N <acao>`. Fonte do `gh:pr-tick`; rode solto pra ver a fila
-      sem despachar nada.
+      Uma linha por issue, no formato `owner/repo#N <itemId>`. É a fonte de
+      todos os ticks — cada um lê um Status.
 
-      A ação sai dos labels: `agente:humano`, `agente:rodando` e
-      `agente:aprovado` são filtrados (não há o que o fluxo fazer agora),
-      `agente:mudancas` pede `corrigir`, o resto pede `revisar`. PR sem o label
-      `agente` é seu — o fluxo não encosta.
-
-      `agente:aprovado` sai da fila porque o passo seguinte dele é **você**: o
-      agente não mergeia, ele para com o PR pronto.
+      Issue com `agent:running` sai da lista: já tem sessão trabalhando nela.
+      Com `agent:human`, idem — parou esperando você, e redespachar produziria
+      o mesmo veredito toda vez. PR nunca entra: aqui só issue.
 
       Examples:
-        - task gh:prs
+        - task gh:issues STATUS=Ready
+        - task gh:issues STATUS="In Progress"
+    requires:
+      vars: [STATUS]
     cmds:
       - |
-        task gh:repos | sort -u | while read -r repo; do
-          gh pr list -R "$repo" --state open --label agente --limit 100 --json number,labels \
-            --jq '.[] | [.labels[].name] as $l
-              | select(($l | index("agente:humano")) == null)
-              | select(($l | index("agente:rodando")) == null)
-              | select(($l | index("agente:aprovado")) == null)
-              | (.number|tostring) + " "
-                + (if ($l | index("agente:mudancas")) then "corrigir" else "revisar" end)' \
-            2>/dev/null | while read -r num action; do echo "$repo#$num $action"; done
+        gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ id
+                content{ __typename ... on Issue{ number state repository{ nameWithOwner }
+                  labels(first:30){ nodes{ name } } } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.__typename == "Issue")
+                | select(.content.state == "OPEN")
+                | select([.content.labels.nodes[].name] | index("agent:running") | not)
+                | select([.content.labels.nodes[].name] | index("agent:human") | not)
+                | select((.status.name // "") == "{{.STATUS}}")
+                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id' \
+          2>/dev/null || true
+
+  issue-status:
+    desc: "Move o card de uma issue. REF=owner/repo#N VALUE=<Status>"
+    summary: |
+      O `gh:status` move por `itemId`, que um agente dentro da worktree não tem.
+      Este resolve o item a partir de `owner/repo#N` e move.
+
+      É a mecânica; **quando** mover é o `/issue-status`, o comando que valida a
+      transição antes de chamar isto.
+
+      Examples:
+        - task gh:issue-status REF=alvarofpp/matria#12 VALUE="In Review"
+    requires:
+      vars: [REF, VALUE]
+    cmds:
+      - |
+        ref="{{.REF}}"; repo="${ref%\#*}"; num="${ref##*\#}"
+        item=$(gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ id content{ ... on Issue{ number repository{ nameWithOwner } } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.number != null)
+                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id' \
+          | awk -v k="$repo#$num" '$1 == k {print $2}' | head -1)
+        [ -n "$item" ] || { echo "$ref não está no board (rode task gh:sync)"; exit 1; }
+        task gh:status ITEM="$item" VALUE="{{.VALUE}}"
+        echo "$ref -> {{.VALUE}}"
+
+  prep:
+    desc: "Tria cada issue em Ready — enunciado, labels, repo apto — e libera pra In Progress."
+    summary: |
+      A porta de entrada do fluxo. Roda o `/issue-prep` em cada issue que você
+      arrastou pra Ready, **antes** de existir worktree ou branch: nesta fase
+      ninguém escreve código, só se decide se a issue está em condição de ser
+      implementada.
+
+      O comando confere três coisas e move o card:
+
+        repo tem AGENTS.md?   não -> Blocked com o motivo
+        enunciado executável? não -> comentário explicando + Blocked
+        labels adequadas?     cria as que faltarem e atribui
+                              tudo ok -> In Progress
+
+      Roda **síncrono** (`claude -p`, sem worktree, no checkout do repo): a
+      triagem não altera arquivo nenhum, e prender o tick aqui é de propósito —
+      o systemd não dispara um oneshot que ainda está rodando, então dois ticks
+      nunca triam a mesma issue.
+
+      Examples:
+        - task gh:prep
+    vars:
+      PREP_TIMEOUT: 900
+    cmds:
+      - |
+        task gh:agents-ready || exit 0
+
+        task gh:issues STATUS=Ready | while read -r ref item; do
+          repo="${ref%\#*}"
+          path=$(task gh:repo-path REPO="$repo" 2>/dev/null) || {
+            echo "$ref: repo não registrado no Orca — fora do fluxo"
+            continue
+          }
+          task gh:labels REPO="$repo"
+          echo "→ triando $ref"
+          ( cd "$path" && timeout {{.PREP_TIMEOUT}} claude -p "/issue-prep $ref" ) \
+            || echo "  $ref: a triagem falhou ou estourou o tempo — fica em Ready"
+        done
+
+  orca:
+    desc: "Abre (ou reabre) a worktree Orca de uma issue com um agente. ISSUE=owner/repo#N"
+    summary: |
+      Cria a worktree do repo da issue, linkada a ela (`--issue`), com o agente
+      já rodando. É o único ponto de contato entre o board e o Orca: a aba de
+      tasks do Orca só fala Linear, mas a worktree guarda o número da issue.
+
+      Worktree que já existe é **reaproveitada** — a issue vai e volta entre
+      In Progress e In Review várias vezes, e recriar falharia. Ela só é apagada
+      quando a issue fecha (`gh:close`).
+
+      Arguments:
+        - ISSUE: `owner/repo#N` ou a URL.
+        - PROMPT: o que o agente deve fazer (default: implementar a issue).
+        - AGENT: agente do primeiro terminal (default: claude).
+
+      Examples:
+        - task gh:orca ISSUE=alvarofpp/matria#12
+    requires:
+      vars: [ISSUE]
+    vars:
+      AGENT: '{{.AGENT | default "claude"}}'
+    env:
+      PROMPT: '{{.PROMPT}}'
+    cmds:
+      - |
+        ref=$(printf '%s' "{{.ISSUE}}" | sed -E 's#^https://github\.com/##; s#/issues/#\##')
+        repo="${ref%\#*}"; num="${ref##*\#}"
+        title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
+        prompt="$PROMPT"
+        [ -n "$prompt" ] || prompt="Implemente a issue $repo#$num — $title. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments."
+
+        if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
+          orca terminal create --worktree "issue:$num" --title "issue #$num" \
+            --command "claude \"$prompt\"" >/dev/null
+          echo "terminal aberto na worktree issue-$num"
+        else
+          orca worktree create \
+            --project "github:$repo" --host local \
+            --name "issue-$num" --issue "$num" --comment "$title" \
+            --agent "{{.AGENT}}" --prompt "$prompt"
+          echo "worktree issue-$num criada e linkada à issue #$num"
+        fi
+
+  dispatch:
+    desc: "Põe um agente em cada issue In Progress — implementando ou aplicando review."
+    summary: |
+      In Progress significa "tem agente trabalhando nisto". A issue chega aqui
+      por dois caminhos, e o mesmo tick cobre os dois:
+
+        vinda do prep       não há PR ainda -> implementa do zero
+        vinda do review     há PR aberto    -> aplica o que a revisão pediu
+
+      O agente cria a branch e a linka no **Development** da issue antes do
+      primeiro push, roda o QA local do projeto (o que o `Taskfile`/runner
+      expuser) e só abre o PR com tudo verde. Aberto o PR, ele move a issue pra
+      In Review — é a passagem de bastão pro `gh:pr-tick`.
+
+      Impedimento que ele não pode resolver (decisão de projeto, requisito
+      ambíguo) não vira palpite: comenta a pergunta na issue e move pra Blocked.
+      O `gh:unblock` devolve pra cá quando alguém responder.
+
+      O label `agent:running` entra aqui e sai no fim, sempre. É o lock: sem
+      ele o tick de 15 min empilharia um segundo agente na mesma worktree.
+
+      Examples:
+        - task gh:dispatch
+    cmds:
+      - |
+        task gh:agents-ready || exit 0
+
+        task gh:issues STATUS="In Progress" | while read -r ref item; do
+          repo="${ref%\#*}"; num="${ref##*\#}"
+
+          pr=$(gh pr list -R "$repo" --state open --label agent --limit 50 \
+                 --json number,body --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' \
+                 2>/dev/null | head -1)
+
+          if [ -n "$pr" ]; then
+            prompt="A issue $repo#$num voltou pra implementação: o PR #$pr já está aberto e a revisão apontou coisas. Leia com: gh pr view $pr -R $repo --comments e gh api repos/$repo/pulls/$pr/comments. Aplique todas as sugestões pertinentes; das que não fizerem sentido, discorde por escrito na própria thread em vez de ignorar em silêncio. Rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só siga com tudo verde. Commit e push. Depois rode /issue-status $repo#$num In Review e gh pr edit $pr -R $repo --remove-label agent:changes. Se esbarrar em decisão que não é sua, use /issue-status $repo#$num Blocked com a pergunta. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+          else
+            prompt="Implemente a issue $repo#$num. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments — a triagem do /issue-prep já deixou lá o escopo e o critério de aceite. Antes do primeiro push, crie a branch no GitHub já linkada ao Development da issue (createLinkedBranch — a receita está no /issue-prep). Rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só abra o PR com tudo verde: gh pr create -R $repo --fill --body 'Refs #$num' --label agent. Use Refs, NUNCA Closes: a issue pode precisar de mais de um PR e quem a fecha é o /issue-status. Aberto o PR, rode /issue-status $repo#$num In Review. Ninguém vai te responder durante a sessão — ambiguidade de execução você decide e declara no PR; só decisão de projeto vira /issue-status $repo#$num Blocked com a pergunta. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+          fi
+
+          echo "→ $ref: $([ -n "$pr" ] && echo "aplicando review do #$pr" || echo implementando)"
+          gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+          if ! task gh:orca ISSUE="$ref" PROMPT="$prompt" >/dev/null; then
+            echo "  falhou ao abrir a worktree — soltando o lock"
+            gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+          fi
         done
 
   pr-tick:
-    desc: "Despacha um agente pra cada PR do fluxo que está esperando ação."
+    desc: "Roda o ciclo de revisão nas issues In Review que têm PR aberto."
     summary: |
-      Os passos 2–4 do fluxo autônomo (revisar → corrigir → re-revisar →
-      aprovar), rodando na SUA máquina. O passo 5, o merge, é o único que sobra
-      pra você. A decisão de 2026-08-27 foi não usar
-      GitHub Actions: o loop gasta várias sessões de agente por PR e estouraria
-      os minutos grátis em repo privado.
+      In Review significa "há pelo menos um PR aberto esperando revisão". Pra
+      cada issue nesse estado com PR aberto:
 
-      Pra cada PR listado pelo `gh:prs`:
+        1ª passada  -> `/review-pr <n>` + `--post`
+        2ª em diante -> `/review-pr --check <n>`, que confere item a item o que
+                        foi pedido em vez de revisar do zero
 
-        revisar   → primeira passada: `/review-pr <n>` + `--post`. Terminal NOVO
-                    na worktree — contexto limpo é o que mantém o revisor
-                    independente do autor, mesmo no mesmo checkout.
-        corrigir  → o autor lê as threads, aplica, faz push e tira o
-                    `agente:mudancas`, devolvendo o PR pra fila.
-        recheck   → `revisar` num PR que já tem review vira `/review-pr --check`:
-                    confere achado por achado se foi atendido e fecha as threads
-                    resolvidas, em vez de revisar tudo de novo do zero.
+      Achou algo: os achados vão pro PR (`agent:changes`) e a **issue volta pra
+      In Progress** — é lá que o trabalho acontece, e o `gh:dispatch` já sabe
+      reconhecer "issue In Progress com PR aberto".
 
-      Aprovado em qualquer uma das duas rodadas, o agente traz a main, resolve
-      o conflito que houver, dá push e marca `agente:aprovado`. **Ele não
-      mergeia**: o merge é o único ponto do fluxo que é seu. Ele deixa o PR
-      mergeável — sem isso você herdaria o conflito junto com o botão.
+      Não achou nada: o agente traz a main, resolve o conflito, dá push e marca
+      `agent:approved`. **Ele não mergeia** — o merge é o único ponto do fluxo
+      que é seu, e ele entrega o PR mergeável pra você não herdar o conflito
+      junto com o botão.
 
-      O label `agente:rodando` é o lock, posto aqui antes de abrir o terminal e
-      removido pelo agente no fim. Sem ele o tick de 15 min empilharia um
-      segundo agente em cima do primeiro.
+      O terminal é NOVO na worktree: contexto limpo é o que mantém o revisor
+      independente do autor sem precisar de segundo checkout.
 
-      Teto de {{.MAX_ROUNDS}} rodadas de review por PR: ping-pong infinito
-      entre revisor e autor é o modo de falha esperado, não hipótese. Estourou,
-      o PR ganha `agente:humano` e o fluxo larga.
-
-      A worktree é resolvida por `issue:<N>`, o vínculo que o `gh:orca` gravou
-      no card do Orca — daí o `Refs #N` obrigatório no corpo do PR. É `Refs` e
-      não `Closes` de propósito: uma issue pode precisar de mais de um PR, e o
-      primeiro merge a fecharia no meio do caminho. Quem fecha é o
-      `/issue-prep` da rodada seguinte, depois do `gh:reanalyze` devolver o card
-      pra Ready.
-
-      A revisão em si é o `/review-pr` global (`ai/.claude/commands/`), portado
-      do lucida-monorepo: worktree próprio no head do PR, 1 a 5 revisores em
-      paralelo escolhidos pelos agentes do repo, um compilador que deduplica e
-      corta achado sem evidência, e um `--check` que confere item a item o que
-      foi pedido e fecha as threads resolvidas. Repo com `/review-pr` próprio
-      (o lucida tem) usa o dele — comando de projeto ganha do global.
-
-      Arguments:
-        - CLAUDE_FLAGS: flags extras do agente. Vazio por default: as permissões
-          já vêm do `~/.claude/settings.json` global, que libera `git` e `gh`.
+      Teto de {{.MAX_ROUNDS}} rodadas por PR — ping-pong entre revisor e autor é
+      modo de falha esperado, não hipótese. Estourou, o PR ganha `agent:human`,
+      a issue vai pra Blocked e o fluxo larga.
 
       Examples:
         - task gh:pr-tick
     vars:
       MAX_ROUNDS: 3
-      CLAUDE_FLAGS: '{{.CLAUDE_FLAGS | default ""}}'
     cmds:
       - |
         task gh:agents-ready || exit 0
 
-        task gh:prs | while read -r ref action; do
+        task gh:issues STATUS="In Review" | while read -r ref item; do
           repo="${ref%\#*}"; num="${ref##*\#}"
-          task gh:review-ready REPO="$repo" || continue
 
-          issue=$(gh pr view "$num" -R "$repo" --json body --jq .body \
-            | grep -oiE '(refs|closes) #[0-9]+' | head -1 | grep -oE '[0-9]+')
-          if [ -z "$issue" ]; then
-            echo "$ref: sem 'Refs #N' no corpo — não sei qual worktree usar, pulando"
-            continue
-          fi
+          pr=$(gh pr list -R "$repo" --state open --label agent --limit 50 \
+                 --json number,body,labels \
+                 --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))
+                       | select([.labels[].name] | index("agent:approved") | not)
+                       | .number' 2>/dev/null | head -1)
+          [ -n "$pr" ] || continue
 
-          rounds=$(gh pr view "$num" -R "$repo" --json reviews --jq '.reviews | length')
+          rounds=$(gh pr view "$pr" -R "$repo" --json reviews --jq '.reviews | length')
           if [ "$rounds" -ge {{.MAX_ROUNDS}} ]; then
             echo "$ref: {{.MAX_ROUNDS}} rodadas sem convergir — passando pra você"
-            gh pr edit "$num" -R "$repo" --add-label agente:humano >/dev/null
+            gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
+            gh issue edit "$num" -R "$repo" --add-label agent:human >/dev/null
+            task gh:issue-status REF="$ref" VALUE=Blocked
             continue
           fi
 
-          # PR que já passou por revisor não é revisto do zero: o `/review-pr --check`
-          # confere item a item o que foi pedido, e só ele fecha as threads resolvidas.
-          [ "$action" = "revisar" ] && [ "$rounds" -gt 0 ] && action=recheck
-
-          if ! orca worktree show --worktree "issue:$issue" >/dev/null 2>&1; then
-            echo "$ref: worktree issue:$issue não existe mais, pulando"
-            continue
+          if [ "$rounds" -gt 0 ]; then
+            prompt="Rode /review-pr --check $pr — o PR já foi revisado e depois corrigido, então é conferir item a item o que foi pedido, não revisar de novo. Se o veredito for 'pode aprovar': traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, dê push, marque gh pr edit $pr -R $repo --add-label agent:approved e rode /review-pr --close $pr. NÃO mergeie — o merge é do Álvaro; seu trabalho é entregar o PR mergeável. Se ainda falta coisa: poste o que falta no PR, marque gh pr edit $pr -R $repo --add-label agent:changes e devolva a issue pra implementação com /issue-status $repo#$num In Progress. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+          else
+            prompt="Rode /review-pr $pr e, com o relatório pronto, /review-pr --post $pr. Se o --post ancorou qualquer comentário (ou seja, pediu mudanças): marque gh pr edit $pr -R $repo --add-label agent:changes e devolva a issue pra implementação com /issue-status $repo#$num In Progress. Se a revisão não teve achado nenhum: traga a main (git fetch origin main && git merge origin/main), resolva os conflitos, dê push, marque gh pr edit $pr -R $repo --add-label agent:approved e rode /review-pr --close $pr. NÃO mergeie o PR em hipótese nenhuma — o merge é do Álvaro. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
           fi
 
-          case "$action" in
-            revisar)
-              prompt="Rode /review-pr $num e, quando o relatório estiver pronto, /review-pr --post $num. Se o --post pediu mudanças (qualquer comentário ancorado), marque: gh pr edit $num -R $repo --add-label agente:mudancas. Se a revisão não teve achado nenhum, NÃO ponha esse label; em vez disso deixe o PR pronto pro merge humano: traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, dê push, e marque gh pr edit $num -R $repo --add-label agente:aprovado. NÃO mergeie o PR em hipótese nenhuma — o merge é do Álvaro. Encerre com /review-pr --close $num. Faça por último, SEMPRE, aconteça o que acontecer: gh pr edit $num -R $repo --remove-label agente:rodando"
-              ;;
-            recheck)
-              prompt="Rode /review-pr --check $num — o PR já foi revisado e depois corrigido, então é conferir item a item o que foi pedido, não revisar de novo. Se o veredito for 'pode aprovar', traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, dê push, marque gh pr edit $num -R $repo --add-label agente:aprovado e rode /review-pr --close $num. NÃO mergeie o PR — o merge é do Álvaro; seu trabalho é entregá-lo mergeável. Se ainda falta coisa, poste o que falta no PR e marque: gh pr edit $num -R $repo --add-label agente:mudancas. Faça por último, SEMPRE: gh pr edit $num -R $repo --remove-label agente:rodando"
-              ;;
-            corrigir)
-              prompt="O PR $repo#$num recebeu pedidos de alteração numa revisão. Leia com: gh pr view $num -R $repo --comments e gh api repos/$repo/pulls/$num/comments. Aplique todas as sugestões pertinentes; das que não fizerem sentido, discorde por escrito na própria thread em vez de ignorar em silêncio. Rode os testes do projeto e só siga com tudo verde. Faça commit e push. Faça por último, SEMPRE: gh pr edit $num -R $repo --remove-label agente:mudancas --remove-label agente:rodando"
-              ;;
-          esac
-
-          echo "→ $ref: $action"
-          gh pr edit "$num" -R "$repo" --add-label agente:rodando >/dev/null
-          if ! orca terminal create --worktree "issue:$issue" \
-                 --title "$action #$num" \
-                 --command "claude {{.CLAUDE_FLAGS}} \"$prompt\"" >/dev/null; then
+          echo "→ $ref: revisando #$pr (rodada $((rounds+1)))"
+          gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+          if ! orca terminal create --worktree "issue:$num" \
+                 --title "review #$pr" --command "claude \"$prompt\"" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
-            gh pr edit "$num" -R "$repo" --remove-label agente:rodando >/dev/null
+            gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
           fi
         done
 
-  reanalyze:
-    desc: "PR que você mergeou devolve a issue pra Ready, pra ser reavaliada."
+  settle:
+    desc: "Issue In Review sem PR aberto: confere os critérios de aceite e decide Done."
     summary: |
-      O passo que fecha o ciclo. Você mergeia um PR `agente:aprovado`; como o
-      corpo dele diz `Refs #N` e não `Closes #N`, a issue continua **aberta** de
-      propósito. Esta task devolve o card dela pra `Ready`, e o próximo
-      `gh:dispatch` roda o `/issue-prep`, que olha os PRs já mesclados e decide:
-      satisfeita → fecha a issue; falta coisa → abre outro PR.
+      O que acontece depois de **você** mergear. A issue está In Review, todos
+      os PRs dela foram mesclados e nenhum está aberto — falta responder a única
+      pergunta que o merge não responde: *o que a issue pedia foi entregue?*
 
-      É esse vai-e-volta que permite **mais de um PR por issue** sem que o
-      primeiro merge feche o assunto no meio do caminho.
+      Um agente confronta o critério de aceite com o diff dos PRs mesclados (o
+      diff, não o título — título promete mais do que entrega) e decide:
 
-      A worktree é removida junto (`--run-hooks`, pra o `archive` do `orca.yaml`
-      derrubar containers e volumes da instância): o trabalho dela virou main, e
-      a rodada seguinte precisa nascer da main, não de uma branch já mesclada.
+        satisfeita     -> Done   (o `gh:close` fecha a issue e apaga a worktree)
+        falta coisa    -> In Progress, e o que falta vira o escopo da rodada
 
-      O label `agente` sai do PR mesclado no fim — é o que impede a task de
-      reprocessar o mesmo PR no tick seguinte. Sem banco, sem arquivo de estado.
+      É isto que permite **mais de um PR por issue**: o PR diz `Refs #N` e não
+      `Closes #N`, então nenhum merge fecha a issue sozinho.
 
-      Chamado pelo timer, antes do `gh:dispatch`.
+      Roda síncrono, como o `gh:prep` — só lê e move o card.
 
       Examples:
-        - task gh:reanalyze
+        - task gh:settle
+    vars:
+      SETTLE_TIMEOUT: 900
     cmds:
       - |
         task gh:agents-ready || exit 0
 
-        itens=$(gh api graphql --paginate -f query='
-          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
-            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
-              nodes{ id content{ ... on Issue{ number state repository{ nameWithOwner } } } } } } } }' \
-          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
-          --jq '.data.user.projectV2.items.nodes[]
-                | select(.content.number != null)
-                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id')
+        task gh:issues STATUS="In Review" | while read -r ref item; do
+          repo="${ref%\#*}"; num="${ref##*\#}"
 
-        task gh:repos | sort -u | while read -r repo; do
-          gh pr list -R "$repo" --state merged --label agente --limit 50 \
-            --json number,body --jq '.[] | (.number|tostring) + " " + ((.body // "") | gsub("\n"; " "))' 2>/dev/null \
-          | while read -r num body; do
-              issue=$(printf '%s' "$body" | grep -oiE '(refs|closes) #[0-9]+' | head -1 | grep -oE '[0-9]+')
-              if [ -z "$issue" ]; then
-                echo "$repo#$num: mesclado sem 'Refs #N' — não sei que issue reavaliar"
-                gh pr edit "$num" -R "$repo" --remove-label agente >/dev/null
-                continue
-              fi
+          abertos=$(gh pr list -R "$repo" --state open --limit 50 --json body \
+                      --jq '[.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))] | length' 2>/dev/null)
+          [ "$abertos" = "0" ] || continue
 
-              estado=$(gh issue view "$issue" -R "$repo" --json state --jq .state 2>/dev/null)
-              if [ "$estado" = "OPEN" ]; then
-                item=$(printf '%s' "$itens" | awk -v k="$repo#$issue" '$1 == k {print $2}' | head -1)
-                if [ -n "$item" ]; then
-                  task gh:status ITEM="$item" VALUE=Ready
-                  echo "  ~ $repo#$issue volta pra Ready (mesclado em #$num)"
-                else
-                  echo "  ! $repo#$issue não está no board — não dá pra reavaliar"
-                fi
-                orca worktree rm --worktree "issue:$issue" --run-hooks >/dev/null 2>&1 \
-                  || echo "    (worktree issue:$issue não removida — confira no Orca)"
-              fi
+          mesclados=$(gh pr list -R "$repo" --state merged --limit 50 --json body \
+                        --jq '[.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))] | length' 2>/dev/null)
+          [ "$mesclados" != "0" ] || continue
 
-              gh pr edit "$num" -R "$repo" --remove-label agente >/dev/null
-            done
+          path=$(task gh:repo-path REPO="$repo" 2>/dev/null) || continue
+          echo "→ $ref: $mesclados PR(s) mesclado(s), conferindo os critérios"
+          ( cd "$path" && timeout {{.SETTLE_TIMEOUT}} claude -p "/issue-status $ref Done" ) \
+            || echo "  $ref: a conferência falhou — fica em In Review"
         done
 
-  reap:
-    desc: "Solta o lock `agente:rodando` dos PRs cujo agente morreu."
+  unblock:
+    desc: "Issue Blocked que já teve resposta humana volta pra fila."
     summary: |
-      Quem tira o `agente:rodando` é o próprio agente, na última linha do
-      prompt. Sessão que morre antes disso — contexto estourado, Orca
-      reiniciado, máquina desligada no meio — deixa o label preso, e o PR sai
-      do fluxo **em silêncio**: o `gh:prs` filtra `agente:rodando`, então nem
-      aparece na fila. Sem esta task, cada agente morto custa um PR parado até
-      alguém reparar na mão.
+      Blocked é "o agente perguntou e está esperando". Quem responde é humano —
+      normalmente você, mas pode ser qualquer pessoa no repo.
 
-      O sinal de vida é o terminal do Orca na worktree da issue, não um
-      timeout: agente vivo numa revisão longa não pode ser reapado, senão o
-      tick seguinte empilha um segundo agente no mesmo checkout.
+      Como todo comentário do fluxo sai da **sua conta** do GitHub, o autor não
+      distingue nada. O que distingue é um marcador HTML: todo comentário de
+      agente carrega `<!-- agent -->`, e a pergunta carrega
+      `<!-- agent:question -->`. Resposta humana = comentário posterior à última
+      pergunta que **não** tem o marcador.
+
+      Achou resposta: tira `agent:human` e devolve pra In Progress, onde o
+      `gh:dispatch` retoma de onde parou — o histórico está na issue e na
+      worktree, que continua de pé.
+
+      Examples:
+        - task gh:unblock
+    cmds:
+      - |
+        gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ content{ __typename ... on Issue{ number state repository{ nameWithOwner } } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.__typename == "Issue")
+                | select(.content.state == "OPEN")
+                | select((.status.name // "") == "Blocked")
+                | .content.repository.nameWithOwner + "#" + (.content.number|tostring)' \
+          2>/dev/null \
+        | while read -r ref; do
+            repo="${ref%\#*}"; num="${ref##*\#}"
+            respondida=$(gh issue view "$num" -R "$repo" --json comments \
+              --jq '[.comments[] | .body] as $b
+                    | ([$b | to_entries[] | select(.value | test("<!-- agent:question -->")) | .key] | last) as $q
+                    | if $q == null then false
+                      else ([$b[($q+1):][] | select(test("<!-- agent") | not)] | length) > 0 end')
+            [ "$respondida" = "true" ] || continue
+            echo "  ~ $ref: respondida — voltando pra In Progress"
+            gh issue edit "$num" -R "$repo" --remove-label agent:human >/dev/null 2>&1 || true
+            task gh:issue-status REF="$ref" VALUE="In Progress"
+          done
+
+  close:
+    desc: "Issue em Done ou Dropped: fecha e apaga a worktree."
+    summary: |
+      O fim da linha. Issue que chegou em **Done** teve os critérios conferidos
+      pelo `gh:settle`; issue em **Dropped** você desistiu dela na mão. Nos dois
+      casos não há mais trabalho, então:
+
+        fecha a issue (`completed` em Done, `not planned` em Dropped)
+        apaga a worktree, com `--run-hooks` pro `archive` do `orca.yaml`
+        derrubar containers e volumes da instância
+
+      A worktree sobrevive a todo o vai-e-volta entre In Progress e In Review de
+      propósito — é onde mora o histórico da implementação. Ela só morre aqui.
+
+      Examples:
+        - task gh:close
+    cmds:
+      - |
+        gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ content{ __typename ... on Issue{ number state repository{ nameWithOwner } } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.__typename == "Issue")
+                | select(.content.state == "OPEN")
+                | select((.status.name // "") == "Done" or (.status.name // "") == "Dropped")
+                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + (.status.name)' \
+          2>/dev/null \
+        | while read -r ref status; do
+            repo="${ref%\#*}"; num="${ref##*\#}"
+            if [ "$status" = "Done" ]; then
+              gh issue close "$num" -R "$repo" --reason completed \
+                --comment "<!-- agent --> Critérios de aceite conferidos contra os PRs mesclados. Fechando." >/dev/null
+            else
+              gh issue close "$num" -R "$repo" --reason "not planned" \
+                --comment "<!-- agent --> Marcada como Dropped no board. Fechando sem implementar." >/dev/null
+            fi
+            echo "  ~ $ref fechada ($status)"
+            if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
+              orca worktree rm --worktree "issue:$num" --run-hooks >/dev/null 2>&1 \
+                && echo "    worktree issue-$num removida" \
+                || echo "    worktree issue-$num não removida — confira no Orca"
+            fi
+          done
+
+  reap:
+    desc: "Solta o lock `agent:running` de issue cujo agente morreu."
+    summary: |
+      Quem tira o `agent:running` é o próprio agente, na última linha do prompt.
+      Sessão que morre antes — contexto estourado, Orca reiniciado, máquina
+      desligada no meio — deixa o label preso, e a issue sai do fluxo **em
+      silêncio**: o `gh:issues` filtra `agent:running`, então ela nem aparece.
+
+      O sinal de vida é o terminal do Orca na worktree, não um timeout: agente
+      vivo numa revisão longa não pode ser reapado, senão o tick seguinte
+      empilha um segundo agente no mesmo checkout.
 
       Roda depois do `gh:agents-ready` de propósito. Com o Orca fora do ar
       nenhuma worktree teria terminal vivo e a task soltaria todos os locks de
-      uma vez — exatamente o contrário do que ela existe pra fazer.
-
-      Chamado pelo timer antes do `gh:pr-tick`, pro PR liberado ser pego no
-      mesmo tick.
+      uma vez — o contrário do que ela existe pra fazer.
 
       Examples:
         - task gh:reap
@@ -705,36 +767,29 @@ tasks:
         task gh:agents-ready || exit 0
 
         task gh:repos | sort -u | while read -r repo; do
-          gh pr list -R "$repo" --state open --label agente:rodando --limit 100 \
+          gh issue list -R "$repo" --state open --label agent:running --limit 100 \
             --json number --jq '.[].number' 2>/dev/null \
           | while read -r num; do
-              issue=$(gh pr view "$num" -R "$repo" --json body --jq .body \
-                | grep -oiE 'closes #[0-9]+' | head -1 | grep -oE '[0-9]+')
-              [ -n "$issue" ] || continue
               # Procura a chave `id` em vez de decodificar o JSON: a forma da
-              # resposta do `terminal list` é do Orca, não nossa, e lista vazia
-              # não tem `id` em forma nenhuma.
-              if orca terminal list --worktree "issue:$issue" --json 2>/dev/null | grep -q '"id"'; then
+              # resposta do `terminal list` é do Orca, e lista vazia não tem
+              # `id` em forma nenhuma.
+              if orca terminal list --worktree "issue:$num" --json 2>/dev/null | grep -q '"id"'; then
                 continue
               fi
-              echo "  ~ $repo#$num: nenhum terminal vivo em issue:$issue — soltando o lock"
-              gh pr edit "$num" -R "$repo" --remove-label agente:rodando >/dev/null
+              echo "  ~ $repo#$num: nenhum terminal vivo — soltando o lock"
+              gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
             done
         done
 
   done:
     desc: "Move pra Done os itens do board cuja issue/PR já fechou."
     summary: |
-      O `gh:dispatch` põe o card em "In Progress" e ninguém tira. Quem fecha
-      issue aqui é o `/issue-prep` (o PR diz `Refs`, não `Closes`), e o card
-      seguiria mostrando trabalho em andamento que não existe. Board que mente
-      é pior que board vazio — é por ele que você decide o que vai pra Ready.
+      Higiene de board, não fluxo: item fechado fora do fluxo (issue que você
+      fechou na mão, PR mesclado) segue mostrando o Status antigo. Só mexe em
+      item já fechado que ainda não está em Done, então rodar de novo é seguro.
 
-      Só mexe em item já fechado (issue CLOSED, PR MERGED ou CLOSED) que ainda
-      não está em Done. Item aberto não é tocado, então rodar de novo é seguro.
-
-      "Dropped" fica por sua conta: distinguir abandonado de concluído é
-      decisão, não estado derivável.
+      Quem decide Done **dentro** do fluxo é o `gh:settle`, contra os critérios
+      de aceite. Aqui é só o que ficou pra trás.
 
       Examples:
         - task gh:done
