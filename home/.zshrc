@@ -101,9 +101,6 @@ alias cat="bat"
 export ANDROID_HOME="$HOME/Android/Sdk"
 export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 
-# zoxide (better cd)
-eval "$(zoxide init zsh)"
-alias cd="z"
 
 # eza (better ls)
 alias ls="eza"
@@ -145,3 +142,6 @@ fi
 
 # Overrides locais / segredos (não comitados)
 [[ -f $HOME/.zshrc.local ]] && source $HOME/.zshrc.local
+
+# zoxide (better cd) — precisa ser a ÚLTIMA coisa do arquivo (senão o doctor reclama)
+eval "$(zoxide init --cmd cd zsh)"
