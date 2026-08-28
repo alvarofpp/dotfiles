@@ -668,7 +668,12 @@ tasks:
                        | .number' 2>/dev/null | head -1)
           [ -n "$pr" ] || continue
 
-          rounds=$(gh pr view "$pr" -R "$repo" --json reviews --jq '.reviews | length')
+          # Conta rodada, não submissão: review com corpo é uma passada de
+          # revisor; review de corpo vazio é comentário ancorado postado
+          # solto. No PR 115 isso deu 7 "rodadas" em 8 segundos e o fluxo se
+          # auto-matou no teto — o guarda contra ping-pong virou o ping-pong.
+          rounds=$(gh pr view "$pr" -R "$repo" --json reviews \
+            --jq '[.reviews[] | select((.body // "") != "")] | length')
           if [ "$rounds" -ge {{.MAX_ROUNDS}} ]; then
             echo "$ref: {{.MAX_ROUNDS}} rodadas sem convergir — passando pra você"
             gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
@@ -847,6 +852,55 @@ tasks:
                 || echo "    worktree issue-$num não removida — confira no Orca"
             fi
           done
+
+  pr-board:
+    desc: "Dá Status aos cards de PR: In Review, Ready (é seu), Blocked ou Done."
+    summary: |
+      PR nascia em `Backlog` e ficava lá: o `gh:defaults` preenche vazio e mais
+      nada mexe em card de PR. Board que diz Backlog pra um PR aberto mente.
+
+      O status do PR **não espelha o da issue** de propósito — seriam dois cards
+      dizendo a mesma coisa. O que o card do PR tem de único é a resposta a
+      "isto está esperando **mim**?":
+
+        In Review   aberto, ciclo de revisão rodando
+        Ready       `agent:approved` — passou, esperando o SEU merge
+        Blocked     `agent:human` — estourou as rodadas ou deu ruim
+        Done        mesclado ou fechado
+
+      `Ready` num card de PR não confunde com `Ready` de issue: o `gh:prep` só
+      olha `__typename == "Issue"`, então PR nenhum entra na fila de triagem.
+      E a leitura é a mesma nos dois casos — pronto pra quem pega a seguir.
+
+      Vale pra PR de fora do fluxo também (o seu, o do dependabot): PR aberto é
+      PR em revisão, com ou sem agente.
+
+      Examples:
+        - task gh:pr-board
+    cmds:
+      - |
+        gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ id
+                content{ __typename ... on PullRequest{ state
+                  labels(first:30){ nodes{ name } } } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.__typename == "PullRequest")
+                | [.content.labels.nodes[].name] as $l
+                | (if .content.state != "OPEN" then "Done"
+                   elif ($l | index("agent:human")) then "Blocked"
+                   elif ($l | index("agent:approved")) then "Ready"
+                   else "In Review" end) as $quer
+                | select((.status.name // "") != $quer)
+                | .id + " " + $quer' \
+          2>/dev/null \
+        | while read -r item quer; do
+            task gh:status ITEM="$item" VALUE="$quer" && echo "  ~ $item -> $quer"
+          done
+
 
   reap:
     desc: "Solta o lock `agent:running` de issue cujo agente morreu."

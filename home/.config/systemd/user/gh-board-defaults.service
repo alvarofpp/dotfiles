@@ -26,6 +26,8 @@ ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-tick
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:settle
 # Done/Dropped -> fecha a issue e apaga a worktree.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:close
+# Card de PR ganha Status próprio (In Review / Ready-é-seu / Blocked / Done).
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-board
 # Higiene: item fechado fora do fluxo sai do Status antigo.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:done
 StandardOutput=journal
