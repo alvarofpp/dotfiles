@@ -799,6 +799,11 @@ tasks:
       A worktree sobrevive a todo o vai-e-volta entre In Progress e In Review de
       propósito — é onde mora o histórico da implementação. Ela só morre aqui.
 
+      **Issue já fechada continua entrando.** Fechar a issue você mesmo, ao
+      mergear o PR, é caso normal — e a versão que só olhava issue aberta
+      deixava a worktree órfã pra sempre, sem erro nenhum. As duas ações são
+      independentes: fecha o que estiver aberto, apaga a worktree que existir.
+
       Examples:
         - task gh:close
     cmds:
@@ -811,20 +816,24 @@ tasks:
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
           --jq '.data.user.projectV2.items.nodes[]
                 | select(.content.__typename == "Issue")
-                | select(.content.state == "OPEN")
                 | select((.status.name // "") == "Done" or (.status.name // "") == "Dropped")
-                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + (.status.name)' \
+                | .content.repository.nameWithOwner + "#" + (.content.number|tostring)
+                  + " " + (.status.name) + " " + .content.state' \
           2>/dev/null \
-        | while read -r ref status; do
+        | while read -r ref status estado; do
             repo="${ref%\#*}"; num="${ref##*\#}"
-            if [ "$status" = "Done" ]; then
-              gh issue close "$num" -R "$repo" --reason completed \
-                --comment "<!-- agent --> Critérios de aceite conferidos contra os PRs mesclados. Fechando." >/dev/null
-            else
-              gh issue close "$num" -R "$repo" --reason "not planned" \
-                --comment "<!-- agent --> Marcada como Dropped no board. Fechando sem implementar." >/dev/null
+
+            if [ "$estado" = "OPEN" ]; then
+              if [ "$status" = "Done" ]; then
+                gh issue close "$num" -R "$repo" --reason completed \
+                  --comment "<!-- agent --> Critérios de aceite conferidos contra os PRs mesclados. Fechando." >/dev/null
+              else
+                gh issue close "$num" -R "$repo" --reason "not planned" \
+                  --comment "<!-- agent --> Marcada como Dropped no board. Fechando sem implementar." >/dev/null
+              fi
+              echo "  ~ $ref fechada ($status)"
             fi
-            echo "  ~ $ref fechada ($status)"
+
             if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
               orca worktree rm --worktree "issue:$num" --run-hooks >/dev/null 2>&1 \
                 && echo "    worktree issue-$num removida" \
