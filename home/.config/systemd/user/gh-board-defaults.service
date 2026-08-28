@@ -13,9 +13,11 @@ WorkingDirectory=%h
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sync
 # Antes do pr-tick: PR cujo agente morreu volta pra fila no mesmo tick.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:reap
+# PR que ele mergeou devolve a issue pra Ready, pra o /issue-prep reavaliar.
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:reanalyze
 # Ready -> worktree Orca com agente. Sai em silêncio se o Orca estiver fora.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:dispatch
-# PR do fluxo -> revisar / corrigir / mergear. Idem: no-op sem Orca.
+# PR do fluxo -> revisar / corrigir / aprovar. O merge é dele. Idem: no-op sem Orca.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-tick
 # Fecha o ciclo no board: item fechado/merged sai de "In Progress".
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:done
