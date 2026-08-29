@@ -804,9 +804,14 @@ tasks:
       pelo `gh:settle`; issue em **Dropped** você desistiu dela na mão. Nos dois
       casos não há mais trabalho, então:
 
+        Dropped:  fecha primeiro o PR, sem mesclar (`--delete-branch`)
         fecha a issue (`completed` em Done, `not planned` em Dropped)
         apaga a worktree, com `--run-hooks` pro `archive` do `orca.yaml`
         derrubar containers e volumes da instância
+
+      A ordem em Dropped não é estética: PR aberto de trabalho abandonado fica
+      no board como se ainda esperasse revisão, e o `gh:pr-board` o marcaria
+      `In Review`. Fecha o PR, depois a issue.
 
       A worktree sobrevive a todo o vai-e-volta entre In Progress e In Review de
       propósito — é onde mora o histórico da implementação. Ela só morre aqui.
@@ -834,6 +839,19 @@ tasks:
           2>/dev/null \
         | while read -r ref status estado; do
             repo="${ref%\#*}"; num="${ref##*\#}"
+
+            # Dropped fecha o PR antes da issue, e sem mesclar: PR aberto de
+            # trabalho abandonado fica no board de todo mundo como se ainda
+            # esperasse revisão, e o `gh:pr-board` o mostraria em In Review.
+            if [ "$status" = "Dropped" ]; then
+              gh pr list -R "$repo" --state open --limit 50 --json number,body \
+                --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null \
+              | while read -r pr; do
+                  gh pr close "$pr" -R "$repo" --delete-branch \
+                    --comment "<!-- agent --> Issue #$num marcada como Dropped no board. Fechando sem mesclar." >/dev/null \
+                    && echo "    PR #$pr fechado sem mesclar"
+                done
+            fi
 
             if [ "$estado" = "OPEN" ]; then
               if [ "$status" = "Done" ]; then
