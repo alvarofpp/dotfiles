@@ -656,11 +656,11 @@ tasks:
       marca `agent:human` no PR e na issue e manda pra Blocked.
 
       Você responde com um número e o teto vira `{{.MAX_ROUNDS}} + a soma do que
-      já autorizou` — o orçamento mora nos comentários da issue, não em arquivo
-      nenhum, então board e teto nunca discordam. Resposta sem número destrava
-      (é o `gh:unblock` genérico) mas não levanta o teto: a issue volta pra cá e
-      para de novo, com a pergunta repetida. Pra encerrar de vez, mova o card
-      pra Dropped ou assuma o PR na mão.
+      já autorizou`; responder sem número vale 1, que é o "pode seguir" mínimo.
+      O orçamento mora nos comentários da issue, não em arquivo nenhum, então
+      board e teto nunca discordam — e a leitura só acontece ao bater no teto,
+      não a cada passada. Pra encerrar de vez, mova o card pra Dropped ou assuma
+      o PR na mão.
 
       Examples:
         - task gh:pr-tick
@@ -688,25 +688,36 @@ tasks:
             --jq '[.reviews[] | select((.body // "") != "")] | length')
 
           # O teto não é fixo: cada resposta sua a uma pergunta de rodadas
-          # concede mais N. O estado é a própria issue — o número que você
-          # escreveu — pra não existir arquivo que possa discordar do GitHub.
-          # De cada pergunta conta só o primeiro comentário humano depois
-          # dela, e desse comentário só o primeiro número.
-          extra=$(gh issue view "$num" -R "$repo" --json comments \
-            --jq '[.comments[].body] as $b
-                  | [$b | to_entries[] | select(.value | test("<!-- agent:question:rounds -->")) | .key]
-                  | map(. as $i
-                        | (([$b[($i+1):][] | select(test("<!-- agent") | not)] | first) // "")
-                        | [match("[0-9]+")] | first)
-                  | map(select(. != null) | .string | tonumber)
-                  | add // 0' 2>/dev/null) || extra=0
-          limite=$(( {{.MAX_ROUNDS}} + ${extra:-0} ))
+          # concede mais N — o número que você escreveu, ou 1 se você
+          # respondeu sem número nenhum ("pode seguir", "vai"). O estado é a
+          # própria issue, pra não existir arquivo capaz de discordar do
+          # GitHub. De cada pergunta conta só o primeiro comentário humano
+          # depois dela, e desse comentário só o primeiro número.
+          #
+          # A leitura só acontece ao bater no teto base: abaixo dele o
+          # orçamento não muda decisão nenhuma, e o normal é o PR fechar em
+          # uma ou duas rodadas — sem isto, todo tick pagaria uma chamada de
+          # API por issue em revisão pra descobrir um número que não usaria.
+          limite={{.MAX_ROUNDS}}
+          if [ "$rounds" -ge "$limite" ]; then
+            extra=$(gh issue view "$num" -R "$repo" --json comments \
+              --jq '[.comments[].body] as $b
+                    | [$b | to_entries[] | select(.value | test("<!-- agent:question:rounds -->")) | .key]
+                    | map(. as $i
+                          | ([$b[($i+1):][] | select(test("<!-- agent") | not)] | first)
+                          | if . == null then empty
+                            else ([match("[0-9]+")] | first)
+                                 | if . == null then 1 else (.string | tonumber) end
+                            end)
+                    | add // 0' 2>/dev/null) || extra=0
+            limite=$(( {{.MAX_ROUNDS}} + ${extra:-0} ))
+          fi
 
           if [ "$rounds" -ge "$limite" ]; then
             echo "$ref: $rounds rodadas sem convergir (teto $limite) — perguntando quantas mais"
             corpo=$(printf '%s\n\n%s\n\n%s' \
               "<!-- agent:question:rounds --> Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
-              "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`). Resposta sem número nenhum não levanta o teto, e eu paro de novo na passada seguinte." \
+              "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`). Responder sem número vale **1** rodada, o suficiente pra mais uma tentativa." \
               "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
             gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
             gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
