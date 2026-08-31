@@ -337,6 +337,10 @@ tasks:
         <!-- agent:review -->    revisor        prefixo **Revisão** —
         <!-- agent:author -->    implementação  prefixo **Implementação** —
         <!-- agent:question -->  espera humano  (issue, destrava o gh:unblock)
+        <!-- agent:question:rounds -->  idem, e a resposta vira teto de rodada
+
+      O `gh:unblock` casa o prefixo `<!-- agent:question`, então todo sufixo
+      novo destrava sozinho — o sufixo só diz o que a resposta significa.
 
       Examples:
         - task gh:labels REPO=alvarofpp/matria
@@ -647,8 +651,16 @@ tasks:
       independente do autor sem precisar de segundo checkout.
 
       Teto de {{.MAX_ROUNDS}} rodadas por PR — ping-pong entre revisor e autor é
-      modo de falha esperado, não hipótese. Estourou, o PR ganha `agent:human`,
-      a issue vai pra Blocked e o fluxo larga.
+      modo de falha esperado, não hipótese. Estourou, o fluxo **pergunta** em
+      vez de largar: comenta na issue com `<!-- agent:question:rounds -->`,
+      marca `agent:human` no PR e na issue e manda pra Blocked.
+
+      Você responde com um número e o teto vira `{{.MAX_ROUNDS}} + a soma do que
+      já autorizou` — o orçamento mora nos comentários da issue, não em arquivo
+      nenhum, então board e teto nunca discordam. Resposta sem número destrava
+      (é o `gh:unblock` genérico) mas não levanta o teto: a issue volta pra cá e
+      para de novo, com a pergunta repetida. Pra encerrar de vez, mova o card
+      pra Dropped ou assuma o PR na mão.
 
       Examples:
         - task gh:pr-tick
@@ -674,8 +686,29 @@ tasks:
           # auto-matou no teto — o guarda contra ping-pong virou o ping-pong.
           rounds=$(gh pr view "$pr" -R "$repo" --json reviews \
             --jq '[.reviews[] | select((.body // "") != "")] | length')
-          if [ "$rounds" -ge {{.MAX_ROUNDS}} ]; then
-            echo "$ref: {{.MAX_ROUNDS}} rodadas sem convergir — passando pra você"
+
+          # O teto não é fixo: cada resposta sua a uma pergunta de rodadas
+          # concede mais N. O estado é a própria issue — o número que você
+          # escreveu — pra não existir arquivo que possa discordar do GitHub.
+          # De cada pergunta conta só o primeiro comentário humano depois
+          # dela, e desse comentário só o primeiro número.
+          extra=$(gh issue view "$num" -R "$repo" --json comments \
+            --jq '[.comments[].body] as $b
+                  | [$b | to_entries[] | select(.value | test("<!-- agent:question:rounds -->")) | .key]
+                  | map(. as $i
+                        | (([$b[($i+1):][] | select(test("<!-- agent") | not)] | first) // "")
+                        | [match("[0-9]+")] | first)
+                  | map(select(. != null) | .string | tonumber)
+                  | add // 0' 2>/dev/null) || extra=0
+          limite=$(( {{.MAX_ROUNDS}} + ${extra:-0} ))
+
+          if [ "$rounds" -ge "$limite" ]; then
+            echo "$ref: $rounds rodadas sem convergir (teto $limite) — perguntando quantas mais"
+            corpo=$(printf '%s\n\n%s\n\n%s' \
+              "<!-- agent:question:rounds --> Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
+              "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`). Resposta sem número nenhum não levanta o teto, e eu paro de novo na passada seguinte." \
+              "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
+            gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
             gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
             gh issue edit "$num" -R "$repo" --add-label agent:human >/dev/null
             task gh:issue-status REF="$ref" VALUE=Blocked
@@ -749,8 +782,12 @@ tasks:
       Como todo comentário do fluxo sai da **sua conta** do GitHub, o autor não
       distingue nada. O que distingue é um marcador HTML: todo comentário de
       agente carrega `<!-- agent -->`, e a pergunta carrega
-      `<!-- agent:question -->`. Resposta humana = comentário posterior à última
-      pergunta que **não** tem o marcador.
+      `<!-- agent:question` (com ou sem sufixo, `:rounds` inclusive). Resposta
+      humana = comentário posterior à última pergunta que **não** tem o marcador.
+
+      Sai também o `agent:human` dos PRs abertos da issue: quem marcou os dois
+      foi o teto de rodadas do `gh:pr-tick`, e o card do PR ficaria em Blocked
+      pra sempre se só a issue fosse limpa.
 
       Achou resposta: tira `agent:human` e devolve pra In Progress, onde o
       `gh:dispatch` retoma de onde parou — o histórico está na issue e na
@@ -776,7 +813,7 @@ tasks:
             repo="${ref%\#*}"; num="${ref##*\#}"
             respondida=$(gh issue view "$num" -R "$repo" --json comments \
               --jq '[.comments[] | .body] as $b
-                    | ([$b | to_entries[] | select(.value | test("<!-- agent:question -->")) | .key] | last) as $q
+                    | ([$b | to_entries[] | select(.value | test("<!-- agent:question")) | .key] | last) as $q
                     | if $q == null then false
                       else ([$b[($q+1):][] | select(test("<!-- agent") | not)] | length) > 0 end')
             [ "$respondida" = "true" ] || continue
@@ -794,6 +831,14 @@ tasks:
             fi
             echo "  ~ $ref: respondida — voltando pra In Progress"
             gh issue edit "$num" -R "$repo" --remove-label agent:human >/dev/null 2>&1 || true
+            # O `agent:human` do teto de rodadas foi posto nos dois — issue e
+            # PR. Sem tirar do PR aqui, o `gh:pr-board` mantém o card dele em
+            # Blocked pra sempre, com a issue já retomada.
+            gh pr list -R "$repo" --state open --limit 50 --json number,body \
+              --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null \
+            | while read -r pr; do
+                gh pr edit "$pr" -R "$repo" --remove-label agent:human >/dev/null 2>&1 || true
+              done
             task gh:issue-status REF="$ref" VALUE="In Progress"
           done
 
