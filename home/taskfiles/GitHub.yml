@@ -933,10 +933,16 @@ tasks:
       o anterior entre parênteses), a ação que aquela transição representa, e o
       link.
 
-        🔨 alvarofpp/matria#114 — Consertar o fluxo de recuperação de senha
+        🔨 alvarofpp/matria#114          <- negrito, e é o link pra issue
+        Consertar o fluxo de recuperação de senha
         Status: In Progress (antes: Ready)
         Ação: triagem aprovada — agente vai implementar
-        https://github.com/alvarofpp/matria/issues/114
+
+      Sai com `parse_mode=HTML`, não MarkdownV2: o V2 exige escapar quinze
+      caracteres (`_*[]()~>#+-=|{}.!`) e os títulos são cheios deles
+      (`[bug]:`, `[ADR-0010]`, o travessão) — escape errado devolve 400 e a
+      mensagem se perde. Em HTML só `&`, `<` e `>` precisam de escape, e com
+      os três tratados nenhum título consegue quebrar o parser.
 
       Roda por **último** no tick, quando todas as outras tasks já escreveram o
       que tinham pra escrever.
@@ -1056,8 +1062,13 @@ tasks:
 
           de="antes: $antes"
           [ -n "$antes" ] || de="novo no board"
-          texto=$(printf '%s %s\nStatus: %s (%s)\nAção: %s\n%s' \
-                    "$icone" "$titulo" "$status" "$de" "$acao" "$url")
+          # Escapa o que o parser de HTML do Telegram lê como marcação. Título
+          # é texto livre de qualquer repo — `&` e `<` chegam aqui.
+          esc() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
+          ref=${titulo%% — *}; nome=${titulo#* — }
+          texto=$(printf '%s <b><a href="%s">%s</a></b>\n%s\n\n<b>Status:</b> %s <i>(%s)</i>\n<b>Ação:</b> %s' \
+                    "$icone" "$(esc "$url")" "$(esc "$ref")" "$(esc "$nome")" \
+                    "$(esc "$status")" "$(esc "$de")" "$(esc "$acao")")
 
           if [ -n "{{.DRY}}" ]; then
             printf '%s\n\n' "$texto"
@@ -1068,6 +1079,7 @@ tasks:
                "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
                --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
                --data-urlencode "text=$texto" \
+               --data-urlencode "parse_mode=HTML" \
                --data-urlencode "disable_web_page_preview=true"; then
             echo "$url $status" >> "$novo"
             echo "  ~ avisado: $titulo -> $status"
