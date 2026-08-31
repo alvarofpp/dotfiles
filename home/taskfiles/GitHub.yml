@@ -717,7 +717,7 @@ tasks:
             echo "$ref: $rounds rodadas sem convergir (teto $limite) — perguntando quantas mais"
             corpo=$(printf '%s\n\n%s\n\n%s' \
               "<!-- agent:question:rounds --> Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
-              "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`). Responder sem número vale **1** rodada, o suficiente pra mais uma tentativa." \
+              "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`)." \
               "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
             gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
             gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
