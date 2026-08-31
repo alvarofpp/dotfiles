@@ -219,6 +219,7 @@ tasks:
   #   In Progress gh:dispatch  agente implementando, ou aplicando review de PR
   #   In Review   gh:pr-tick   PR aberto, ciclo de revisão rodando
   #   Blocked     gh:unblock   esperando resposta humana na issue
+  #   Ignored     —            tem assignee humano; fora do fluxo, mas no board
   #   Done        gh:close     critérios satisfeitos -> fecha issue e worktree
   #   Dropped     gh:close     desistido -> fecha issue e worktree
   #
@@ -478,10 +479,11 @@ tasks:
 
       O comando confere três coisas e move o card:
 
-        repo tem AGENTS.md?   não -> Blocked com o motivo
-        enunciado executável? não -> comentário explicando + Blocked
-        labels adequadas?     cria as que faltarem e atribui
-                              tudo ok -> In Progress
+        tem assignee de outro? sim -> Ignored, calado
+        repo tem AGENTS.md?    não -> Blocked com o motivo
+        enunciado executável?  não -> comentário explicando + Blocked
+        labels adequadas?      cria as que faltarem e atribui
+                               tudo ok -> In Progress
 
       Roda **síncrono** (`claude -p`, sem worktree, no checkout do repo): a
       triagem não altera arquivo nenhum, e prender o tick aqui é de propósito —
@@ -518,12 +520,15 @@ tasks:
           # ele aceita o filtro e ignora o resto, e o erro sai como filtro vazio.
           outros=$(gh issue view "$num" -R "$repo" --json assignees \
             --jq '.assignees[].login' 2>/dev/null | grep -vFx "$eu" | paste -sd',' -)
-          # Tem dono: o fluxo não encosta, e não encostar é literal — nada de
-          # comentário, nada de mover o card. A issue é de outra pessoa, e
-          # agente comentando ou remexendo no board dela é ruído no trabalho
-          # de alguém. Some da fila quando o assignee sair, sem gesto nenhum.
+          # Tem dono: o fluxo não encosta. O card vai pra `Ignored` — não pro
+          # Backlog e sem comentário: comentar é ruído no trabalho de outra
+          # pessoa, e devolver pro Backlog mente sobre por que ela saiu da
+          # fila. `Ignored` diz a verdade e mantém a issue visível no board;
+          # fechada, o `gh:done` a leva pra Done como qualquer outra.
           if [ -n "$outros" ]; then
-            echo "$ref: já atribuída a $outros — ignorando"
+            echo "$ref: já atribuída a $outros — Ignored"
+            task gh:issue-status REF="$ref" VALUE=Ignored >/dev/null \
+              || echo "  falhou — a opção 'Ignored' existe no campo Status do board?"
             continue
           fi
 
@@ -1110,6 +1115,7 @@ tasks:
                   esac ;;
                 "In Review")  icone="👀"; acao="PR aberto — entrou no ciclo de revisão" ;;
                 Blocked)      icone="⛔"; acao="travada — o agente perguntou e espera você" ;;
+                Ignored)      icone="🙈"; acao="tem dono humano — o fluxo não encosta" ;;
                 Done)         icone="✅"; acao="critérios de aceite conferidos — concluída" ;;
                 Dropped)      icone="🗑"; acao="descartada" ;;
                 Backlog)      icone="📥"; acao="devolvida pro backlog" ;;
@@ -1201,8 +1207,13 @@ tasks:
       fechou na mão, PR mesclado) segue mostrando o Status antigo. Só mexe em
       item já fechado que ainda não está em Done, então rodar de novo é seguro.
 
+      **`Dropped` fica de fora.** O `gh:close` fecha a issue descartada, e sem
+      essa exceção a passada seguinte a promovia a `Done` — todo trabalho
+      abandonado apareceria como entregue.
+
       Quem decide Done **dentro** do fluxo é o `gh:settle`, contra os critérios
-      de aceite. Aqui é só o que ficou pra trás.
+      de aceite. Aqui é só o que ficou pra trás — inclusive a issue em
+      `Ignored`, que é trabalho de outra pessoa e fecha sem passar pelo fluxo.
 
       Examples:
         - task gh:done
@@ -1218,6 +1229,7 @@ tasks:
           --jq '.data.user.projectV2.items.nodes[]
                 | select(.content.state != null and .content.state != "OPEN")
                 | select((.status.name // "") != "Done")
+                | select((.status.name // "") != "Dropped")
                 | .id' \
         | while read -r item; do
             task gh:status ITEM="$item" VALUE=Done && echo "  ~ $item → Done"
