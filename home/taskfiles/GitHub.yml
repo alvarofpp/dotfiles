@@ -518,10 +518,12 @@ tasks:
           # ele aceita o filtro e ignora o resto, e o erro sai como filtro vazio.
           outros=$(gh issue view "$num" -R "$repo" --json assignees \
             --jq '.assignees[].login' 2>/dev/null | grep -vFx "$eu" | paste -sd',' -)
+          # Tem dono: o fluxo não encosta, e não encostar é literal — nada de
+          # comentário, nada de mover o card. A issue é de outra pessoa, e
+          # agente comentando ou remexendo no board dela é ruído no trabalho
+          # de alguém. Some da fila quando o assignee sair, sem gesto nenhum.
           if [ -n "$outros" ]; then
-            echo "$ref: já atribuída a $outros — é de alguém, o fluxo não encosta"
-            gh issue comment "$num" -R "$repo" --body "<!-- agent --> Fora do fluxo autônomo: a issue já está atribuída a @${outros%%,*}. Agentes só pegam issue sem dono — se quiser passar pra eles, remova o assignee e mova o card pra Ready de novo." >/dev/null
-            task gh:issue-status REF="$ref" VALUE=Backlog
+            echo "$ref: já atribuída a $outros — ignorando"
             continue
           fi
 
