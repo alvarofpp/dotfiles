@@ -30,5 +30,8 @@ ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:close
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-board
 # Higiene: item fechado fora do fluxo sai do Status antigo.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:done
+# Por último: avisa no Telegram o que parou esperando humano (PR pra mergear,
+# issue travada). Depois do pr-board, que é quem põe o card do PR em Ready.
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:notify
 StandardOutput=journal
 StandardError=journal

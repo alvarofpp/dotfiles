@@ -920,6 +920,113 @@ tasks:
           done
 
 
+  notify:
+    desc: "Avisa no Telegram o que parou esperando você — PR pra mergear, issue travada."
+    summary: |
+      O fluxo roda sozinho, mas dois estados param **de vez** até você agir: PR
+      em `agent:approved` (card `Ready`) esperando o merge, que é o único passo
+      humano, e issue em `Blocked` — o agente perguntou, ou estourou as rodadas.
+      Sem aviso os dois ficam invisíveis até você abrir o board.
+
+      Só isso vira mensagem. Notificar cada transição transformaria o celular no
+      log do tick de 15 min, e aí o que precisa de você some no meio.
+
+      Roda por **último** no tick, depois do `gh:pr-board` — é ele que põe o
+      card do PR em `Ready`.
+
+      Cada item avisa **uma vez**: o estado fica em
+      `~/.local/state/gh-board/notified`, uma URL por linha, reescrito a cada
+      passada com o que ainda está pendente. Item que sai da lista e volta (PR
+      reprovado que volta a aprovar) avisa de novo, que é o certo. Envio que
+      falha não entra no estado e é retentado no tick seguinte.
+
+      Configuração em `~/.config/gh-board/telegram.env` — fora do repo, é
+      segredo:
+
+        TELEGRAM_BOT_TOKEN=123456:ABC...   # o @BotFather devolve na criação
+        TELEGRAM_CHAT_ID=987654321         # mande /start pro bot e leia em
+                                           # api.telegram.org/bot<TOKEN>/getUpdates
+
+      Sem o arquivo a task não faz nada e o tick segue: o aviso é conforto, não
+      parte da máquina de estados.
+
+      Arguments:
+        - DRY: `DRY=1` imprime as mensagens em vez de enviar, e não grava
+          estado. É como se confere a configuração.
+
+      Examples:
+        - task gh:notify
+        - task gh:notify DRY=1
+    cmds:
+      - |
+        env="$HOME/.config/gh-board/telegram.env"
+        [ -f "$env" ] && . "$env"
+        if [ -z "{{.DRY}}" ] && { [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; }; then
+          echo "telegram não configurado ($env) — sem aviso"
+          exit 0
+        fi
+
+        state="$HOME/.local/state/gh-board/notified"
+        mkdir -p "$(dirname "$state")"
+        [ -f "$state" ] || : > "$state"
+
+        out=$(mktemp)
+        # Uma query só pro board inteiro: o que espera humano é card de PR em
+        # `Ready` e card de issue em `Blocked` — os dois estados que o
+        # `gh:pr-board` e o `gh:pr-tick` acabaram de escrever.
+        if ! gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ content{ __typename
+                       ... on Issue{ number title url state repository{ nameWithOwner } }
+                       ... on PullRequest{ number title url state repository{ nameWithOwner } } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]
+                | select(.content.state == "OPEN")
+                | (.status.name // "") as $s
+                | (.content.repository.nameWithOwner + "#" + (.content.number|tostring)) as $ref
+                | if .content.__typename == "PullRequest" and $s == "Ready"
+                    then "merge \(.content.url) \($ref) \(.content.title)"
+                  elif .content.__typename == "Issue" and $s == "Blocked"
+                    then "travada \(.content.url) \($ref) \(.content.title)"
+                  else empty end' > "$out"
+        then
+          echo "não deu pra ler o board — sem aviso neste tick"
+          rm -f "$out"; exit 0
+        fi
+
+        keep=$(mktemp)
+        # `read -r kind url ref title` com IFS default: o título fica inteiro no
+        # último campo, espaços e tudo.
+        while read -r kind url ref title; do
+          if grep -qxF "$url" "$state"; then echo "$url" >> "$keep"; continue; fi
+
+          case "$kind" in
+            merge)   texto=$(printf '🔀 PR pronto pro seu merge — %s\n%s\n%s' "$ref" "$title" "$url") ;;
+            travada) texto=$(printf '⛔ Issue travada esperando você — %s\n%s\n%s' "$ref" "$title" "$url") ;;
+          esac
+
+          if [ -n "{{.DRY}}" ]; then
+            printf '%s\n\n' "$texto"
+            continue
+          fi
+
+          if curl -fsS -m 15 -o /dev/null \
+               "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+               --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+               --data-urlencode "text=$texto" \
+               --data-urlencode "disable_web_page_preview=true"; then
+            echo "$url" >> "$keep"
+            echo "  ~ avisado: $ref ($kind)"
+          else
+            echo "  falhou o aviso de $ref — retentando no próximo tick"
+          fi
+        done < "$out"
+
+        [ -n "{{.DRY}}" ] || mv "$keep" "$state"
+        rm -f "$out" "$keep"
+
   reap:
     desc: "Solta o lock `agent:running` de issue cujo agente morreu."
     summary: |
