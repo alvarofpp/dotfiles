@@ -921,24 +921,34 @@ tasks:
 
 
   notify:
-    desc: "Avisa no Telegram o que parou esperando você — PR pra mergear, issue travada."
+    desc: "Avisa no Telegram cada etapa do fluxo — transição de status no board."
     summary: |
-      O fluxo roda sozinho, mas dois estados param **de vez** até você agir: PR
-      em `agent:approved` (card `Ready`) esperando o merge, que é o único passo
-      humano, e issue em `Blocked` — o agente perguntou, ou estourou as rodadas.
-      Sem aviso os dois ficam invisíveis até você abrir o board.
+      Uma mensagem por **transição de status** de item do board. O gatilho não é
+      "a task X agiu": a maior parte das etapas é o próprio agente chamando
+      `/issue-status` de dentro da sessão, e o Taskfile nunca vê isso acontecer.
+      O que todas têm em comum é mudar o Status do card — então o aviso sai de
+      comparar o board de agora com o da passada anterior.
 
-      Só isso vira mensagem. Notificar cada transição transformaria o celular no
-      log do tick de 15 min, e aí o que precisa de você some no meio.
+      Cada mensagem traz os quatro campos: `repo#N — Título`, o Status novo (com
+      o anterior entre parênteses), a ação que aquela transição representa, e o
+      link.
 
-      Roda por **último** no tick, depois do `gh:pr-board` — é ele que põe o
-      card do PR em `Ready`.
+        🔨 alvarofpp/matria#114 — Consertar o fluxo de recuperação de senha
+        Status: In Progress (antes: Ready)
+        Ação: triagem aprovada — agente vai implementar
+        https://github.com/alvarofpp/matria/issues/114
 
-      Cada item avisa **uma vez**: o estado fica em
-      `~/.local/state/gh-board/notified`, uma URL por linha, reescrito a cada
-      passada com o que ainda está pendente. Item que sai da lista e volta (PR
-      reprovado que volta a aprovar) avisa de novo, que é o certo. Envio que
-      falha não entra no estado e é retentado no tick seguinte.
+      Roda por **último** no tick, quando todas as outras tasks já escreveram o
+      que tinham pra escrever.
+
+      O estado é `~/.local/state/gh-board/board`, uma linha `url status` por
+      item, reescrito a cada passada. **A primeira passada não avisa nada** —
+      semeia o estado e cala, senão o board inteiro viraria mensagem de uma vez.
+      Item novo que chega em `Backlog` também não avisa: entrar no board não é
+      etapa do fluxo, que começa quando você move pra `Ready`.
+
+      Envio que falha mantém o status **antigo** no estado, então o aviso é
+      retentado no tick seguinte em vez de se perder.
 
       Configuração em `~/.config/gh-board/telegram.env` — fora do repo, é
       segredo:
@@ -966,46 +976,88 @@ tasks:
           exit 0
         fi
 
-        state="$HOME/.local/state/gh-board/notified"
-        mkdir -p "$(dirname "$state")"
-        [ -f "$state" ] || : > "$state"
+        snap="$HOME/.local/state/gh-board/board"
+        mkdir -p "$(dirname "$snap")"
 
         out=$(mktemp)
-        # Uma query só pro board inteiro: o que espera humano é card de PR em
-        # `Ready` e card de issue em `Blocked` — os dois estados que o
-        # `gh:pr-board` e o `gh:pr-tick` acabaram de escrever.
+        # O board inteiro, uma linha por item. Campos separados por `|` porque
+        # Status ("In Progress") e título têm espaço; o título vai por último,
+        # então `|` dentro dele não quebra o `read`.
         if ! gh api graphql --paginate -f query='
           query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
             items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
               nodes{ content{ __typename
-                       ... on Issue{ number title url state repository{ nameWithOwner } }
-                       ... on PullRequest{ number title url state repository{ nameWithOwner } } }
+                       ... on Issue{ number title url repository{ nameWithOwner } }
+                       ... on PullRequest{ number title url repository{ nameWithOwner } } }
                 status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
           --jq '.data.user.projectV2.items.nodes[]
-                | select(.content.state == "OPEN")
-                | (.status.name // "") as $s
-                | (.content.repository.nameWithOwner + "#" + (.content.number|tostring)) as $ref
-                | if .content.__typename == "PullRequest" and $s == "Ready"
-                    then "merge \(.content.url) \($ref) \(.content.title)"
-                  elif .content.__typename == "Issue" and $s == "Blocked"
-                    then "travada \(.content.url) \($ref) \(.content.title)"
-                  else empty end' > "$out"
+                | select(.content.url != null)
+                | (if .content.__typename == "PullRequest" then "pr" else "issue" end) as $k
+                | $k + "|" + .content.url + "|" + (.status.name // "Backlog") + "|"
+                  + .content.repository.nameWithOwner + "#" + (.content.number|tostring)
+                  + " — " + .content.title' > "$out"
         then
           echo "não deu pra ler o board — sem aviso neste tick"
           rm -f "$out"; exit 0
         fi
 
-        keep=$(mktemp)
-        # `read -r kind url ref title` com IFS default: o título fica inteiro no
-        # último campo, espaços e tudo.
-        while read -r kind url ref title; do
-          if grep -qxF "$url" "$state"; then echo "$url" >> "$keep"; continue; fi
+        # Primeira passada semeia e cala: sem isso o board inteiro sairia como
+        # "novo" numa rajada só.
+        if [ ! -f "$snap" ]; then
+          if [ -n "{{.DRY}}" ]; then
+            echo "sem estado anterior — rode \`task gh:notify\` uma vez pra semear"
+            rm -f "$out"; exit 0
+          fi
+          awk -F'|' '{print $2, $3}' "$out" > "$snap"
+          echo "estado semeado com $(wc -l < "$snap") itens — os avisos começam no próximo tick"
+          rm -f "$out"; exit 0
+        fi
+
+        novo=$(mktemp)
+        while IFS='|' read -r kind url status titulo; do
+          antes=$(awk -v u="$url" '$1==u {sub(/^[^ ]+ /,""); print; exit}' "$snap")
+          if [ "$antes" = "$status" ]; then echo "$url $status" >> "$novo"; continue; fi
+
+          # Entrar no board não é etapa do fluxo — ele começa quando você move
+          # pra Ready. Item novo em Backlog é registrado calado.
+          if [ -z "$antes" ] && [ "$status" = "Backlog" ]; then
+            echo "$url $status" >> "$novo"; continue
+          fi
 
           case "$kind" in
-            merge)   texto=$(printf '🔀 PR pronto pro seu merge — %s\n%s\n%s' "$ref" "$title" "$url") ;;
-            travada) texto=$(printf '⛔ Issue travada esperando você — %s\n%s\n%s' "$ref" "$title" "$url") ;;
+            issue)
+              case "$status" in
+                Ready)        icone="🎫"; acao="liberada pra triagem — o prep pega no próximo tick" ;;
+                "In Progress")
+                  icone="🔨"
+                  case "$antes" in
+                    Ready)       acao="triagem aprovada — agente vai implementar" ;;
+                    "In Review") acao="revisão pediu mudanças — voltou pra implementação" ;;
+                    Blocked)     acao="destravada — resposta recebida, agente retomou" ;;
+                    *)           acao="agente trabalhando" ;;
+                  esac ;;
+                "In Review")  icone="👀"; acao="PR aberto — entrou no ciclo de revisão" ;;
+                Blocked)      icone="⛔"; acao="travada — o agente perguntou e espera você" ;;
+                Done)         icone="✅"; acao="critérios de aceite conferidos — concluída" ;;
+                Dropped)      icone="🗑"; acao="descartada" ;;
+                Backlog)      icone="📥"; acao="devolvida pro backlog" ;;
+                *)            icone="•";  acao="status mudou" ;;
+              esac ;;
+            pr)
+              case "$status" in
+                "In Review")  icone="👀"; acao="PR aberto — revisão rodando" ;;
+                Ready)        icone="🔀"; acao="aprovado — esperando o SEU merge" ;;
+                Blocked)      icone="⛔"; acao="revisão travou — precisa de você" ;;
+                Done)         icone="✅"; acao="mesclado ou fechado" ;;
+                *)            icone="📥"; acao="entrou no board" ;;
+              esac ;;
           esac
+
+          de="antes: $antes"
+          [ -n "$antes" ] || de="novo no board"
+          texto=$(printf '%s %s\nStatus: %s (%s)\nAção: %s\n%s' \
+                    "$icone" "$titulo" "$status" "$de" "$acao" "$url")
 
           if [ -n "{{.DRY}}" ]; then
             printf '%s\n\n' "$texto"
@@ -1017,15 +1069,18 @@ tasks:
                --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
                --data-urlencode "text=$texto" \
                --data-urlencode "disable_web_page_preview=true"; then
-            echo "$url" >> "$keep"
-            echo "  ~ avisado: $ref ($kind)"
+            echo "$url $status" >> "$novo"
+            echo "  ~ avisado: $titulo -> $status"
           else
-            echo "  falhou o aviso de $ref — retentando no próximo tick"
+            # Guarda o status ANTIGO: no próximo tick a transição ainda é
+            # diferença e o aviso é retentado, em vez de se perder.
+            [ -z "$antes" ] || echo "$url $antes" >> "$novo"
+            echo "  falhou o aviso de $url — retentando no próximo tick"
           fi
         done < "$out"
 
-        [ -n "{{.DRY}}" ] || mv "$keep" "$state"
-        rm -f "$out" "$keep"
+        [ -n "{{.DRY}}" ] || mv "$novo" "$snap"
+        rm -f "$out" "$novo"
 
   reap:
     desc: "Solta o lock `agent:running` de issue cujo agente morreu."
