@@ -757,8 +757,11 @@ tasks:
       os PRs dela foram mesclados e nenhum está aberto — falta responder a única
       pergunta que o merge não responde: *o que a issue pedia foi entregue?*
 
-      Um agente confronta o critério de aceite com o diff dos PRs mesclados (o
-      diff, não o título — título promete mais do que entrega) e decide:
+      Um agente confronta o diff dos PRs mesclados (o diff, não o título —
+      título promete mais do que entrega) com **duas** listas: o critério de
+      aceite e a doc do repo. Doc que a mudança deixou mentindo — domínio, ADR,
+      runbook, artefato gerado, `CHANGELOG`, item de `TODO` já concluído — conta
+      como item faltando, porque ninguém volta pra consertar depois. Decide:
 
         satisfeita     -> Done   (o `gh:close` fecha a issue e apaga a worktree)
         falta coisa    -> In Progress, e o que falta vira o escopo da rodada
