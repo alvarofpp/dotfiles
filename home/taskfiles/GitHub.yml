@@ -935,8 +935,13 @@ tasks:
 
         🔨 alvarofpp/matria#114          <- negrito, e é o link pra issue
         Consertar o fluxo de recuperação de senha
-        Status: In Progress (antes: Ready)
+        Status: In Progress
         Ação: triagem aprovada — agente vai implementar
+
+      O status anterior não aparece na mensagem — ele decide o texto da **Ação**
+      (`Ready -> In Progress` é "triagem aprovada", `In Review -> In Progress` é
+      "revisão pediu mudanças") e aí já está dito, com mais informação do que a
+      sigla do estado de onde veio.
 
       Sai com `parse_mode=HTML`, não MarkdownV2: o V2 exige escapar quinze
       caracteres (`_*[]()~>#+-=|{}.!`) e os títulos são cheios deles
@@ -1060,15 +1065,13 @@ tasks:
               esac ;;
           esac
 
-          de="antes: $antes"
-          [ -n "$antes" ] || de="novo no board"
           # Escapa o que o parser de HTML do Telegram lê como marcação. Título
           # é texto livre de qualquer repo — `&` e `<` chegam aqui.
           esc() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
           ref=${titulo%% — *}; nome=${titulo#* — }
-          texto=$(printf '%s <b><a href="%s">%s</a></b>\n%s\n\n<b>Status:</b> %s <i>(%s)</i>\n<b>Ação:</b> %s' \
+          texto=$(printf '%s <b><a href="%s">%s</a></b>\n%s\n\n<b>Status:</b> %s\n<b>Ação:</b> %s' \
                     "$icone" "$(esc "$url")" "$(esc "$ref")" "$(esc "$nome")" \
-                    "$(esc "$status")" "$(esc "$de")" "$(esc "$acao")")
+                    "$(esc "$status")" "$(esc "$acao")")
 
           if [ -n "{{.DRY}}" ]; then
             printf '%s\n\n' "$texto"
