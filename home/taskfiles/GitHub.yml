@@ -394,19 +394,26 @@ tasks:
           2>/dev/null || true
 
   trusted:
-    desc: "Diz se a issue e seus comentários vêm só de gente com acesso ao repo. REF=owner/repo#N"
+    desc: "Diz se os comentários da issue vêm só de gente com acesso ao repo. REF=owner/repo#N"
     summary: |
       A fronteira de confiança do fluxo. Num repo **público** (o `validate-docbr`
-      é) qualquer pessoa abre issue e comenta, e esse texto é lido por um agente
-      que roda na sua máquina, com a sua identidade do GitHub, com shell e com o
-      `.env` do projeto ao lado. Texto de estranho não pode virar instrução.
+      é) qualquer pessoa comenta, e esse texto é lido por um agente que roda na
+      sua máquina, com a sua identidade do GitHub, com shell e com o `.env` do
+      projeto ao lado. Texto de estranho não pode virar instrução.
+
+      **Olha só os comentários — o autor da issue não entra na conta.** Quem
+      move o card de Backlog pra Ready é você, e esse gesto é a triagem humana
+      do enunciado: barrar depois disso seria desconfiar da sua própria mão, e
+      deixaria toda issue de fora do time parada mesmo com você já tendo lido.
+      O comentário não tem esse portão — chega na issue a qualquer momento,
+      inclusive depois de ela entrar no fluxo.
 
       O critério é o `author_association` do GitHub, não uma lista de nomes:
       `OWNER`, `MEMBER` e `COLLABORATOR` têm acesso de escrita ao repositório —
       quem já pode commitar não ganha poder novo influenciando um agente.
       `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR` e `NONE` são de fora.
 
-      Sai não-zero listando quem é de fora. **Não é filtro de conteúdo** — não
+      Sai não-zero listando de quem é o comentário. **Não é filtro de conteúdo** — não
       procura padrão malicioso, porque isso é corrida perdida. Ele decide se o
       texto entra como instrução ou só como relato citado.
 
@@ -422,14 +429,12 @@ tasks:
         ref="{{.REF}}"; repo="${ref%\#*}"; num="${ref##*\#}"
         confiavel='OWNER|MEMBER|COLLABORATOR'
 
-        externos=$( { gh api "repos/$repo/issues/$num" \
-                        --jq '"issue " + .user.login + " " + .author_association' 2>/dev/null
-                      gh api "repos/$repo/issues/$num/comments" --paginate \
-                        --jq '.[] | "comentário " + .user.login + " " + .author_association' 2>/dev/null
-                    } | awk -v ok="$confiavel" '$3 !~ "^(" ok ")$" {print "    " $1 " de @" $2 " (" $3 ")"}' )
+        externos=$( gh api "repos/$repo/issues/$num/comments" --paginate \
+                      --jq '.[] | .user.login + " " + .author_association' 2>/dev/null \
+                    | awk -v ok="$confiavel" '$2 !~ "^(" ok ")$" {print "    comentário de @" $1 " (" $2 ")"}' )
 
         if [ -n "$externos" ]; then
-          echo "  ! $ref: conteúdo de fora do time —"
+          echo "  ! $ref: comentário de fora do time —"
           printf '%s\n' "$externos"
           exit 1
         fi
@@ -521,10 +526,11 @@ tasks:
             continue
           fi
 
-          # A fronteira de confiança vem ANTES da sessão: o /issue-prep lê o
-          # enunciado e os comentários, e é ali que texto de estranho viraria
-          # instrução. Reprovando, a issue espera um mantenedor em vez de
-          # acordar um agente com shell.
+          # A fronteira de confiança vem ANTES da sessão: o /issue-prep lê os
+          # comentários, e é ali que texto de estranho viraria instrução.
+          # Reprovando, a issue espera um mantenedor em vez de acordar um
+          # agente com shell. O autor da issue não é checado — mover o card
+          # pra Ready já foi a triagem humana do enunciado.
           if ! task gh:trusted REF="$ref"; then
             gh issue edit "$num" -R "$repo" --add-label agent:untrusted >/dev/null 2>&1 || true
             task gh:issue-status REF="$ref" VALUE=Blocked
