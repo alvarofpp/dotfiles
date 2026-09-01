@@ -649,10 +649,18 @@ tasks:
           # que travou os PRs #130-#132 em 2026-08-31). Escapar com `\!` mata o
           # erro mas deixa a barra dentro do marcador; por arquivo, a linha
           # digitada não tem `!` nenhum.
+          # `&& exit` no fim: sessão que termina bem fecha o terminal. Sem isso
+          # cada despacho — implementar, revisar, aplicar review, responder
+          # pergunta, destravar merge — deixa um Claude Code ocioso no prompt, e
+          # a worktree da issue #121 juntou OITO num dia. Falha fica aberta de
+          # propósito: o erro na tela é o que permite depurar (foi assim que o
+          # `zsh: event not found` apareceu). De quebra conserta o `gh:reap`, que
+          # usa 'existe terminal' como sinal de vida e não distinguia sessão viva
+          # de sessão acabada.
           pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
           printf '%s' "$prompt" > "$pf"
           orca terminal create --worktree "issue:$num" --title "issue #$num" \
-            --command "claude \"\$(cat $pf)\"; rm -f $pf" >/dev/null
+            --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null
           echo "terminal aberto na worktree issue-$num"
         else
           orca worktree create \
@@ -818,11 +826,19 @@ tasks:
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
           # Prompt por arquivo pelo mesmo motivo do `gh:orca`: `!` na linha
           # digitada vira expansão de histórico do zsh e mata o comando.
+          # `&& exit` no fim: sessão que termina bem fecha o terminal. Sem isso
+          # cada despacho — implementar, revisar, aplicar review, responder
+          # pergunta, destravar merge — deixa um Claude Code ocioso no prompt, e
+          # a worktree da issue #121 juntou OITO num dia. Falha fica aberta de
+          # propósito: o erro na tela é o que permite depurar (foi assim que o
+          # `zsh: event not found` apareceu). De quebra conserta o `gh:reap`, que
+          # usa 'existe terminal' como sinal de vida e não distinguia sessão viva
+          # de sessão acabada.
           pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
           printf '%s' "$prompt" > "$pf"
           if ! orca terminal create --worktree "issue:$num" \
                  --title "review #$pr" \
-                 --command "claude \"\$(cat $pf)\"; rm -f $pf" >/dev/null; then
+                 --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
           fi
