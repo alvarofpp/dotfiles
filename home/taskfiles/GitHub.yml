@@ -788,6 +788,15 @@ tasks:
       `BEHIND` mescla sem ajuda, porque não há "require branches up to date"
       aqui.
 
+      **A resolução é `git merge origin/main`, e isso tira o "Rebase and
+      merge" da mesa.** A branch passa a ter merge commit, e o rebase do
+      GitHub reaplica commit a commit — ele não sabe reaplicar um merge e
+      falha com "This branch cannot be rebased due to conflicts", mesmo com
+      o PR marcado `MERGEABLE`/`CLEAN` (esse campo fala do merge, não do
+      rebase). **Mescle por squash**: colapsa a branch inteira num commit só,
+      os merge commits somem e a `main` fica tão linear quanto ficaria com
+      rebase — sem force-push em branch que já foi revisada.
+
       Quem resolve é o time de **implementação**: conflito é código, e a
       worktree da issue é onde ele está. A revisão não se repete — ela foi sobre
       o mérito da mudança, que não mudou. O que a resolução traz de novo o
