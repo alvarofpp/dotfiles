@@ -339,9 +339,18 @@ tasks:
         <!-- agent:author -->    implementação  prefixo **Implementação** —
         <!-- agent:question -->  espera humano  (issue, destrava o gh:unblock)
         <!-- agent:question:rounds -->  idem, e a resposta vira teto de rodada
+        <!-- agent:answer:author -->   resposta a pergunta SUA, pelo time de implementação
+        <!-- agent:answer:review -->   idem, pelo time de revisão
 
       O `gh:unblock` casa o prefixo `<!-- agent:question`, então todo sufixo
       novo destrava sozinho — o sufixo só diz o que a resposta significa.
+
+      O `<!-- agent:answer` é separado do `<!-- agent:author` de propósito: o
+      `gh:pending-question` precisa saber se a pergunta **foi respondida**, e
+      qualquer comentário de agente servindo de prova tornava qualquer recado
+      no PR — um relato de resolução de conflito, por exemplo — uma resposta.
+      Foi o que enterrou a pergunta do Álvaro no PR #130 do matria por sete
+      horas. Só o marcador de resposta conta como resposta.
 
       Examples:
         - task gh:labels REPO=alvarofpp/matria
@@ -970,9 +979,12 @@ tasks:
       diff. Sem o marcador, comentário seu é contexto, não pergunta — senão
       todo "boa" seu acordaria um agente.
 
-      **Respondida** é pergunta com um comentário de agente (`<!-- agent`)
-      depois dela: na conversa, qualquer um posterior; na thread ancorada, um
-      posterior **da mesma thread**. Quem pergunta tem que ter acesso de escrita
+      **Respondida** é pergunta com um comentário de RESPOSTA
+      (`<!-- agent:answer`) depois dela: na conversa, qualquer um posterior; na
+      thread ancorada, um posterior **da mesma thread**. Marcador de resposta e
+      não `<!-- agent` genérico porque o agente comenta no PR por outros
+      motivos — relato de rodada, resolução de conflito — e qualquer um deles
+      passaria por resposta. Quem pergunta tem que ter acesso de escrita
       (`OWNER`/`MEMBER`/`COLLABORATOR`), pela mesma razão do `gh:trusted`.
 
       Havendo perguntas dos dois times, sai a do último comentário — o outro
@@ -1001,7 +1013,7 @@ tasks:
                 | select(.value.a == "OWNER" or .value.a == "MEMBER" or .value.a == "COLLABORATOR")
                 | .key ]
             | if length == 0 then empty else last as $i
-                | if [ $c[($i+1):][] | select(.b | test("<!-- agent")) ] | length > 0 then empty
+                | if [ $c[($i+1):][] | select(.b | test("<!-- agent:answer")) ] | length > 0 then empty
                   else $c[$i].b end
               end' 2>/dev/null
         }
@@ -1016,7 +1028,7 @@ tasks:
                 | select(.b | test("(?i)^[[:space:]]*@(impl|review|agent)\\b"))
                 | select(.a == "OWNER" or .a == "MEMBER" or .a == "COLLABORATOR")
                 | . as $q
-                | select([ $c[] | select(.raiz == $q.raiz and .id > $q.id and (.b | test("<!-- agent"))) ] | length == 0)
+                | select([ $c[] | select(.raiz == $q.raiz and .id > $q.id and (.b | test("<!-- agent:answer"))) ] | length == 0)
                 | .b ]
             | if length == 0 then empty else last end' 2>/dev/null
         }
@@ -1072,9 +1084,9 @@ tasks:
 
           case "$time" in
             review)
-              prompt="Você é o time de REVISÃO da issue $repo#$num. O Álvaro marcou pergunta com @review em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda como revisor: leia o código que a pergunta toca antes de afirmar qualquer coisa, e diga o que é, inclusive quando a resposta for 'você tem razão, o achado estava errado'. NÃO altere código e NÃO commite — seu papel é ler e responder; mudança é do time de implementação, e se a resposta implicar mudança, diga qual e deixe pra eles. Toda resposta sua começa com <!-- agent:review --> seguido de '**Revisão** — ' na mesma linha do texto. $comum" ;;
+              prompt="Você é o time de REVISÃO da issue $repo#$num. O Álvaro marcou pergunta com @review em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda como revisor: leia o código que a pergunta toca antes de afirmar qualquer coisa, e diga o que é, inclusive quando a resposta for 'você tem razão, o achado estava errado'. NÃO altere código e NÃO commite — seu papel é ler e responder; mudança é do time de implementação, e se a resposta implicar mudança, diga qual e deixe pra eles. Toda resposta sua começa com <!-- agent:answer:review --> seguido de '**Revisão** — ' na mesma linha do texto — é esse marcador, e só ele, que registra a pergunta como respondida; sem ele o tick vai te despachar de novo pra mesma pergunta. $comum" ;;
             *)
-              prompt="Você é o time de IMPLEMENTAÇÃO da issue $repo#$num. O Álvaro marcou pergunta com @impl (ou @agent) em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda com o código na mão: leia o que a pergunta toca antes de afirmar. Se ela pedir mudança, faça, rode o QA local do projeto (testes, lint, build — o que o runner expuser), confira o CI com gh pr checks <pr> -R $repo e dê push no PR; conserte o CÓDIGO, nunca o workflow. Se for só dúvida, responda e não toque em nada. Toda resposta sua começa com <!-- agent:author --> seguido de '**Implementação** — ' na mesma linha do texto. $comum" ;;
+              prompt="Você é o time de IMPLEMENTAÇÃO da issue $repo#$num. O Álvaro marcou pergunta com @impl (ou @agent) em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda com o código na mão: leia o que a pergunta toca antes de afirmar. Se ela pedir mudança, faça, rode o QA local do projeto (testes, lint, build — o que o runner expuser), confira o CI com gh pr checks <pr> -R $repo e dê push no PR; conserte o CÓDIGO, nunca o workflow. Se for só dúvida, responda e não toque em nada. Toda resposta sua começa com <!-- agent:answer:author --> seguido de '**Implementação** — ' na mesma linha do texto — é esse marcador, e só ele, que registra a pergunta como respondida; sem ele o tick vai te despachar de novo pra mesma pergunta. $comum" ;;
           esac
 
           echo "→ $ref: pergunta sua pro time de $time"
