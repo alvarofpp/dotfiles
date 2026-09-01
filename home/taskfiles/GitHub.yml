@@ -578,8 +578,17 @@ tasks:
         [ -n "$prompt" ] || prompt="Implemente a issue $repo#$num — $title. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments."
 
         if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
+          # O prompt vai por ARQUIVO, não na linha de comando. O `--command` é
+          # digitado num zsh interativo, e a expansão de histórico acontece ao
+          # LER a linha: o `!` de `<!-- agent:review -->` vira
+          # `zsh: event not found: -` e o comando morre antes de rodar (foi o
+          # que travou os PRs #130-#132 em 2026-08-31). Escapar com `\!` mata o
+          # erro mas deixa a barra dentro do marcador; por arquivo, a linha
+          # digitada não tem `!` nenhum.
+          pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
+          printf '%s' "$prompt" > "$pf"
           orca terminal create --worktree "issue:$num" --title "issue #$num" \
-            --command "claude \"$prompt\"" >/dev/null
+            --command "claude \"\$(cat $pf)\"; rm -f $pf" >/dev/null
           echo "terminal aberto na worktree issue-$num"
         else
           orca worktree create \
@@ -743,8 +752,13 @@ tasks:
 
           echo "→ $ref: revisando #$pr (rodada $((rounds+1)))"
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+          # Prompt por arquivo pelo mesmo motivo do `gh:orca`: `!` na linha
+          # digitada vira expansão de histórico do zsh e mata o comando.
+          pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
+          printf '%s' "$prompt" > "$pf"
           if ! orca terminal create --worktree "issue:$num" \
-                 --title "review #$pr" --command "claude \"$prompt\"" >/dev/null; then
+                 --title "review #$pr" \
+                 --command "claude \"\$(cat $pf)\"; rm -f $pf" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
           fi
