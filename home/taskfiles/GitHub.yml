@@ -11,7 +11,7 @@ vars:
   # be linked"), mas `gh project item-add` atravessa. Lista só a exceção —
   # repo seu entra por `task gh:link`, sem tocar aqui.
   EXTRA_REPOS: >-
-    jpbmoura/lucida-monorepo
+    lucida-ia/lucida-monorepo
     mvinnicius22/cozinha-app
   # Defaults aplicados pelo `gh:defaults` em item sem valor. O workflow
   # built-in "Item added to project" está desligado no projeto e não há
