@@ -317,6 +317,75 @@ tasks:
           exit 1
         fi
 
+  pull:
+    desc: "Atualiza o checkout local de um repo. REPO=owner/name"
+    summary: |
+      Fast-forward do checkout local, chamado pelo `gh:close` depois que a
+      issue fecha. Sem isto, o repo onde **você** trabalha fica atrás de tudo
+      que os agentes mesclaram, e a próxima coisa que você fizer nasce de uma
+      base velha — em repo com migration ou lockfile, isso vira conflito.
+
+      É deliberadamente covarde. Só puxa quando:
+
+        · o checkout está registrado no Orca (`gh:repo-path`)
+        · está na branch padrão do remoto (`origin/HEAD`)
+        · a árvore está limpa
+        · o fast-forward é possível
+
+      Qualquer uma dessas falhando, ele diz o motivo e não faz nada. Você pode
+      estar no meio de algo naquele checkout, e tick que mexe na sua árvore de
+      trabalho sem avisar é pior que checkout desatualizado. Nunca faz merge
+      commit, rebase, stash ou checkout de branch.
+
+      Arguments:
+        - REPO: `owner/name`.
+
+      Examples:
+        - task gh:pull REPO=alvarofpp/matria
+    requires:
+      vars: [REPO]
+    cmds:
+      - |
+        path=$(task gh:repo-path REPO="{{.REPO}}" 2>/dev/null) || exit 0
+        [ -d "$path/.git" ] || { echo "    $path não é checkout git — não puxei"; exit 0; }
+
+        # Branch padrão do remoto, não um "main" chutado: nem todo repo usa esse
+        # nome, e puxar a branch errada é pior que não puxar.
+        padrao=$(git -C "$path" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
+        padrao="${padrao#origin/}"
+        if [ -z "$padrao" ]; then
+          git -C "$path" remote set-head origin --auto >/dev/null 2>&1
+          padrao=$(git -C "$path" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
+          padrao="${padrao#origin/}"
+        fi
+        [ -n "$padrao" ] || { echo "    {{.REPO}}: não descobri a branch padrão — não puxei"; exit 0; }
+
+        atual=$(git -C "$path" rev-parse --abbrev-ref HEAD 2>/dev/null)
+        if [ "$atual" != "$padrao" ]; then
+          echo "    {{.REPO}}: checkout está em '$atual', não em '$padrao' — não puxei"
+          exit 0
+        fi
+
+        # `--porcelain` ignora untracked com `-uno`: diretório root-owned criado
+        # por container (o `web/storage/` do matria) não é motivo pra não puxar.
+        if [ -n "$(git -C "$path" status --porcelain -uno 2>/dev/null)" ]; then
+          echo "    {{.REPO}}: há mudança não commitada em '$padrao' — não puxei"
+          exit 0
+        fi
+
+        git -C "$path" fetch --quiet origin "$padrao" 2>/dev/null || {
+          echo "    {{.REPO}}: fetch falhou — não puxei"; exit 0; }
+
+        antes=$(git -C "$path" rev-parse --short HEAD)
+        if git -C "$path" merge --ff-only --quiet "origin/$padrao" 2>/dev/null; then
+          depois=$(git -C "$path" rev-parse --short HEAD)
+          [ "$antes" = "$depois" ] && exit 0
+          n=$(git -C "$path" rev-list --count "$antes..$depois")
+          echo "    {{.REPO}}: $padrao $antes → $depois ($n commit(s))"
+        else
+          echo "    {{.REPO}}: '$padrao' divergiu do remoto — não puxei (resolva na mão)"
+        fi
+
   repo-path:
     desc: "Caminho local de um repo, pelo registro do Orca. REPO=owner/name"
     summary: |
@@ -1284,6 +1353,10 @@ tasks:
                 && echo "    worktree issue-$num removida" \
                 || echo "    worktree issue-$num não removida — confira no Orca"
             fi
+
+            # O checkout onde VOCÊ trabalha fica atrás de tudo que o fluxo
+            # mesclou; a próxima coisa que você fizer nasceria de base velha.
+            task gh:pull REPO="$repo"
           done
 
   pr-board:
