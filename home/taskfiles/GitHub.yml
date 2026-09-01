@@ -61,12 +61,63 @@ tasks:
         esac
         case "$repo" in
           {{.PROJECT_OWNER}}/*)
-            gh project link {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo" ;;
+            gh project link {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --repo "$repo"
+            # Repo que entra no fluxo entra já em squash-only: é o único
+            # método que sobrevive à resolução de conflito do `gh:unstick`.
+            task gh:merge-policy ;;
           *)
             echo "'$repo' é de outro dono — o GitHub não permite linkar."
             echo "Adicione em EXTRA_REPOS no home/taskfiles/GitHub.yml; o gh:sync cobre o resto."
             exit 1 ;;
         esac
+
+  merge-policy:
+    desc: "Deixa só o squash como método de merge nos repos SEUS do board."
+    summary: |
+      O fluxo resolve conflito com `git merge origin/main` (ver `gh:unstick`),
+      então toda branch que passou por conflito ganha merge commit — e o
+      "Rebase and merge" do GitHub, que reaplica commit a commit, não sabe
+      reaplicar um merge: falha com "This branch cannot be rebased due to
+      conflicts" mesmo com o PR `MERGEABLE`/`CLEAN`. Com os três métodos
+      liberados, o botão lembra o último que você usou e o erro volta sozinho.
+
+      Desligar rebase e merge commit tira a escolha errada da mão: sobra
+      squash, que colapsa a branch num commit e deixa a `main` tão linear
+      quanto o rebase deixaria. Junto vai `delete_branch_on_merge`, pra branch
+      de agente não se acumular.
+
+      **Só mexe em repo seu.** Repo de outro dono no board (o `gh:repos` lista
+      os `EXTRA_REPOS`) fica de fora mesmo com acesso de admin: política de
+      merge é decisão do dono, não efeito colateral de linkar o projeto.
+
+      Idempotente — repo já na política não recebe PATCH. Chamado pelo
+      `gh:link`, que é quando um repo entra no fluxo.
+
+      Examples:
+        - task gh:merge-policy
+    cmds:
+      - |
+        task gh:repos | sort -u | while read -r repo; do
+          case "$repo" in
+            {{.PROJECT_OWNER}}/*) ;;
+            *) echo "  · $repo: de outro dono — política de merge é decisão dele"; continue ;;
+          esac
+
+          atual=$(gh api "repos/$repo" \
+                    --jq '"\(.allow_squash_merge) \(.allow_merge_commit) \(.allow_rebase_merge) \(.delete_branch_on_merge)"' \
+                    2>/dev/null) || { echo "  · $repo: não consegui ler as settings"; continue; }
+          [ "$atual" = "true false false true" ] && continue
+
+          if gh api "repos/$repo" -X PATCH \
+               -F allow_squash_merge=true \
+               -F allow_merge_commit=false \
+               -F allow_rebase_merge=false \
+               -F delete_branch_on_merge=true >/dev/null 2>&1; then
+            echo "  ~ $repo: squash-only, e a branch some no merge"
+          else
+            echo "  · $repo: PATCH recusado (precisa de admin)"
+          fi
+        done
 
   sync:
     desc: "Add every open issue and PR from the linked repos to the GitHub Project."
@@ -773,51 +824,61 @@ tasks:
           fi
         done
 
-  conflicts:
-    desc: "PR aprovado que a main conflitou: manda o time de implementação resolver."
+  unstick:
+    desc: "PR aprovado que não mescla: manda o time de implementação destravar."
     summary: |
-      O buraco entre a aprovação e o seu merge. Quem traz a main pro PR é o
-      revisor, no passo de aprovação — e ele roda **uma vez**. Mesclado o
-      primeiro PR de uma leva, os outros conflitam **depois** disso, e nada mais
-      olha pra eles: o `gh:pr-tick` descarta PR com `agent:approved`, e o card
-      seguia dizendo `Ready` — "esperando o seu merge" — pra um PR que não
-      mesclava. Falha calada, que é a pior.
+      O buraco entre a aprovação e o seu merge. Aprovado o PR, o fluxo para —
+      o `gh:pr-tick` descarta PR com `agent:approved` — e o card diz `Ready`,
+      "esperando o seu merge". Se alguma coisa quebrar a mesclabilidade DEPOIS
+      disso, ninguém mais olha, e o board segue afirmando que a bola é sua pra
+      um PR que não mescla. Falha calada, que é a pior.
 
-      Age só em `mergeable == CONFLICTING`. `UNKNOWN` é o GitHub ainda
-      calculando (logo depois de um merge ele sempre é) e seria falso positivo;
-      `BEHIND` mescla sem ajuda, porque não há "require branches up to date"
-      aqui.
+      Quebra depois da aprovação é rotina, não exceção: mesclado o primeiro PR
+      de uma leva, os outros conflitam ou ficam atrás da `main` na mesma hora.
 
-      **A resolução é `git merge origin/main`, e isso tira o "Rebase and
-      merge" da mesa.** A branch passa a ter merge commit, e o rebase do
-      GitHub reaplica commit a commit — ele não sabe reaplicar um merge e
-      falha com "This branch cannot be rebased due to conflicts", mesmo com
-      o PR marcado `MERGEABLE`/`CLEAN` (esse campo fala do merge, não do
-      rebase). **Mescle por squash**: colapsa a branch inteira num commit só,
-      os merge commits somem e a `main` fica tão linear quanto ficaria com
-      rebase — sem force-push em branch que já foi revisada.
+      Lê o `mergeStateStatus` e age conforme o motivo:
 
-      Quem resolve é o time de **implementação**: conflito é código, e a
-      worktree da issue é onde ele está. A revisão não se repete — ela foi sobre
-      o mérito da mudança, que não mudou. O que a resolução traz de novo o
-      agente escreve no PR, e o CI verde é o que a sustenta.
+        DIRTY               conflitou com a main   -> traz a main e resolve
+        BEHIND              atrás da main          -> traz a main
+        UNSTABLE / BLOCKED  com check vermelho     -> conserta o CI
+        CLEAN               mescla                 -> nada a fazer
+        UNKNOWN             GitHub ainda calculando -> espera o tick seguinte
+
+      `UNKNOWN` é o estado normal logo depois de um merge e seria falso
+      positivo. `UNSTABLE`/`BLOCKED` sem check vermelho é gate que o agente não
+      resolve (revisão obrigatória, por exemplo): reporta e não despacha.
+
+      **A resolução é `git merge origin/main`, e isso tira o "Rebase and merge"
+      da mesa.** A branch passa a ter merge commit, e o rebase do GitHub
+      reaplica commit a commit — ele não sabe reaplicar um merge e falha com
+      "This branch cannot be rebased due to conflicts", mesmo com o PR marcado
+      `MERGEABLE`/`CLEAN` (esse campo fala do merge, não do rebase). Por isso o
+      `gh:merge-policy` deixa **só o squash** ligado nos seus repos: colapsa a
+      branch num commit, os merge commits somem e a `main` fica tão linear
+      quanto ficaria com rebase — sem force-push em branch já revisada.
+
+      Quem destrava é o time de **implementação**: as três causas são código, e
+      a worktree da issue é onde ele está. A revisão não se repete — ela foi
+      sobre o mérito da mudança, que não mudou. O que o conserto traz de novo o
+      agente escreve no PR, e o CI verde é o que o sustenta.
 
       Examples:
-        - task gh:conflicts
+        - task gh:unstick
     cmds:
       - |
         task gh:agents-ready || exit 0
 
         task gh:repos | sort -u | while read -r repo; do
           gh pr list -R "$repo" --state open --label agent:approved --limit 50 \
-            --json number,body,mergeable \
-            --jq '.[] | select(.mergeable == "CONFLICTING")
+            --json number,body,mergeStateStatus \
+            --jq '.[] | select(.mergeStateStatus == "DIRTY" or .mergeStateStatus == "BEHIND"
+                               or .mergeStateStatus == "UNSTABLE" or .mergeStateStatus == "BLOCKED")
                   | (.body // "" | [match("(?i)(refs|closes) #([0-9]+)").captures[1].string] | first // "")
                     as $issue
-                  | "\(.number) \($issue)"' 2>/dev/null \
-          | while read -r pr num; do
+                  | "\(.number) \(.mergeStateStatus) \($issue)"' 2>/dev/null \
+          | while read -r pr estado num; do
               if [ -z "$num" ]; then
-                echo "  · $repo#$pr: conflitado, mas o corpo não cita issue — resolva na mão"
+                echo "  · $repo#$pr: $estado, mas o corpo não cita issue — destrave na mão"
                 continue
               fi
 
@@ -828,9 +889,26 @@ tasks:
                 *,agent:running,*|*,agent:human,*) continue ;;
               esac
 
-              prompt="O PR #$pr do $repo já passou pela revisão (tem a label agent:approved), mas parou de mesclar: outro PR entrou na main e o seu conflitou. Traga a main e resolva: git fetch origin main && git merge origin/main. Resolva CADA conflito olhando o que os dois lados queriam — aceitar 'o meu' ou 'o deles' em bloco é como se perde mudança sem ninguém ver. Se a doc conflitar (CHANGELOG, TODO, docs/), o certo quase sempre é manter as DUAS entradas, não escolher uma. A resolução é código novo que ninguém revisou, então rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só siga com tudo verde. Dê push e confira o CI: gh pr checks $pr -R $repo. Job vermelho é bloqueio, não detalhe: leia o log com gh run view <run-id> -R $repo --log-failed e conserte o CÓDIGO. Em hipótese alguma altere o workflow do CI pra fazer passar. Poste no PR um comentário começando com <!-- agent:author --> seguido de '**Implementação** — ' na mesma linha, dizendo em até três linhas quais arquivos conflitaram e o que você escolheu em cada um — é o que permite conferir a resolução sem refazê-la. NÃO mergeie o PR: o merge é do Álvaro. Se algum conflito exigir decisão que não é sua (os dois lados querem comportamentos diferentes e escolher muda o produto), NÃO chute: /issue-status $repo#$num Blocked com a pergunta. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+              fim="Poste no PR um comentário começando com <!-- agent:author --> seguido de '**Implementação** — ' na mesma linha, dizendo em até três linhas o que estava travado e o que você fez — é o que permite conferir sem refazer. NÃO mergeie o PR: o merge é do Álvaro, e o repo está em squash-only. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
 
-              echo "→ $repo#$num: PR #$pr conflitou com a main — mandando resolver"
+              case "$estado" in
+                UNSTABLE|BLOCKED)
+                  # Só é trabalho de agente se houver check vermelho. Gate de
+                  # processo (revisão obrigatória) ele não resolve.
+                  vermelhos=$(gh pr view "$pr" -R "$repo" --json statusCheckRollup \
+                    --jq '[.statusCheckRollup[] | select((.conclusion // .state) == "FAILURE"
+                            or (.conclusion // .state) == "TIMED_OUT"
+                            or (.conclusion // .state) == "CANCELLED")] | length' 2>/dev/null)
+                  if [ "${vermelhos:-0}" = "0" ]; then
+                    echo "  · $repo#$pr: $estado sem check vermelho — é gate de processo, não despacho"
+                    continue
+                  fi
+                  prompt="O PR #$pr do $repo já passou pela revisão (tem a label agent:approved), mas não mescla: o CI está vermelho. Veja quais jobs com gh pr checks $pr -R $repo e leia o log de cada um com gh run view <run-id> -R $repo --log-failed. Conserte o CÓDIGO. Em hipótese alguma altere o workflow do CI pra fazer passar — é ele que atesta a qualidade, e mexer nele pra virar verde é fraudar o teste; se o job estiver de fato errado, isso é achado pra escrever no PR, não pra você consertar por conta. Rode o QA local do projeto antes de empurrar (testes, lint, build — o que o runner expuser) e dê push. $fim" ;;
+                *)
+                  prompt="O PR #$pr do $repo já passou pela revisão (tem a label agent:approved), mas não mescla: a branch está $estado em relação à main. Traga a main: git fetch origin main && git merge origin/main. Havendo conflito, resolva CADA um olhando o que os dois lados queriam — aceitar 'o meu' ou 'o deles' em bloco é como se perde mudança sem ninguém ver. Se a doc conflitar (CHANGELOG, TODO, docs/), o certo quase sempre é manter as DUAS entradas, não escolher uma. A resolução é código novo que ninguém revisou, então rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só siga com tudo verde. Dê push e confira o CI: gh pr checks $pr -R $repo. Job vermelho é bloqueio, não detalhe: leia com gh run view <run-id> -R $repo --log-failed e conserte o CÓDIGO, nunca o workflow. Se algum conflito exigir decisão que não é sua (os dois lados querem comportamentos diferentes e escolher muda o produto), NÃO chute: /issue-status $repo#$num Blocked com a pergunta. $fim" ;;
+              esac
+
+              echo "→ $repo#$num: PR #$pr está $estado — mandando destravar"
               gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
               if ! task gh:orca ISSUE="$repo#$num" PROMPT="$prompt" >/dev/null; then
                 echo "  falhou ao abrir a worktree — soltando o lock"
