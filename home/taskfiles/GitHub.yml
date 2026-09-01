@@ -764,6 +764,63 @@ tasks:
           fi
         done
 
+  conflicts:
+    desc: "PR aprovado que a main conflitou: manda o time de implementação resolver."
+    summary: |
+      O buraco entre a aprovação e o seu merge. Quem traz a main pro PR é o
+      revisor, no passo de aprovação — e ele roda **uma vez**. Mesclado o
+      primeiro PR de uma leva, os outros conflitam **depois** disso, e nada mais
+      olha pra eles: o `gh:pr-tick` descarta PR com `agent:approved`, e o card
+      seguia dizendo `Ready` — "esperando o seu merge" — pra um PR que não
+      mesclava. Falha calada, que é a pior.
+
+      Age só em `mergeable == CONFLICTING`. `UNKNOWN` é o GitHub ainda
+      calculando (logo depois de um merge ele sempre é) e seria falso positivo;
+      `BEHIND` mescla sem ajuda, porque não há "require branches up to date"
+      aqui.
+
+      Quem resolve é o time de **implementação**: conflito é código, e a
+      worktree da issue é onde ele está. A revisão não se repete — ela foi sobre
+      o mérito da mudança, que não mudou. O que a resolução traz de novo o
+      agente escreve no PR, e o CI verde é o que a sustenta.
+
+      Examples:
+        - task gh:conflicts
+    cmds:
+      - |
+        task gh:agents-ready || exit 0
+
+        task gh:repos | sort -u | while read -r repo; do
+          gh pr list -R "$repo" --state open --label agent:approved --limit 50 \
+            --json number,body,mergeable \
+            --jq '.[] | select(.mergeable == "CONFLICTING")
+                  | (.body // "" | [match("(?i)(refs|closes) #([0-9]+)").captures[1].string] | first // "")
+                    as $issue
+                  | "\(.number) \($issue)"' 2>/dev/null \
+          | while read -r pr num; do
+              if [ -z "$num" ]; then
+                echo "  · $repo#$pr: conflitado, mas o corpo não cita issue — resolva na mão"
+                continue
+              fi
+
+              # Mesmo lock do resto do fluxo: um agente por worktree.
+              labels=$(gh issue view "$num" -R "$repo" --json labels \
+                         --jq '[.labels[].name] | join(",")' 2>/dev/null) || continue
+              case ",$labels," in
+                *,agent:running,*|*,agent:human,*) continue ;;
+              esac
+
+              prompt="O PR #$pr do $repo já passou pela revisão (tem a label agent:approved), mas parou de mesclar: outro PR entrou na main e o seu conflitou. Traga a main e resolva: git fetch origin main && git merge origin/main. Resolva CADA conflito olhando o que os dois lados queriam — aceitar 'o meu' ou 'o deles' em bloco é como se perde mudança sem ninguém ver. Se a doc conflitar (CHANGELOG, TODO, docs/), o certo quase sempre é manter as DUAS entradas, não escolher uma. A resolução é código novo que ninguém revisou, então rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só siga com tudo verde. Dê push e confira o CI: gh pr checks $pr -R $repo. Job vermelho é bloqueio, não detalhe: leia o log com gh run view <run-id> -R $repo --log-failed e conserte o CÓDIGO. Em hipótese alguma altere o workflow do CI pra fazer passar. Poste no PR um comentário começando com <!-- agent:author --> seguido de '**Implementação** — ' na mesma linha, dizendo em até três linhas quais arquivos conflitaram e o que você escolheu em cada um — é o que permite conferir a resolução sem refazê-la. NÃO mergeie o PR: o merge é do Álvaro. Se algum conflito exigir decisão que não é sua (os dois lados querem comportamentos diferentes e escolher muda o produto), NÃO chute: /issue-status $repo#$num Blocked com a pergunta. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+
+              echo "→ $repo#$num: PR #$pr conflitou com a main — mandando resolver"
+              gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+              if ! task gh:orca ISSUE="$repo#$num" PROMPT="$prompt" >/dev/null; then
+                echo "  falhou ao abrir a worktree — soltando o lock"
+                gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+              fi
+            done
+        done
+
   settle:
     desc: "Issue In Review sem PR aberto: confere os critérios de aceite e decide Done."
     summary: |
@@ -1132,7 +1189,7 @@ tasks:
           query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
             items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
               nodes{ id
-                content{ __typename ... on PullRequest{ state
+                content{ __typename ... on PullRequest{ state mergeable
                   labels(first:30){ nodes{ name } } } }
                 status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
@@ -1141,7 +1198,8 @@ tasks:
                 | [.content.labels.nodes[].name] as $l
                 | (if .content.state != "OPEN" then "Done"
                    elif ($l | index("agent:human")) then "Blocked"
-                   elif ($l | index("agent:approved")) then "Ready"
+                   elif ($l | index("agent:approved")) then
+                     (if .content.mergeable == "CONFLICTING" then "In Review" else "Ready" end)
                    else "In Review" end) as $quer
                 | select((.status.name // "") != $quer)
                 | .id + " " + $quer' \

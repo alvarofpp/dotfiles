@@ -24,6 +24,8 @@ ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:prep
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:dispatch
 # In Review -> ciclo de revisão do PR. Para em agent:approved; o merge é dele.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-tick
+# PR aprovado que a main conflitou depois: o time de implementação resolve.
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:conflicts
 # In Review sem PR aberto -> confere critérios de aceite e decide Done.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:settle
 # Done/Dropped -> fecha a issue e apaga a worktree.
