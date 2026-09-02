@@ -19,3 +19,86 @@ tasks:
         - task cc:usage -- monthly
     cmds:
       - deno run --allow-read -E -S=homedir -N='raw.githubusercontent.com:443' npm:ccusage@15.9.7 {{ .CLI_ARGS }}
+
+  prune-sessions:
+    desc: "Apaga sessão e transcript do Claude Code cujo diretório de trabalho não existe mais."
+    summary: |
+      A lista de sessões do app do Claude não sabe o que é worktree. Encerrada
+      a issue, o `gh:close` apaga a worktree e o app continua mostrando as
+      sessões que rodaram lá — algumas congeladas em `idle`, que naquela lista
+      se lê como "esperando você responder". Depois de seis issues do matria
+      eram 21 sessões fantasma pra uma real.
+
+      Ninguém limpa isso sozinho: `~/.claude/sessions/<pid>.json` sobrevive ao
+      processo que o criou, e `~/.claude/projects/<caminho>/` guarda o
+      transcript pra sempre.
+
+      O critério é o **diretório de trabalho**: sumiu o `cwd`, a sessão não tem
+      como voltar a ser útil — não dá pra retomar, e o que ela fez está no
+      commit e no PR, não ali. Processo ainda vivo num diretório apagado é
+      morto junto (é sessão órfã reescrevendo o registro a cada tick).
+
+      Só vale pra caminho dentro de `~/orca/workspaces/`, que é worktree de
+      agente e nasce descartável. Checkout seu cujo caminho sumiu é repo
+      renomeado ou movido, e o histórico dele fica: o `cozinha-app` virou
+      `abacaxei-app` e a primeira versão desta task já ia apagá-lo.
+
+      Diretório que existe não é tocado, então worktree em uso não corre risco.
+
+      Arguments:
+        - DRY: `DRY=1` só lista, não apaga.
+
+      Examples:
+        - task cc:prune-sessions DRY=1
+        - task cc:prune-sessions
+    cmds:
+      - |
+        base="$HOME/.claude"
+
+        for f in "$base"/sessions/*.json; do
+          [ -f "$f" ] || continue
+          cwd=$(jq -r '.cwd // ""' "$f" 2>/dev/null) || continue
+          [ -n "$cwd" ] || continue
+          if [ -d "$cwd" ]; then continue; fi
+          # Só worktree do Orca. Checkout normal cujo caminho sumiu é repo
+          # renomeado ou movido, não sessão morta — o `cozinha-app` virou
+          # `abacaxei-app` e o histórico dele apareceu como descartável na
+          # primeira versão desta task.
+          case "$cwd" in "$HOME"/orca/workspaces/*) ;; *) continue ;; esac
+
+          pid=$(jq -r '.pid // 0' "$f" 2>/dev/null)
+          echo "  sessão $(jq -r '.name // "?"' "$f" 2>/dev/null) (pid $pid) — $cwd"
+          if [ -n "{{.DRY}}" ]; then continue; fi
+
+          # Órfão de verdade: cwd apagado e ainda de pé. Confere o cmdline pra
+          # não matar um pid reciclado por outro programa.
+          if [ -d "/proc/$pid" ] && grep -qa claude "/proc/$pid/cmdline" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+          fi
+          rm -f "$f" "${f%.json}".*.key
+        done
+
+        # O nome do diretório é o caminho com as barras trocadas por `-`, e a
+        # troca não tem volta (`issue-87` e `issue/87` viram a mesma coisa).
+        # Por isso o `cwd` sai de dentro do transcript, com `grep -m1` pra não
+        # ler megabytes de JSONL por diretório.
+        for d in "$base"/projects/*/; do
+          [ -d "$d" ] || continue
+          cwd=""
+          for t in "$d"*.jsonl; do
+            [ -f "$t" ] || continue
+            cwd=$(grep -m1 -ao '"cwd":"[^"]*"' "$t" 2>/dev/null | cut -d'"' -f4)
+            if [ -n "$cwd" ]; then break; fi
+          done
+          [ -n "$cwd" ] || continue
+          if [ -d "$cwd" ]; then continue; fi
+          # Só worktree do Orca. Checkout normal cujo caminho sumiu é repo
+          # renomeado ou movido, não sessão morta — o `cozinha-app` virou
+          # `abacaxei-app` e o histórico dele apareceu como descartável na
+          # primeira versão desta task.
+          case "$cwd" in "$HOME"/orca/workspaces/*) ;; *) continue ;; esac
+
+          echo "  transcript $(basename "$d") — $cwd"
+          if [ -n "{{.DRY}}" ]; then continue; fi
+          rm -rf "$d"
+        done

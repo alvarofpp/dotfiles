@@ -1622,6 +1622,11 @@ tasks:
               && echo "  ~ $repo#$pr $estado — worktree pr-$pr removida"
           done
 
+        # Worktree apagada deixa pra trás a sessão do Claude Code que rodou
+        # nela — e ela segue na lista do app, `idle`, como se esperasse
+        # resposta sua numa issue já fechada.
+        task cc:prune-sessions
+
   pr-board:
     desc: "Dá Status aos cards de PR: In Review, Ready (é seu), Blocked ou Done."
     summary: |
