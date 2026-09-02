@@ -878,6 +878,13 @@ tasks:
       O terminal é NOVO na worktree: contexto limpo é o que mantém o revisor
       independente do autor sem precisar de segundo checkout.
 
+      **Aprovação envelhece.** PR com `agent:approved` volta pra fila sozinho
+      quando tem commit **não-merge** mais novo que a última review — código
+      que entrou depois dela (`gh:answer` atendendo pergunta sua, `gh:unstick`
+      consertando CI) e que ninguém revisou. Merge de `origin/main` não conta:
+      dois pais, e é o revisor e o `gh:unstick` que o empurram — cada avanço da
+      main custaria uma rodada até estourar o teto.
+
       Teto de {{.MAX_ROUNDS}} rodadas por PR — ping-pong entre revisor e autor é
       modo de falha esperado, não hipótese. Estourou, o fluxo **pergunta** em
       vez de largar: comenta na issue com `<!-- agent:question:rounds -->`,
@@ -901,11 +908,37 @@ tasks:
         task gh:issues STATUS="In Review" | while read -r ref item; do
           repo="${ref%\#*}"; num="${ref##*\#}"
 
-          pr=$(gh pr list -R "$repo" --state open --label agent --limit 50 \
-                 --json number,body,labels \
-                 --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))
-                       | select([.labels[].name] | index("agent:approved") | not)
-                       | .number' 2>/dev/null | head -1)
+          # `agent:approved` deixou de ser filtro de lista: aprovação
+          # envelhece. Commit que entra depois da revisão — o `gh:answer`
+          # atendendo pergunta sua, o `gh:unstick` consertando CI — não passou
+          # por revisor nenhum, e com o label intacto o PR ia pro merge com a
+          # aprovação da versão ANTERIOR dele (matria#150, commit `6c94fc8c`).
+          pr=""
+          for cand in $(gh pr list -R "$repo" --state open --label agent --limit 50 \
+                          --json number,body \
+                          --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null); do
+            aprovado=$(gh pr view "$cand" -R "$repo" --json labels \
+                         --jq '[.labels[].name] | index("agent:approved") != null' 2>/dev/null)
+            if [ "$aprovado" = "true" ]; then
+              # Commit NÃO-merge (um pai só) mais novo que a última review.
+              # Merge de `origin/main` fica de fora: quem o empurra é o
+              # revisor ao aprovar e o `gh:unstick`, e contá-lo faria cada
+              # avanço da main custar uma rodada até estourar o teto. Sem
+              # review nenhuma o `max` sai vazio e todo commit conta — que é o
+              # lado seguro de errar.
+              base=$(gh pr view "$cand" -R "$repo" --json reviews \
+                       --jq '[.reviews[].submittedAt] | max // ""' 2>/dev/null)
+              novos=$(gh api "repos/$repo/pulls/$cand/commits?per_page=100" \
+                        --jq '[ .[] | select((.parents | length) < 2)
+                                | select(.commit.committer.date > "'"$base"'") ] | length' 2>/dev/null) || novos=0
+              if [ "${novos:-0}" -eq 0 ]; then
+                continue
+              fi
+              echo "$ref: #$cand aprovado mas com $novos commit(s) depois da revisão — reabrindo"
+              gh pr edit "$cand" -R "$repo" --remove-label agent:approved >/dev/null
+            fi
+            pr="$cand"; break
+          done
           [ -n "$pr" ] || continue
 
           # Conta rodada, não submissão: review com corpo é uma passada de
