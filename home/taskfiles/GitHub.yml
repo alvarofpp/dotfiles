@@ -913,10 +913,20 @@ tasks:
           # atendendo pergunta sua, o `gh:unstick` consertando CI — não passou
           # por revisor nenhum, e com o label intacto o PR ia pro merge com a
           # aprovação da versão ANTERIOR dele (matria#150, commit `6c94fc8c`).
+          #
+          # `continue`/`break` NÃO pode morar dentro de `if` aninhado em `if`
+          # aqui: o shell do Task (mvdan/sh) sai só do `if` de dentro, executa
+          # o resto do `if` de fora e só então aplica o desvio. A primeira
+          # versão disto tinha o `continue` dois níveis fundo e reabria PR com
+          # "0 commit(s) depois da revisão" — o log dizia 0 e ele reabria
+          # assim mesmo, num vai-e-vem de 15 em 15 minutos nos PRs #152 e #153
+          # do matria. Por isso a decisão vira a flag `usar` e o desvio fica
+          # num `if` de um nível só.
           pr=""
           for cand in $(gh pr list -R "$repo" --state open --label agent --limit 50 \
                           --json number,body \
                           --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null); do
+            usar=1
             aprovado=$(gh pr view "$cand" -R "$repo" --json labels \
                          --jq '[.labels[].name] | index("agent:approved") != null' 2>/dev/null)
             if [ "$aprovado" = "true" ]; then
@@ -931,13 +941,17 @@ tasks:
               novos=$(gh api "repos/$repo/pulls/$cand/commits?per_page=100" \
                         --jq '[ .[] | select((.parents | length) < 2)
                                 | select(.commit.committer.date > "'"$base"'") ] | length' 2>/dev/null) || novos=0
-              if [ "${novos:-0}" -eq 0 ]; then
-                continue
+              if [ "${novos:-0}" -gt 0 ]; then
+                echo "$ref: #$cand aprovado mas com $novos commit(s) depois da revisão — reabrindo"
+                gh pr edit "$cand" -R "$repo" --remove-label agent:approved >/dev/null
+              else
+                usar=0
               fi
-              echo "$ref: #$cand aprovado mas com $novos commit(s) depois da revisão — reabrindo"
-              gh pr edit "$cand" -R "$repo" --remove-label agent:approved >/dev/null
             fi
-            pr="$cand"; break
+            if [ "$usar" = "1" ]; then
+              pr="$cand"
+              break
+            fi
           done
           [ -n "$pr" ] || continue
 
