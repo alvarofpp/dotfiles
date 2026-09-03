@@ -26,10 +26,10 @@ stow --delete home     # Unlink a single package (alias: unstow)
 
 ## Docs
 
-- [`TODO.md`](TODO.md) — pendências forward-looking do parent (sem conteúdo de IA).
-- [`CHANGELOG.md`](CHANGELOG.md) — mudanças release-worthy (Keep-a-Changelog).
-- [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — decisões médias do parent.
-- [`AGENTS.md`](AGENTS.md) — recorte do repo em contextos de revisão, lido pelo `/review-pr`. Pré-requisito do fluxo autônomo; catálogo gerado por `task ai:agents-doc`. Os agentes deste repo vêm do submódulo `ai/`.
+Este repo **não tem** `TODO.md`, `CHANGELOG.md`, `DECISION_LOG.md` nem `AGENTS.md`: desde 2026-09-03 eles vivem no submódulo privado, porque descreviam o fluxo autônomo de review inteiro (board, repos de cliente, quais camadas de segurança existem e quais nunca foram exercitadas) num repositório público.
+
+- Pendência, mudança e decisão **do parent** vão pra [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md) e [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md) — commit separado, porque é outro repositório.
+- O `AGENTS.md` foi arquivado em [`ai/docs/agents-dotfiles.md`](ai/docs/agents-dotfiles.md). Sem ele na raiz, o `task gh:review-ready` barra este repo: PR aqui não ganha revisor automático até alguém rodar `/agents-doc` de novo.
 
 O submódulo `ai/` é o repositório **privado** — o critério de admissão é privacidade, não o tema. Nasceu focado em IA, mas hoje abriga também config de serviços self-hosted (`.hermes/`, `docker/`, `.config/homepage/`). Conteúdo de IA / Claude Code / Hermes / opencode e qualquer config privada vivem **só nele** ([`ai/README.md`](ai/README.md), [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md), [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md), [`ai/docs/DEV_ONBOARDING.md`](ai/docs/DEV_ONBOARDING.md), [`ai/docs/GLOSSARY.md`](ai/docs/GLOSSARY.md)). Parent é repo público; não adicionar IA na raiz.
 
@@ -43,4 +43,4 @@ O submódulo `ai/` é o repositório **privado** — o critério de admissão é
 - **Shell**: zsh with oh-my-zsh, headline theme, Catppuccin Mocha syntax highlighting, fzf-tab plugin.
 - **Shell drop-ins**: `home/.zshrc` sources `$HOME/.zshrc.d/*.zsh` (drop-in dir, populated by the `ai/` submodule — keeps AI-related shell helpers out of the dotfiles root) and `$HOME/.zshrc.local` if present (uncommitted secrets/overrides like `MINIMAX_API_KEY`).
 - **Platform**: WSL2 (Linux on Windows). The `windows/` package targets the Windows host filesystem.
-- **`windows-terminal-settings.json`** (root) is a **manual copy** of the live Windows Terminal config at `/mnt/c/Users/alvar/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json` — **not stowed, not symlinked**. A symlink can't work: Windows won't follow a symlink into the WSL ext4, and WT rewrites the file atomically (clobbering any link). Edit the real file for effect, then `cp` it back over the repo copy before committing. See `docs/DECISION_LOG.md` (2026-07-14).
+- **`windows-terminal-settings.json`** (root) is a **manual copy** of the live Windows Terminal config at `/mnt/c/Users/alvar/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json` — **not stowed, not symlinked**. A symlink can't work: Windows won't follow a symlink into the WSL ext4, and WT rewrites the file atomically (clobbering any link). Edit the real file for effect, then `cp` it back over the repo copy before committing. See `ai/DECISION_LOG.md` (2026-07-14).
