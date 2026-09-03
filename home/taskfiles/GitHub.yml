@@ -528,12 +528,17 @@ tasks:
       marcador e texto juntos entregam o comentário como texto puro — sem
       negrito, sem código, sem link. Aconteceu nos comentários do PR #130.
 
-        <!-- agent:review -->    revisor        prefixo **Revisão** —
+        <!-- agent -->           fluxo (fechar, descartar)  prefixo **Fluxo** —
+        <!-- agent:review -->    revisor        prefixo **Revisão** — <severidade>:
         <!-- agent:author -->    implementação  prefixo **Implementação** —
-        <!-- agent:question -->  espera humano  (issue, destrava o gh:unblock)
+        <!-- agent:question -->  espera humano  prefixo **Pergunta** — (issue, destrava o gh:unblock)
         <!-- agent:question:rounds -->  idem, e a resposta vira teto de rodada
-        <!-- agent:answer:author -->   resposta a pergunta SUA, pelo time de implementação
-        <!-- agent:answer:review -->   idem, pelo time de revisão
+        <!-- agent:answer:author -->   resposta a pergunta SUA, pelo time de implementação (**Implementação** —)
+        <!-- agent:answer:review -->   idem, pelo time de revisão (**Revisão** —)
+
+      Do seu lado, o prefixo é `impl:`, `review:` ou `agent:` no começo do
+      comentário (ver `gh:pending-question`). Todo comentário tem um rótulo
+      visível; quem lê no celular sabe quem falou sem inspecionar nada.
 
       O `gh:unblock` casa o prefixo `<!-- agent:question`, então todo sufixo
       novo destrava sozinho — o sufixo só diz o que a resposta significa.
@@ -993,8 +998,9 @@ tasks:
 
           if [ "$rounds" -ge "$limite" ]; then
             echo "$ref: $rounds rodadas sem convergir (teto $limite) — perguntando quantas mais"
-            corpo=$(printf '%s\n\n%s\n\n%s' \
-              "<!-- agent:question:rounds --> Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
+            corpo=$(printf '%s\n%s\n\n%s\n\n%s' \
+              "<!-- agent:question:rounds -->" \
+              "**Pergunta** — Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
               "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`)." \
               "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
             gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
@@ -1409,19 +1415,18 @@ tasks:
       quem despachar, e pelo `gh:settle`, pra não dar `Done` em issue com
       pergunta sua no ar.
 
-      **Como perguntar:** comece o comentário com `?impl`, `?review` ou
-      `?agent` (que cai no time de implementação, porque é quem tem a worktree
-      e o código na mão).
+      **Como perguntar:** comece o comentário com `impl:`, `review:` ou
+      `agent:` (que cai no time de implementação, porque é quem tem a worktree
+      e o código na mão). É o mesmo estilo dos prefixos das threads de revisão
+      (`nit:`, `bloqueante:`) e dos comentários do fluxo (`**Pergunta** —`).
 
-      **`?` e não `@`.** `@impl`, `@review` e `@agent` são contas reais do
-      GitHub — um dev, duas organizações. Em repo privado o mention não
-      notifica quem não tem acesso, mas vira link pro perfil de um estranho;
-      em repo **público** (o `validate-docbr` é) todo mundo tem leitura, e o
-      mention notifica a pessoa de verdade. `?` não tem semântica nenhuma no
-      GitHub: não vira link, não notifica ninguém, e não abre o menu de barra
-      do editor como `/` abriria — além de já significar pergunta. Vale na issue, no corpo do PR e em thread ancorada no
-      diff. Sem o marcador, comentário seu é contexto, não pergunta — senão
-      todo "boa" seu acordaria um agente.
+      **Prefixo com dois-pontos, não `@` nem `?`.** `@impl`, `@review` e
+      `@agent` são contas reais do GitHub — em repo público o mention notifica
+      a pessoa de verdade. O `?` (2026-09-01 a 2026-09-03) resolvia isso, mas
+      era vocabulário só dele; `impl:` não menciona ninguém e lê igual ao
+      resto. Vale na issue, no corpo do PR e em thread ancorada no diff. Sem o
+      prefixo, comentário seu é contexto, não pergunta — senão todo "boa" seu
+      acordaria um agente.
 
       **Respondida** é pergunta com um comentário de RESPOSTA
       (`<!-- agent:answer`) depois dela: na conversa, qualquer um posterior; na
@@ -1460,7 +1465,7 @@ tasks:
           gh api "repos/$repo/issues/$1/comments?per_page=100" --jq '
             [ .[] | {b: (.body // ""), a: .author_association} ] as $c
             | [ $c | to_entries[]
-                | select(.value.b | test("(?i)^[[:space:]]*\\?(impl|review|agent)\\b"))
+                | select(.value.b | test("(?i)^[[:space:]]*(impl|review|agent):"))
                 | select(.value.a == "OWNER" or .value.a == "MEMBER" or .value.a == "COLLABORATOR")
                 | .key ]
             | if length == 0 then empty else last as $i
@@ -1476,7 +1481,7 @@ tasks:
           gh api "repos/$repo/pulls/$1/comments?per_page=100" --jq '
             [ .[] | {id, raiz: (.in_reply_to_id // .id), b: (.body // ""), a: .author_association} ] as $c
             | [ $c[]
-                | select(.b | test("(?i)^[[:space:]]*\\?(impl|review|agent)\\b"))
+                | select(.b | test("(?i)^[[:space:]]*(impl|review|agent):"))
                 | select(.a == "OWNER" or .a == "MEMBER" or .a == "COLLABORATOR")
                 | . as $q
                 | select([ $c[] | select(.raiz == $q.raiz and .id > $q.id and (.b | test("<!-- agent:answer"))) ] | length == 0)
@@ -1493,9 +1498,9 @@ tasks:
               ancorada "$pr"
             done
         } | tail -1 \
-          | grep -oiE '\?(impl|review|agent)' \
-          | tr 'A-Z' 'a-z' \
-          | sed 's/?agent/?impl/; s/?//'
+          | grep -oiE '^[[:space:]]*(impl|review|agent):' \
+          | tr -d '[:space:]:' | tr 'A-Z' 'a-z' \
+          | sed 's/^agent$/impl/'
 
   answer:
     desc: "Põe o time certo pra responder pergunta sua marcada em issue ou PR."
@@ -1505,7 +1510,7 @@ tasks:
       comentário seu num PR só era lido se a issue voltasse pra `In Progress`, e
       morria sem resposta se o PR fosse aprovado antes.
 
-      Marque o comentário com `?impl`, `?review` ou `?agent` (ver
+      Marque o comentário com `impl:`, `review:` ou `agent:` (ver
       `gh:pending-question`) e o tick despacha o time escolhido na worktree da
       issue. O agente responde **no mesmo lugar** em que você perguntou.
 
@@ -1541,9 +1546,9 @@ tasks:
 
           case "$time" in
             review)
-              prompt="Você é o time de REVISÃO da issue $repo#$num. O Álvaro marcou pergunta com ?review em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda como revisor: leia o código que a pergunta toca antes de afirmar qualquer coisa, e diga o que é, inclusive quando a resposta for 'você tem razão, o achado estava errado'. NÃO altere código e NÃO commite — seu papel é ler e responder; mudança é do time de implementação, e se a resposta implicar mudança, diga qual e deixe pra eles. Toda resposta sua carrega o marcador <!-- agent:answer:review --> e o prefixo **Revisão** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:answer:review -->\n**Revisão** — o texto É esse marcador, é esse marcador, e só ele, que registra a pergunta como respondida; sem ele o tick vai te despachar de novo pra mesma pergunta. $comum" ;;
+              prompt="Você é o time de REVISÃO da issue $repo#$num. O Álvaro marcou pergunta com o prefixo review: em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda como revisor: leia o código que a pergunta toca antes de afirmar qualquer coisa, e diga o que é, inclusive quando a resposta for 'você tem razão, o achado estava errado'. NÃO altere código e NÃO commite — seu papel é ler e responder; mudança é do time de implementação, e se a resposta implicar mudança, diga qual e deixe pra eles. Toda resposta sua carrega o marcador <!-- agent:answer:review --> e o prefixo **Revisão** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:answer:review -->\n**Revisão** — o texto É esse marcador, é esse marcador, e só ele, que registra a pergunta como respondida; sem ele o tick vai te despachar de novo pra mesma pergunta. $comum" ;;
             *)
-              prompt="Você é o time de IMPLEMENTAÇÃO da issue $repo#$num. O Álvaro marcou pergunta com ?impl (ou ?agent) em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda com o código na mão: leia o que a pergunta toca antes de afirmar. Se ela pedir mudança, faça, rode o QA local do projeto (testes, lint, build — o que o runner expuser), confira o CI com gh pr checks <pr> -R $repo e dê push no PR; conserte o CÓDIGO, nunca o workflow. Deu push num PR que já estava com agent:approved? Tire o label — gh pr edit <pr> -R $repo --remove-label agent:approved — porque a aprovação valia pro código revisado e é esse label que faz o gh:pr-tick pular o PR; sem tirar, o commit que você acabou de subir chega ao merge sem passar por revisão nenhuma. Diga na sua resposta que tirou. Se for só dúvida, responda e não toque em nada. Toda resposta sua carrega o marcador <!-- agent:answer:author --> e o prefixo **Implementação** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:answer:author -->\n**Implementação** — o texto É esse marcador, é esse marcador, e só ele, que registra a pergunta como respondida; sem ele o tick vai te despachar de novo pra mesma pergunta. $comum" ;;
+              prompt="Você é o time de IMPLEMENTAÇÃO da issue $repo#$num. O Álvaro marcou pergunta com o prefixo impl: (ou agent:) em algum comentário da issue ou de um PR dela e ela ainda não tem resposta. Ache todas as que ainda não foram respondidas — gh api repos/$repo/issues/$num/comments, e pros PRs abertos que citam a issue tanto gh api repos/$repo/issues/<pr>/comments quanto gh api repos/$repo/pulls/<pr>/comments. Responda com o código na mão: leia o que a pergunta toca antes de afirmar. Se ela pedir mudança, faça, rode o QA local do projeto (testes, lint, build — o que o runner expuser), confira o CI com gh pr checks <pr> -R $repo e dê push no PR; conserte o CÓDIGO, nunca o workflow. Deu push num PR que já estava com agent:approved? Tire o label — gh pr edit <pr> -R $repo --remove-label agent:approved — porque a aprovação valia pro código revisado e é esse label que faz o gh:pr-tick pular o PR; sem tirar, o commit que você acabou de subir chega ao merge sem passar por revisão nenhuma. Diga na sua resposta que tirou. Se for só dúvida, responda e não toque em nada. Toda resposta sua carrega o marcador <!-- agent:answer:author --> e o prefixo **Implementação** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:answer:author -->\n**Implementação** — o texto É esse marcador, é esse marcador, e só ele, que registra a pergunta como respondida; sem ele o tick vai te despachar de novo pra mesma pergunta. $comum" ;;
           esac
 
           echo "→ $ref: pergunta sua pro time de $time"
@@ -1605,7 +1610,7 @@ tasks:
                 --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null \
               | while read -r pr; do
                   gh pr close "$pr" -R "$repo" --delete-branch \
-                    --comment "<!-- agent --> Issue #$num marcada como Dropped no board. Fechando sem mesclar." >/dev/null \
+                    --comment "$(printf '<!-- agent -->\n**Fluxo** — Issue #%s marcada como Dropped no board. Fechando sem mesclar.' "$num")" >/dev/null \
                     && echo "    PR #$pr fechado sem mesclar"
                 done
             fi
@@ -1613,10 +1618,10 @@ tasks:
             if [ "$estado" = "OPEN" ]; then
               if [ "$status" = "Done" ]; then
                 gh issue close "$num" -R "$repo" --reason completed \
-                  --comment "<!-- agent --> Critérios de aceite conferidos contra os PRs mesclados. Fechando." >/dev/null
+                  --comment "$(printf '<!-- agent -->\n**Fluxo** — Critérios de aceite conferidos contra os PRs mesclados. Fechando.')" >/dev/null
               else
                 gh issue close "$num" -R "$repo" --reason "not planned" \
-                  --comment "<!-- agent --> Marcada como Dropped no board. Fechando sem implementar." >/dev/null
+                  --comment "$(printf '<!-- agent -->\n**Fluxo** — Marcada como Dropped no board. Fechando sem implementar.')" >/dev/null
               fi
               echo "  ~ $ref fechada ($status)"
             fi
