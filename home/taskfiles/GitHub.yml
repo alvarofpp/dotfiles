@@ -49,7 +49,7 @@ tasks:
         - REPO: repo to link. A bare name assumes {{.PROJECT_OWNER}}.
 
       Examples:
-        - task gh:link REPO=cozinha-app
+        - task gh:link REPO=matria
         - task gh:link REPO=lucida-ia/lucida-monorepo
     requires:
       vars: [REPO]
@@ -512,7 +512,7 @@ tasks:
         agent:changes   revisão pediu alteração; a bola é do autor
         agent:approved  passou na revisão — esperando o SEU merge
         agent:human     parou esperando decisão humana
-        agent:untrusted issue ou comentário de fora do time (repo público)
+        agent:untrusted sinal de injeção no texto da issue ou de um comentário
 
       `agent:approved` existe porque o merge é seu: review `APPROVED` no próprio
       PR é recusado com 422 (autor e revisor são a mesma conta), então o label é
@@ -557,7 +557,7 @@ tasks:
           'agent:changes|d93f0b|revisão pediu alteração' \
           'agent:approved|0e8a16|passou na revisão — pronto pro merge' \
           'agent:human|b60205|precisa de um humano' \
-          'agent:untrusted|5319e7|conteúdo de fora do time — precisa de triagem humana' \
+          'agent:untrusted|5319e7|sinal de injeção no texto — precisa de triagem humana' \
         | while IFS='|' read -r name color desc; do
             gh label create "$name" -R "{{.REPO}}" --color "$color" --description "$desc" --force >/dev/null
           done
@@ -1431,7 +1431,14 @@ tasks:
       Havendo perguntas dos dois times, sai a do último comentário — o outro
       time entra no tick seguinte.
 
-      Teto de 100 comentários por lista, que é o que cabe numa página da API.
+      Teto de 100 comentários por lista, que é o que cabe numa página da API, e
+      50 PRs abertos por issue.
+
+      O corpo sai **truncado na primeira linha**: quem consome é um
+      `tail -1 | grep`, e corpo multilinha — o normal quando você explica a
+      dúvida — fazia o `tail -1` pegar a última linha, sem marcador, e a
+      pergunta era ignorada em silêncio. O marcador tem que abrir o comentário,
+      então a primeira linha basta.
 
       Arguments:
         - REF: `owner/repo#N`.
@@ -1455,7 +1462,7 @@ tasks:
                 | .key ]
             | if length == 0 then empty else last as $i
                 | if [ $c[($i+1):][] | select(.b | test("<!-- agent:answer")) ] | length > 0 then empty
-                  else $c[$i].b end
+                  else ($c[$i].b | split("\n")[0]) end
               end' 2>/dev/null
         }
 
@@ -1470,7 +1477,7 @@ tasks:
                 | select(.a == "OWNER" or .a == "MEMBER" or .a == "COLLABORATOR")
                 | . as $q
                 | select([ $c[] | select(.raiz == $q.raiz and .id > $q.id and (.b | test("<!-- agent:answer"))) ] | length == 0)
-                | .b ]
+                | (.b | split("\n")[0]) ]
             | if length == 0 then empty else last end' 2>/dev/null
         }
 

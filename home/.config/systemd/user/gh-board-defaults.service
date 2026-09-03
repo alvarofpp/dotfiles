@@ -16,7 +16,7 @@ ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sync
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:reap
 # Blocked que já teve resposta humana volta pra In Progress.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:unblock
-# Pergunta sua marcada com @impl/@review/@agente ganha o time que responde.
+# Pergunta sua marcada com ?impl/?review/?agent ganha o time que responde.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:answer
 # Ready -> triagem (/issue-prep). Síncrono: nada de worktree nesta fase.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:prep

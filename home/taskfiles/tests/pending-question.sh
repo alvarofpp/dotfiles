@@ -24,7 +24,7 @@ conversa=$(extrai 'issues/$1/comments?per_page=100')
 ancorada=$(extrai 'pulls/$1/comments?per_page=100')
 [ -n "$conversa" ] && [ -n "$ancorada" ] || { echo "não consegui extrair o jq do GitHub.yml"; exit 1; }
 
-rota() { grep -oiE '\?(impl|review|agent)' | tr 'A-Z' 'a-z' | sed 's/?agent/?impl/; s/?//'; }
+rota() { tail -1 | grep -oiE '\?(impl|review|agent)' | tr 'A-Z' 'a-z' | sed 's/?agent/?impl/; s/?//'; }
 
 falhas=0
 caso() { # nome, esperado, json, programa
@@ -52,6 +52,10 @@ caso "conversa: marcador no meio nao conta" "" \
   '[{"body":"falei com o ?impl ontem","author_association":"OWNER"}]' "$conversa"
 caso "conversa: recado de agente nao e resposta" impl \
   '[{"body":"?agent com ou sem mascara no banco?","author_association":"OWNER"},{"body":"<!-- agent:author -->\\n**Implementação** — merge do main resolvido","author_association":"OWNER"}]' "$conversa"
+caso "conversa: pergunta de varias linhas" impl \
+  '[{"body":"?impl isso cobre o caso X?\n\ne o Y tambem?","author_association":"OWNER"}]' "$conversa"
+caso "ancorada: pergunta de varias linhas" review \
+  '[{"id":1,"in_reply_to_id":null,"body":"?review e a query N+1?\n\nolha a linha 40","author_association":"OWNER"}]' "$ancorada"
 caso "ancorada: resposta em OUTRA thread" impl \
   '[{"id":1,"in_reply_to_id":null,"body":"?impl aqui?","author_association":"OWNER"},{"id":2,"in_reply_to_id":9,"body":"<!-- agent:answer:review --> outra","author_association":"OWNER"}]' "$ancorada"
 caso "ancorada: resposta na MESMA thread" "" \
