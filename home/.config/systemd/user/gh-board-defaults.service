@@ -10,6 +10,9 @@ Wants=network-online.target
 Type=oneshot
 Environment=PATH=/home/alvaro/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WorkingDirectory=%h
+# Vigia do portão: avisa no Telegram quando o fluxo passa 3 ticks desligado.
+# Primeiro de propósito — é o que responde "este tick vale alguma coisa?".
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:gate-watch
 # Issue e PR novos entram no board; o `sync` termina chamando `defaults`.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sync
 # Issue cujo agente morreu perde o lock e volta pra fila.

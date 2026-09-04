@@ -1630,16 +1630,18 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Dois: a detecção de pergunta humana do `gh:pending-question` e o orçamento
-      de rodadas do `gh:review-requested`. Os programas jq são extraídos do
-      próprio `GitHub.yml` em vez de copiados — cópia que envelhece testa o
-      passado.
+      Três: a detecção de pergunta humana do `gh:pending-question`, o orçamento
+      de rodadas do `gh:review-requested` e a máquina de estados do
+      `gh:gate-watch`. Nada de cópia — os programas jq são extraídos do próprio
+      `GitHub.yml` e o `gate-watch` roda de verdade, com as costuras `GATE`,
+      `STATE` e `DRY` injetadas; cópia que envelhece testa o passado.
 
       Examples:
         - task gh:test
     cmds:
       - "$HOME/dotfiles/home/taskfiles/tests/pending-question.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-rounds.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/gate-watch.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
@@ -2039,15 +2041,9 @@ tasks:
       Envio que falha mantém o status **antigo** no estado, então o aviso é
       retentado no tick seguinte em vez de se perder.
 
-      Configuração em `~/.config/gh-board/telegram.env` — fora do repo, é
-      segredo:
-
-        TELEGRAM_BOT_TOKEN=123456:ABC...   # o @BotFather devolve na criação
-        TELEGRAM_CHAT_ID=987654321         # mande /start pro bot e leia em
-                                           # api.telegram.org/bot<TOKEN>/getUpdates
-
-      Sem o arquivo a task não faz nada e o tick segue: o aviso é conforto, não
-      parte da máquina de estados.
+      Quem fala com a API é o `gh:telegram`, e a configuração mora lá
+      (`~/.config/gh-board/telegram.env`). Sem ela a task não faz nada e o tick
+      segue: o aviso é conforto, não parte da máquina de estados.
 
       Arguments:
         - DRY: `DRY=1` imprime as mensagens em vez de enviar, e não grava
@@ -2226,12 +2222,7 @@ tasks:
             continue
           fi
 
-          if curl -fsS -m 15 -o /dev/null \
-               "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-               --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
-               --data-urlencode "text=$texto" \
-               --data-urlencode "parse_mode=HTML" \
-               --data-urlencode "disable_web_page_preview=true"; then
+          if task gh:telegram TEXT="$texto" >/dev/null 2>&1; then
             echo "$url $status" >> "$novo"
             echo "  ~ avisado: $titulo -> $status"
           else
@@ -2244,6 +2235,136 @@ tasks:
 
         [ -n "{{.DRY}}" ] || mv "$novo" "$snap"
         rm -f "$out" "$novo"
+
+  telegram:
+    desc: "Manda uma mensagem no Telegram do fluxo. TEXT=<html>"
+    summary: |
+      O único lugar que fala com a API do Telegram. Configuração em
+      `~/.config/gh-board/telegram.env` — fora do repo, é segredo:
+
+        TELEGRAM_BOT_TOKEN=123456:ABC...   # o @BotFather devolve na criação
+        TELEGRAM_CHAT_ID=987654321         # mande /start pro bot e leia em
+                                           # api.telegram.org/bot<token>/getUpdates
+
+      Sem o arquivo sai **não-zero** sem mandar nada; quem chama decide se isso
+      é problema (pro `gh:notify` e pro `gh:gate-watch`, não é — aviso é
+      conforto, não parte da máquina de estados).
+
+      `parse_mode=HTML` porque o MarkdownV2 exige escapar 18 caracteres e
+      título de issue é cheio deles (`[bug]:`, `[ADR-0010]`, o travessão); em
+      HTML só `&`, `<` e `>` precisam, e quem **compõe** a mensagem escapa.
+
+      O texto viaja por `env`, não pela linha de comando: mensagem tem aspas,
+      acento e quebra de linha, e nenhum deles sobrevive a uma interpolação de
+      template dentro de aspas.
+
+      Examples:
+        - task gh:telegram TEXT="<b>oi</b>"
+    requires:
+      vars: [TEXT]
+    env:
+      MSG: '{{.TEXT}}'
+    cmds:
+      - |
+        env="$HOME/.config/gh-board/telegram.env"
+        [ -f "$env" ] && . "$env"
+        if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+          echo "telegram não configurado ($env)"
+          exit 1
+        fi
+        curl -fsS -m 15 -o /dev/null \
+          "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+          --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+          --data-urlencode "text=$MSG" \
+          --data-urlencode "parse_mode=HTML" \
+          --data-urlencode "disable_web_page_preview=true"
+
+  gate-watch:
+    desc: "Avisa no Telegram quando o portão do fluxo fica fechado tick após tick."
+    summary: |
+      O `gh:agents-ready` desliga o fluxo inteiro — stack `svc:` fora do ar ou
+      runtime do Orca mudo — e desligava **calado**. O `gh:notify` só fala
+      quando um card muda de Status, então "nada se move" era justamente o
+      único estado que nunca virava mensagem.
+
+      Em 2026-09-04 o `dockerd` não voltou de um suspend e o fluxo ficou 2h30
+      parado: 72 falhas de portão no journal, nenhum aviso, e cinco PRs
+      aprovados conflitando sem ninguém pra destravar.
+
+      Avisa depois de {{.AFTER_TICKS}} ticks seguidos fechado (~45 min), não no
+      primeiro: reboot e suspend fecham o portão por um tick e isso é rotina.
+      Avisa **uma vez** enquanto durar — e avisa de novo quando reabrir, que é
+      a metade que faz o alerta valer.
+
+      Estado em `~/.local/state/gh-board/gate`, uma linha `<falhas> <avisado>`.
+      Envio que falha não grava, então o aviso é retentado no tick seguinte em
+      vez de se perder — mesma regra do `gh:notify`.
+
+      **Sai sempre zero.** A unit é `Type=oneshot`: `ExecStart` não-zero aborta
+      os que viriam depois, e um vigia não pode derrubar o tick que ele vigia.
+
+      Roda **primeiro** no tick: é o que responde "o tick de hoje vale alguma
+      coisa?".
+
+      Arguments:
+        - AFTER_TICKS: quantos ticks fechados antes de avisar (default 3).
+        - GATE: o comando que decide (default `task gh:agents-ready`). É a
+          costura que deixa o teste dirigir a máquina de estados sem derrubar
+          o Docker de verdade.
+        - STATE: onde mora o contador.
+        - DRY: imprime o aviso em vez de mandar.
+
+      Examples:
+        - task gh:gate-watch
+        - task gh:gate-watch GATE=false DRY=1
+    vars:
+      AFTER_TICKS: '{{.AFTER_TICKS | default 3}}'
+      GATE: '{{.GATE | default "task gh:agents-ready"}}'
+      STATE: '{{.STATE | default "$HOME/.local/state/gh-board/gate"}}'
+    cmds:
+      - |
+        estado="{{.STATE}}"
+        mkdir -p "$(dirname "$estado")"
+        falhas=0; avisado=0
+        [ -f "$estado" ] && read -r falhas avisado < "$estado"
+
+        esc() { sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
+
+        if motivo=$({{.GATE}} 2>&1); then
+          if [ "${avisado:-0}" = "1" ]; then
+            texto=$(printf '✅ <b>Fluxo autônomo de volta</b>\n\nO portão reabriu depois de %s tick(s) fechado.' "${falhas:-0}")
+            if [ -n "{{.DRY}}" ]; then
+              printf '%s\n' "$texto"
+            elif ! task gh:telegram TEXT="$texto" >/dev/null 2>&1; then
+              echo "  falhou o aviso de volta — retentando no próximo tick"
+              exit 0
+            fi
+            echo "  ~ avisado: portão reaberto depois de ${falhas:-0} tick(s)"
+          fi
+          printf '0 0\n' > "$estado"
+          exit 0
+        fi
+
+        falhas=$(( ${falhas:-0} + 1 ))
+        razao=$(printf '%s' "$motivo" | tail -1)
+
+        if [ "$falhas" -ge {{.AFTER_TICKS}} ] && [ "${avisado:-0}" = "0" ]; then
+          texto=$(printf '🚨 <b>Fluxo autônomo parado</b>\n\n%s\n\nSão %s ticks seguidos com o portão fechado — nada foi despachado nesse tempo.\n\n<b>Ligar:</b> <code>task svc:up</code>' \
+                    "$(printf '%s' "$razao" | esc)" "$falhas")
+          if [ -n "{{.DRY}}" ]; then
+            printf '%s\n' "$texto"
+            avisado=1
+            echo "  ~ avisado: portão fechado há $falhas ticks"
+          elif task gh:telegram TEXT="$texto" >/dev/null 2>&1; then
+            avisado=1
+            echo "  ~ avisado: portão fechado há $falhas ticks"
+          else
+            echo "  falhou o aviso de portão fechado — retentando no próximo tick"
+          fi
+        fi
+
+        printf '%s %s\n' "$falhas" "$avisado" > "$estado"
+        echo "portão fechado ($falhas tick(s)): $razao"
 
   reap:
     desc: "Solta o lock `agent:running` de issue cujo agente morreu."
