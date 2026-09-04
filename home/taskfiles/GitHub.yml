@@ -1910,14 +1910,29 @@ tasks:
       O que todas têm em comum é mudar o Status do card — então o aviso sai de
       comparar o board de agora com o da passada anterior.
 
-      Cada mensagem traz os quatro campos: `repo#N — Título`, o Status novo (com
-      o anterior entre parênteses), a ação que aquela transição representa, e o
-      link.
+      Cada linha diz o que é. Rótulo (`Issue:`, `Subtask:` ou `PR:`) com o
+      título, o ID logo abaixo — que é o link —, o vínculo quando existe, o
+      Status novo e a ação que aquela transição representa.
 
-        🔨 alvarofpp/matria#114          <- negrito, e é o link pra issue
-        Consertar o fluxo de recuperação de senha
+        🔨 Issue: Consertar o fluxo de recuperação de senha
+        alvarofpp/matria#114                <- o link
+
         Status: In Progress
         Ação: triagem aprovada — agente vai implementar
+
+        🔨 Subtask: migration + model Invoice
+        alvarofpp/matria#161
+        Issue: Cobrança recorrente (#160)   <- a mãe, título e número
+
+        Status: In Progress
+        Ação: agente trabalhando
+
+        🔀 PR: feat(billing): endpoint de fatura
+        alvarofpp/matria#165
+        Issue: #160                         <- o `Refs #N` do corpo do PR
+
+        Status: Ready
+        Ação: aprovado — esperando o SEU merge
 
       O status anterior não aparece na mensagem — ele decide o texto da **Ação**
       (`Ready -> In Progress` é "triagem aprovada", `In Review -> In Progress` é
@@ -1973,15 +1988,22 @@ tasks:
 
         out=$(mktemp)
         # O board inteiro, uma linha por item. Campos separados por `|` porque
-        # Status ("In Progress") e título têm espaço; o título vai por último,
-        # então `|` dentro dele não quebra o `read`.
+        # Status ("In Progress") e título têm espaço; `|` que apareça num título
+        # vira `/` no jq, pra não criar campo do nada.
+        #
+        # NENHUM campo sai vazio — os opcionais saem como `-`. O `read` do shell
+        # do Task (mvdan/sh) **colapsa delimitador repetido**: `a|b|||c` devolve
+        # `c` no quarto campo em vez de vazio, e a linha inteira desloca. O bash
+        # preserva os vazios; o Task não, e o sintoma é mensagem com título no
+        # lugar do número. É a terceira divergência do shell do Task que morde
+        # aqui, junto do `[ … ] && continue` e do `continue` aninhado.
         if ! gh api graphql --paginate -f query='
           query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
             items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
               nodes{ content{ __typename
                        ... on Issue{ number title url repository{ nameWithOwner }
-                         parent{ number } subIssuesSummary{ total completed } }
-                       ... on PullRequest{ number title url author{ login } repository{ nameWithOwner } } }
+                         parent{ number title } subIssuesSummary{ total completed } }
+                       ... on PullRequest{ number title url body author{ login } repository{ nameWithOwner } } }
                 status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
           --jq '.data.user.projectV2.items.nodes[]
@@ -1989,12 +2011,17 @@ tasks:
                 | (if .content.__typename != "PullRequest" then "issue"
                    elif .content.author.login == "{{.PROJECT_OWNER}}" then "pr"
                    else "pr-alheio" end) as $k
+                | (if .content.__typename == "PullRequest"
+                   then ((.content.body // "") | [match("(?i)(refs|closes) #([0-9]+)").captures[1].string] | first // "")
+                   else ((.content.parent.number // "") | tostring) end) as $vinc
+                | (.content.parent.title // "" | gsub("\\|"; "/")) as $vinc_titulo
                 | $k + "|" + .content.url + "|" + (.status.name // "Backlog") + "|"
-                  + ((.content.parent.number // "") | tostring) + "|"
-                  + ((.content.subIssuesSummary.total // "") | tostring) + "|"
-                  + ((.content.subIssuesSummary.completed // "") | tostring) + "|"
-                  + .content.repository.nameWithOwner + "#" + (.content.number|tostring)
-                  + " — " + .content.title' > "$out"
+                  + (if $vinc == "" then "-" else $vinc end) + "|"
+                  + (if $vinc_titulo == "" then "-" else $vinc_titulo end) + "|"
+                  + ((.content.subIssuesSummary.total // 0) | tostring) + "|"
+                  + ((.content.subIssuesSummary.completed // 0) | tostring) + "|"
+                  + .content.repository.nameWithOwner + "#" + (.content.number|tostring) + "|"
+                  + (.content.title | gsub("\\|"; "/"))' > "$out"
         then
           echo "não deu pra ler o board — sem aviso neste tick"
           rm -f "$out"; exit 0
@@ -2013,7 +2040,13 @@ tasks:
         fi
 
         novo=$(mktemp)
-        while IFS='|' read -r kind url status mae total fechadas titulo; do
+        # Título e ID em campos próprios (e sem `|`, tirado no jq): antes vinham
+        # colados num campo só e a mensagem era montada quebrando string.
+        while IFS='|' read -r kind url status vinc vinc_titulo total fechadas ref titulo; do
+          # `-` é o "vazio" que o jq manda pra não colapsar campo (ver acima).
+          [ "$vinc" = "-" ] && vinc=""
+          [ "$vinc_titulo" = "-" ] && vinc_titulo=""
+          true
           antes=$(awk -v u="$url" '$1==u {sub(/^[^ ]+ /,""); print; exit}' "$snap")
           if [ "$antes" = "$status" ]; then echo "$url $status" >> "$novo"; continue; fi
 
@@ -2031,7 +2064,7 @@ tasks:
                   icone="🔨"
                   case "$antes" in
                     Ready)
-                      if [ "${total:-0}" -gt 0 ] 2>/dev/null; then acao="dividida em $total sub-issues — cada uma vira PR"
+                      if [ "${total:-0}" -gt 0 ] 2>/dev/null; then acao="dividida em $total subtasks — cada uma vira PR"
                       else acao="triagem aprovada — agente vai implementar"; fi ;;
                     "In Review") acao="revisão pediu mudanças — voltou pra implementação" ;;
                     Blocked)     acao="destravada — resposta recebida, agente retomou" ;;
@@ -2042,7 +2075,7 @@ tasks:
                 Ignored)      icone="🙈"; acao="tem dono humano — o fluxo não encosta" ;;
                 Done)
                   icone="✅"
-                  if [ "${total:-0}" -gt 0 ] 2>/dev/null; then acao="concluída — $total sub-issues entregues"
+                  if [ "${total:-0}" -gt 0 ] 2>/dev/null; then acao="concluída — $total subtasks entregues"
                   else acao="critérios de aceite conferidos — concluída"; fi ;;
                 Dropped)      icone="🗑"; acao="descartada" ;;
                 Backlog)      icone="📥"; acao="devolvida pro backlog" ;;
@@ -2073,10 +2106,27 @@ tasks:
           # Escapa o que o parser de HTML do Telegram lê como marcação. Título
           # é texto livre de qualquer repo — `&` e `<` chegam aqui.
           esc() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
-          ref=${titulo%% — *}; nome=${titulo#* — }
-          [ -z "$mae" ] || ref="$ref (filha da #$mae)"
-          texto=$(printf '%s <b><a href="%s">%s</a></b>\n%s\n\n<b>Status:</b> %s\n<b>Ação:</b> %s' \
-                    "$icone" "$(esc "$url")" "$(esc "$ref")" "$(esc "$nome")" \
+
+          # Cada linha diz o que é: `Issue:`, `Subtask:` ou `PR:` com o título,
+          # o ID logo abaixo (que é o link), e o vínculo quando existe — filha
+          # aponta a mãe, PR aponta a issue que ele cita.
+          case "$kind" in
+            issue) if [ -n "$vinc" ]; then rotulo="Subtask"; else rotulo="Issue"; fi ;;
+            *)     rotulo="PR" ;;
+          esac
+
+          vinculo=""
+          if [ -n "$vinc" ]; then
+            if [ -n "$vinc_titulo" ]; then
+              vinculo=$(printf '\n<b>Issue:</b> %s (#%s)' "$(esc "$vinc_titulo")" "$vinc")
+            else
+              vinculo=$(printf '\n<b>Issue:</b> #%s' "$vinc")
+            fi
+          fi
+
+          texto=$(printf '%s <b>%s:</b> %s\n<a href="%s">%s</a>%s\n\n<b>Status:</b> %s\n<b>Ação:</b> %s' \
+                    "$icone" "$rotulo" "$(esc "$titulo")" \
+                    "$(esc "$url")" "$(esc "$ref")" "$vinculo" \
                     "$(esc "$status")" "$(esc "$acao")")
 
           if [ -n "{{.DRY}}" ]; then
