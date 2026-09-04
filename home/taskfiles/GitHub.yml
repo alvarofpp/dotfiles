@@ -10,9 +10,15 @@ vars:
   # outro dono ("Only projects owned by the same owner as the repository can
   # be linked"), mas `gh project item-add` atravessa. Lista só a exceção —
   # repo seu entra por `task gh:link`, sem tocar aqui.
+  #
+  # NOME ATUAL, sempre. Repo renomeado (o `cozinha-app` virou `abacaxei-app`
+  # em 2026-09) não dá erro aqui: `gh issue list -R <nome-velho>` devolve
+  # lista VAZIA, com rc=0. O efeito é o fluxo inteiro ignorar o repo em
+  # silêncio — o `gh:reap` deixou oito issues presas em `agent:running` por
+  # cinco horas assim.
   EXTRA_REPOS: >-
     lucida-ia/lucida-monorepo
-    mvinnicius22/cozinha-app
+    mvinnicius22/abacaxei-app
   # Defaults aplicados pelo `gh:defaults` em item sem valor. O workflow
   # built-in "Item added to project" está desligado no projeto e não há
   # mutation pra reabilitá-lo, então quem preenche é o `gh:sync`.
@@ -394,7 +400,7 @@ tasks:
       despachar é repo que ele consegue ler.
 
       Repo de terceiro é caso normal aqui (o `lucida-monorepo` e o
-      `cozinha-app` estão no fluxo): o que decide não é o dono, é estar
+      `abacaxei-app` estão no fluxo): o que decide não é o dono, é estar
       registrado no Orca e ter `AGENTS.md`.
 
       Examples:
