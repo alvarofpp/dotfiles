@@ -1921,15 +1921,15 @@ tasks:
         Ação: triagem aprovada — agente vai implementar
 
         🔨 Subtask: migration + model Invoice
-        alvarofpp/matria#161
-        Issue: Cobrança recorrente (#160)   <- a mãe, título e número
+        alvarofpp/matria#161                <- link pra subtask
+        Issue: Cobrança recorrente (#160)   <- link pra mãe
 
         Status: In Progress
         Ação: agente trabalhando
 
         🔀 PR: feat(billing): endpoint de fatura
-        alvarofpp/matria#165
-        Issue: #160                         <- o `Refs #N` do corpo do PR
+        alvarofpp/matria#165                <- link pro PR
+        Issue: #160                         <- link pra issue do `Refs #N`
 
         Status: Ready
         Ação: aprovado — esperando o SEU merge
@@ -2002,7 +2002,7 @@ tasks:
             items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
               nodes{ content{ __typename
                        ... on Issue{ number title url repository{ nameWithOwner }
-                         parent{ number title } subIssuesSummary{ total completed } }
+                         parent{ number title url } subIssuesSummary{ total completed } }
                        ... on PullRequest{ number title url body author{ login } repository{ nameWithOwner } } }
                 status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
@@ -2015,9 +2015,15 @@ tasks:
                    then ((.content.body // "") | [match("(?i)(refs|closes) #([0-9]+)").captures[1].string] | first // "")
                    else ((.content.parent.number // "") | tostring) end) as $vinc
                 | (.content.parent.title // "" | gsub("\\|"; "/")) as $vinc_titulo
+                # A mãe traz a URL dela; o PR só tem o número da issue no corpo,
+                # e a issue mora no mesmo repo — daí dá pra montar o link.
+                | (if .content.__typename == "PullRequest"
+                   then (if $vinc == "" then "" else "https://github.com/" + .content.repository.nameWithOwner + "/issues/" + $vinc end)
+                   else (.content.parent.url // "") end) as $vinc_url
                 | $k + "|" + .content.url + "|" + (.status.name // "Backlog") + "|"
                   + (if $vinc == "" then "-" else $vinc end) + "|"
                   + (if $vinc_titulo == "" then "-" else $vinc_titulo end) + "|"
+                  + (if $vinc_url == "" then "-" else $vinc_url end) + "|"
                   + ((.content.subIssuesSummary.total // 0) | tostring) + "|"
                   + ((.content.subIssuesSummary.completed // 0) | tostring) + "|"
                   + .content.repository.nameWithOwner + "#" + (.content.number|tostring) + "|"
@@ -2042,10 +2048,11 @@ tasks:
         novo=$(mktemp)
         # Título e ID em campos próprios (e sem `|`, tirado no jq): antes vinham
         # colados num campo só e a mensagem era montada quebrando string.
-        while IFS='|' read -r kind url status vinc vinc_titulo total fechadas ref titulo; do
+        while IFS='|' read -r kind url status vinc vinc_titulo vinc_url total fechadas ref titulo; do
           # `-` é o "vazio" que o jq manda pra não colapsar campo (ver acima).
           [ "$vinc" = "-" ] && vinc=""
           [ "$vinc_titulo" = "-" ] && vinc_titulo=""
+          [ "$vinc_url" = "-" ] && vinc_url=""
           true
           antes=$(awk -v u="$url" '$1==u {sub(/^[^ ]+ /,""); print; exit}' "$snap")
           if [ "$antes" = "$status" ]; then echo "$url $status" >> "$novo"; continue; fi
@@ -2115,12 +2122,15 @@ tasks:
             *)     rotulo="PR" ;;
           esac
 
+          # A linha do vínculo também é link: da subtask dá pra abrir a mãe, e
+          # do PR dá pra abrir a issue, sem procurar no board.
           vinculo=""
           if [ -n "$vinc" ]; then
-            if [ -n "$vinc_titulo" ]; then
-              vinculo=$(printf '\n<b>Issue:</b> %s (#%s)' "$(esc "$vinc_titulo")" "$vinc")
+            if [ -n "$vinc_titulo" ]; then rotulo_vinc="$(esc "$vinc_titulo") (#$vinc)"; else rotulo_vinc="#$vinc"; fi
+            if [ -n "$vinc_url" ]; then
+              vinculo=$(printf '\n<b>Issue:</b> <a href="%s">%s</a>' "$(esc "$vinc_url")" "$rotulo_vinc")
             else
-              vinculo=$(printf '\n<b>Issue:</b> #%s' "$vinc")
+              vinculo=$(printf '\n<b>Issue:</b> %s' "$rotulo_vinc")
             fi
           fi
 
