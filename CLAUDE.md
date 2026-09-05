@@ -26,12 +26,13 @@ stow --delete home     # Unlink a single package (alias: unstow)
 
 ## Docs
 
-Este repo **não tem** `TODO.md`, `CHANGELOG.md`, `DECISION_LOG.md` nem `AGENTS.md`: desde 2026-09-03 eles vivem no submódulo privado, porque descreviam o fluxo autônomo de review inteiro (board, repos de cliente, quais camadas de segurança existem e quais nunca foram exercitadas) num repositório público.
+Este repo **não tem** `TODO.md`, `CHANGELOG.md` nem `AGENTS.md`. O `AGENTS.md` foi pro submódulo privado em 2026-09-03, porque descrevia o fluxo autônomo de review inteiro (board, repos de cliente, quais camadas de segurança existem e quais nunca foram exercitadas) num repositório público. `TODO.md` e `CHANGELOG.md` deixaram de existir em 2026-09-05, aqui e em todos os repos do board — eram a fonte nº 1 de conflito entre PRs de agentes paralelos.
 
-- Pendência, mudança e decisão **do parent** vão pra [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md) e [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md) — commit separado, porque é outro repositório.
+- **Pendência do parent é issue** em [`alvarofpp/dotfiles`](https://github.com/alvarofpp/dotfiles/issues). Não recriar `TODO.md`.
+- **Decisão do parent** vira um arquivo em [`ai/docs/decisions/`](ai/docs/decisions/README.md) (`YYYY-MM-DD-slug.md` + linha no topo do índice) — commit separado, porque é outro repositório.
 - O `AGENTS.md` foi arquivado em [`ai/docs/agents-dotfiles.md`](ai/docs/agents-dotfiles.md). Sem ele na raiz, o `task gh:review-ready` barra este repo: PR aqui não ganha revisor automático até alguém rodar `/agents-doc` de novo.
 
-O submódulo `ai/` é o repositório **privado** — o critério de admissão é privacidade, não o tema. Nasceu focado em IA, mas hoje abriga também config de serviços self-hosted (`.hermes/`, `docker/`, `.config/homepage/`). Conteúdo de IA / Claude Code / Hermes / opencode e qualquer config privada vivem **só nele** ([`ai/README.md`](ai/README.md), [`ai/TODO.md`](ai/TODO.md), [`ai/CHANGELOG.md`](ai/CHANGELOG.md), [`ai/DECISION_LOG.md`](ai/DECISION_LOG.md), [`ai/docs/DEV_ONBOARDING.md`](ai/docs/DEV_ONBOARDING.md), [`ai/docs/GLOSSARY.md`](ai/docs/GLOSSARY.md)). Parent é repo público; não adicionar IA na raiz.
+O submódulo `ai/` é o repositório **privado** — o critério de admissão é privacidade, não o tema. Nasceu focado em IA, mas hoje abriga também config de serviços self-hosted (`.hermes/`, `docker/`, `.config/homepage/`). Conteúdo de IA / Claude Code / Hermes / opencode e qualquer config privada vivem **só nele** ([`ai/README.md`](ai/README.md), [`ai/docs/decisions/`](ai/docs/decisions/README.md), [`ai/docs/DEV_ONBOARDING.md`](ai/docs/DEV_ONBOARDING.md), [`ai/docs/GLOSSARY.md`](ai/docs/GLOSSARY.md)). Parent é repo público; não adicionar IA na raiz.
 
 ## Architecture Notes
 
