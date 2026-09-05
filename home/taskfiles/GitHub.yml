@@ -739,10 +739,14 @@ tasks:
             fi ;;
         esac
 
+        # Um `--label` só, separado por vírgula (cobra faz o split): label com
+        # espaço — "app mobile", "API do app" — quebrava o `$labels` sem aspas.
+        # ponytail: quebra se um label tiver vírgula no nome; nenhum tem.
         labels=$(gh issue view "$num" -R "$repo" --json labels \
-                   --jq '[.labels[].name | select(startswith("agent") | not)] | map("--label=" + .) | join(" ")' 2>/dev/null)
-        # shellcheck disable=SC2086
-        url=$(gh issue create -R "$repo" --title "{{.TITLE}}" --body-file "{{.BODY}}" --assignee @me $labels)
+                   --jq '[.labels[].name | select(startswith("agent") | not)] | join(",")' 2>/dev/null)
+        set --
+        [ -n "$labels" ] && set -- --label "$labels"
+        url=$(gh issue create -R "$repo" --title "{{.TITLE}}" --body-file "{{.BODY}}" --assignee @me "$@")
         filha="${url##*/}"
 
         ids=$(gh api graphql -f query='
