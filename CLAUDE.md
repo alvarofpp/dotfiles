@@ -13,7 +13,7 @@ A dotfiles repo managed with [GNU Stow](https://www.gnu.org/software/stow/). Sto
 | `home/` | `$HOME` | zsh, fzf, bat, eza, zoxide, atuin, git, taskfiles, rtk config |
 | `ai/` | `$HOME` | Claude Code config (`.claude/`) + shell drop-ins (`.zshrc.d/`). **Separate git submodule** (`dotfiles-ai`) |
 | `etc/` | `/etc` | `wsl.conf` (requires sudo) |
-| `windows/` | `/mnt/c/Users/alvar` | `.wslconfig` (requires sudo) |
+| `windows/` | `/mnt/c/Users/alvar` | `.wslconfig` — **copiado, não symlinkado** (ver Architecture Notes) |
 
 ## Key Commands
 
@@ -45,4 +45,5 @@ O submódulo `ai/` é o repositório **privado** — o critério de admissão é
 - **Shell**: zsh with oh-my-zsh, headline theme, Catppuccin Mocha syntax highlighting, fzf-tab plugin.
 - **Shell drop-ins**: `home/.zshrc` sources `$HOME/.zshrc.d/*.zsh` (drop-in dir, populated by the `ai/` submodule — keeps AI-related shell helpers out of the dotfiles root) and `$HOME/.zshrc.local` if present (uncommitted secrets/overrides like `MINIMAX_API_KEY`).
 - **Platform**: WSL2 (Linux on Windows). The `windows/` package targets the Windows host filesystem.
+- **`windows/.wslconfig` é copiado pelo `stow.sh`, não symlinkado** — mesma armadilha do `windows-terminal-settings.json`: o Windows não segue symlink pra dentro do ext4 do WSL, e um `.wslconfig` linkado é lido como **inexistente, sem erro nenhum**. Ficou assim de 2025-10-24 a 2026-09-06: a VM rodou o tempo todo no default de 50% da RAM em vez dos 24GB do arquivo. Conferir com `grep MemTotal /proc/meminfo` (24GB ≈ `24000000 kB`); aplicar exige `wsl --shutdown`, porque o arquivo só é lido quando a VM sobe.
 - **`windows-terminal-settings.json`** (root) is a **manual copy** of the live Windows Terminal config at `/mnt/c/Users/alvar/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json` — **not stowed, not symlinked**. A symlink can't work: Windows won't follow a symlink into the WSL ext4, and WT rewrites the file atomically (clobbering any link). Edit the real file for effect, then `cp` it back over the repo copy before committing. See `ai/DECISION_LOG.md` (2026-07-14).

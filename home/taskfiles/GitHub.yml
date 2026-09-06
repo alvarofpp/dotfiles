@@ -968,13 +968,45 @@ tasks:
       com `blockedBy` e o PR dela tem `--base` na branch da irmã. Doc
       append-only é da última filha.
 
+      **Teto de {{.MAX_AGENTS}} agentes simultâneos.** Cada agente sobe a
+      instância inteira do projeto — 7 containers no abacaxei, 12 na matria —
+      e o tick não olhava quantas já estavam de pé. Em 2026-09-06 o board
+      tinha 10 issues em In Progress, o tick despachou as 10 de uma vez, 70
+      containers subiram na mesma VM do WSL e o engine do Docker morreu às
+      04:21 afogado em health check e DNS. As 10 sessões morreram junto e
+      deixaram o `agent:running` preso — e como o `gh:reap` também depende do
+      `gh:agents-ready`, que depende do Docker, o fluxo inteiro parou calado.
+
+      O que sobra do teto fica pro próximo tick: 15 min depois as vagas que
+      fecharam são preenchidas. `MAX_AGENTS=1` serializa o fluxo.
+
       Examples:
         - task gh:dispatch
+        - task gh:dispatch MAX_AGENTS=1
+    vars:
+      MAX_AGENTS: '{{.MAX_AGENTS | default 3}}'
     cmds:
       - |
         task gh:agents-ready || exit 0
 
+        # Vagas ocupadas = locks `agent:running` de pé. Contado aqui, e não
+        # pelo número de worktrees ou de containers, porque é o mesmo sinal
+        # que o `gh:issues` usa pra esconder a issue: os dois nunca divergem.
+        ativos=0
+        for r in $(task gh:repos | sort -u); do
+          n=$(gh issue list -R "$r" --state open --label agent:running \
+                --limit 100 --json number --jq 'length' 2>/dev/null || echo 0)
+          ativos=$(( ativos + ${n:-0} ))
+        done
+        echo "· $ativos/{{.MAX_AGENTS}} agentes de pé"
+
         task gh:issues STATUS="In Progress" | while read -r ref item; do
+          # `break`, não `exit`: o teto encerra o despacho, não o tick.
+          if [ "$ativos" -ge "{{.MAX_AGENTS}}" ]; then
+            echo "  · teto de {{.MAX_AGENTS}} agentes — o resto espera o próximo tick"
+            break
+          fi
+
           repo="${ref%\#*}"; num="${ref##*\#}"
 
           pr=$(gh pr list -R "$repo" --state open --label agent --limit 50 \
@@ -1006,7 +1038,9 @@ tasks:
 
           echo "→ $ref: $([ -n "$pr" ] && echo "aplicando review do #$pr" || echo implementando)"
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
-          if ! task gh:orca ISSUE="$ref" PROMPT="$prompt" >/dev/null; then
+          if task gh:orca ISSUE="$ref" PROMPT="$prompt" >/dev/null; then
+            ativos=$(( ativos + 1 ))
+          else
             echo "  falhou ao abrir a worktree — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
           fi

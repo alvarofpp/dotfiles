@@ -61,6 +61,24 @@ run_stow_sudo() {
   sudo "$STOW" "${STOW_FLAGS[@]}" -d "$DOTFILES_DIR" -t "$target" "$pkg"
 }
 
+# `windows/` é COPIADO, nunca stowado. O Windows não segue symlink pra dentro
+# do ext4 do WSL, então um `.wslconfig` linkado é lido como inexistente — sem
+# erro nenhum. Ficou assim de 2025-10-24 a 2026-09-06: a VM rodou o tempo todo
+# no default de 50% da RAM em vez dos 24GB do arquivo, e foi metade da razão
+# do engine do Docker morrer sob os agentes em paralelo. Mesma armadilha do
+# `windows-terminal-settings.json` (ver CLAUDE.md).
+# Aplicar exige `wsl --shutdown` — o arquivo só é lido quando a VM sobe.
+copy_windows() {
+  local target="$1"
+  echo "📋 cp windows/* → $target (cópia: symlink não funciona no Windows)"
+  # `if`, não `[ … ] && return`: sob `set -e` a lista `&&` que falha (DRY=0)
+  # aborta o script inteiro.
+  if [ "$DRY" -eq 1 ]; then
+    return 0
+  fi
+  cp "$DOTFILES_DIR/windows/.wslconfig" "$target/.wslconfig"
+}
+
 # Sempre: home (shell tooling) + ai (submodule)
 run_stow_user home "$HOME"
 run_stow_user ai "$HOME"
@@ -69,7 +87,7 @@ run_stow_user ai "$HOME"
 if is_wsl2; then
   run_stow_sudo etc /etc
   if [ -d /mnt/c/Users/alvar ]; then
-    run_stow_sudo windows /mnt/c/Users/alvar
+    copy_windows /mnt/c/Users/alvar
   else
     echo "⚠️  /mnt/c/Users/alvar não existe — pulando pacote windows."
   fi
