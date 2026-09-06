@@ -1,0 +1,16 @@
+[Unit]
+# Coleta de lixo do Docker. O que cresce sozinho é build cache (12,6 GB numa
+# semana, medido em 2026-09-06) e volume anônimo de container recriado.
+# NÃO toca volume nomeado: volume nomeado é banco de instância, e instância
+# parada com `dev:down` não é instância morta. Pra essa há `docker:gc:instancias`,
+# que é manual e pergunta antes.
+Description=Coleta de lixo do Docker (build cache, imagem pendurada, volume anônimo)
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=/home/alvaro/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+WorkingDirectory=%h
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task docker:gc
+StandardOutput=journal
+StandardError=journal

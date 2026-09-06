@@ -15,9 +15,148 @@ tasks:
       - docker rmi $(docker images --filter "dangling=true" -q --no-trunc) --force
 
   prune:
-    desc: "Prune all unused Docker objects including containers, images and volumes."
+    desc: "Prune all unused Docker objects including containers and images."
+    summary: |
+      **Sem `--volumes`, de propósito.** O `--volumes` apagava todo volume sem
+      container — e no modelo de instância por worktree isso inclui o banco de
+      qualquer instância meramente parada com `task dev:down`. Os volumes são
+      `external: true` justamente pra sobreviver a `down --volumes`; um
+      `system prune --volumes` desfazia isso pelas costas.
+
+      Volume anônimo (lixo de container recriado) sai no `docker:gc`; volume
+      nomeado de instância morta sai no `docker:gc:instancias`, que pergunta
+      antes.
     cmds:
-      - docker system prune -f --volumes
+      - docker system prune -f
+
+  gc:
+    desc: "Coleta de lixo diária: build cache, imagem pendurada e volume anônimo."
+    summary: |
+      O que de fato cresce sozinho. Medido em 2026-09-06, depois de uma semana:
+      **12,6 GB só de build cache** — 100% recuperável, e o maior vazamento da
+      máquina. Mais 274 volumes anônimos (3,9 GB), que são restos de container
+      recriado e não pertencem a projeto nenhum.
+
+      **Nada aqui apaga volume nomeado.** Volume nomeado é banco de instância
+      (`<projeto>_pg_data`), e instância parada não é instância morta — ver
+      `docker:gc:instancias`.
+
+      `KEEP` é a idade mínima pra sair; o default de 168h (7 dias) preserva o
+      cache do que você mexeu na semana.
+
+      O `.vhdx` não encolhe sozinho depois disto: pra devolver o espaço ao
+      Windows é preciso compactar (`compact-wsl-disks.ps1`).
+
+      Examples:
+        - task docker:gc
+        - task docker:gc KEEP=72h
+    vars:
+      KEEP: '{{.KEEP | default "168h"}}'
+    cmds:
+      - |
+        docker system df | head -6
+
+        echo "→ build cache mais velho que {{.KEEP}}"
+        docker builder prune -f --filter "until={{.KEEP}}" | tail -1
+
+        echo "→ imagens penduradas (<none>)"
+        docker image prune -f | tail -1
+
+        # Volume anônimo = nome de 64 hex. Só o Docker gera esse nome, então
+        # não há como acertar volume de projeto por engano — e `dangling=true`
+        # garante que nenhum container o referencia.
+        echo "→ volumes anônimos sem container"
+        n=$(docker volume ls -qf dangling=true 2>/dev/null \
+              | grep -cE '^[0-9a-f]{64}$' || true)
+        docker volume ls -qf dangling=true 2>/dev/null \
+          | grep -E '^[0-9a-f]{64}$' \
+          | xargs -r docker volume rm >/dev/null 2>&1 || true
+        echo "removidos: ${n:-0}"
+
+        echo "--- depois ---"
+        docker system df | head -6
+
+  gc:instancias:
+    desc: "Apaga volume de instância cuja worktree não existe mais. Pergunta antes."
+    summary: |
+      O vazamento que o `docker:gc` não pode tocar. Worktree arquivada sem
+      `task dev:destroy` deixa `<repo>-<worktree>_pg_data` pra trás pra sempre,
+      e ninguém mais sabe a que ela pertencia.
+
+      A worktree viva é a fonte da verdade: o nome do projeto sai dela pela
+      mesma regra do `COMPOSE_PROJECT_NAME` (ver a regra global
+      `devcontainers.md`), e volume cujo prefixo não casa com worktree nenhuma
+      é órfão.
+
+      **Apaga banco**, então nunca roda no timer e sempre lista antes de
+      perguntar. Instância que você só parou com `dev:down` continua com a
+      worktree no disco e não aparece aqui.
+
+      Examples:
+        - task docker:gc:instancias
+    cmds:
+      - |
+        vivos=$(
+          for d in "$HOME"/orca/workspaces/*/*/ "$HOME"/alvarofpp/*/; do
+            [ -e "$d/.git" ] || continue
+            (
+              cd "$d" || exit 0
+              repo=$(basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")")
+              here=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")
+              [ -n "$repo" ] && [ -n "$here" ] || exit 0
+              case "$here" in "$repo"|"$repo"-*) echo "$here" ;; *) echo "$repo-$here" ;; esac
+            )
+          done | tr '[:upper:]' '[:lower:]' | sort -u
+        )
+        if [ -z "$vivos" ]; then
+          echo "nenhuma worktree encontrada — abortando pra não apagar tudo"
+          exit 1
+        fi
+        echo "instâncias vivas:"; echo "$vivos" | sed 's/^/  · /'
+
+        # Repos que TÊM worktree — é o que autoriza tratar `<repo>-<algo>` como
+        # instância. Sem isto, `farol-dados_postgres_data` e `kindle-io_db_data`
+        # (projetos cujo checkout não está em nenhum destes diretórios) pareciam
+        # órfãos e entravam na lista de exclusão — falso positivo que apagaria
+        # banco de produção local.
+        repos=$(ls -1 "$HOME/orca/workspaces" 2>/dev/null | tr '[:upper:]' '[:lower:]' | sort -u)
+
+        orfaos=""
+        desconhecidos=""
+        for v in $(docker volume ls --format '{{ "{{" }}.Name{{ "}}" }}' 2>/dev/null | grep -vE '^[0-9a-f]{64}$'); do
+          # 1. casa com worktree viva -> instância de pé, fica.
+          for p in $vivos; do
+            case "$v" in "${p}_"*) continue 2 ;; esac
+          done
+          # 2. casa com o nome cru de um repo -> instância PRINCIPAL, nunca sai.
+          for r in $repos; do
+            case "$v" in "${r}_"*) continue 2 ;; esac
+          done
+          # 3. tem cara de `<repo>-<worktree>` de um repo conhecido e não casou
+          #    com worktree nenhuma -> a worktree sumiu, o volume ficou.
+          for r in $repos; do
+            case "$v" in "${r}-"*) orfaos="$orfaos$v\n"; continue 2 ;; esac
+          done
+          # 4. projeto que não conhecemos. Fica, e é listado pra você decidir.
+          desconhecidos="$desconhecidos$v\n"
+        done
+        orfaos=$(printf '%b' "$orfaos" | sed '/^$/d')
+
+        if [ -n "$desconhecidos" ]; then
+          echo
+          echo "não reconhecidos (NÃO serão tocados — repo sem worktree aqui):"
+          printf '%b' "$desconhecidos" | sed '/^$/d' | sed 's/^/  ? /'
+        fi
+
+        if [ -z "$orfaos" ]; then echo; echo "nenhum volume órfão."; exit 0; fi
+
+        echo; echo "volumes de instância SEM worktree (serão APAGADOS):"
+        echo "$orfaos" | sed 's/^/  ✗ /'
+        echo
+        printf 'apagar estes %s volumes? [digite APAGAR] ' "$(echo "$orfaos" | wc -l)"
+        read -r ok
+        if [ "$ok" != "APAGAR" ]; then echo "abortado."; exit 0; fi
+        echo "$orfaos" | xargs -r docker volume rm
 
   pull-all:
     desc: "Pull all Docker images, excluding those with '<none>' or 'development' tags."

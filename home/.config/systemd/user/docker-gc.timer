@@ -1,0 +1,12 @@
+[Unit]
+Description=Roda a coleta de lixo do Docker uma vez por dia
+
+[Timer]
+# 05:00: depois da janela em que o board despacha de madrugada, antes do dia.
+OnCalendar=*-*-* 05:00:00
+# Notebook desligado às 5h roda no próximo boot.
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

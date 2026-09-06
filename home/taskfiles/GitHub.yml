@@ -980,11 +980,22 @@ tasks:
       O que sobra do teto fica pro próximo tick: 15 min depois as vagas que
       fecharam são preenchidas. `MAX_AGENTS=1` serializa o fluxo.
 
+      **`MIN_FREE_MB` é o que faz do teto uma garantia e não um palpite.** O
+      custo de um agente é dominado pelo toolchain, não pelos containers: quem
+      o oom-killer derrubou em 2026-09-05 foi um `dart:frontend_server` de
+      832 MB, e um agente de repo Flutter come 1,5–2,5 GB entre Claude Code,
+      analysis server e `flutter test`. Sete disso não cabem numa VM de 15,5 GB;
+      cabem numa de 24 GB. Como o `.wslconfig` já mentiu uma vez sobre esse
+      número (era symlink, o Windows nunca leu — ver `CLAUDE.md`), o teto não
+      confia na conta: mede `MemAvailable` antes de cada despacho e para quando
+      a folga acaba, valha o `.wslconfig` ou não.
+
       Examples:
         - task gh:dispatch
         - task gh:dispatch MAX_AGENTS=1
     vars:
-      MAX_AGENTS: '{{.MAX_AGENTS | default 3}}'
+      MAX_AGENTS: '{{.MAX_AGENTS | default 7}}'
+      MIN_FREE_MB: '{{.MIN_FREE_MB | default 3072}}'
     cmds:
       - |
         task gh:agents-ready || exit 0
@@ -1004,6 +1015,14 @@ tasks:
           # `break`, não `exit`: o teto encerra o despacho, não o tick.
           if [ "$ativos" -ge "{{.MAX_AGENTS}}" ]; then
             echo "  · teto de {{.MAX_AGENTS}} agentes — o resto espera o próximo tick"
+            break
+          fi
+
+          # `MemAvailable`, não `MemFree`: cache conta como disponível, e é o
+          # número que o kernel usa pra decidir se chama o oom-killer.
+          livre=$(( $(awk '/^MemAvailable:/{print $2}' /proc/meminfo) / 1024 ))
+          if [ "$livre" -lt "{{.MIN_FREE_MB}}" ]; then
+            echo "  · só ${livre}MB livres (piso {{.MIN_FREE_MB}}MB) — o resto espera o próximo tick"
             break
           fi
 
