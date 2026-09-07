@@ -906,11 +906,19 @@ tasks:
       - |
         ref=$(printf '%s' "{{.ISSUE}}" | sed -E 's#^https://github\.com/##; s#/issues/#\##')
         repo="${ref%\#*}"; num="${ref##*\#}"
+        # Seletor da worktree ESCOPADO POR REPO. O `issue:<n>` do Orca casa
+        # pelo número da issue e ignora o repositório: com vários repos no
+        # board, todo número existe em mais de um. Em 2026-09-07 o `gh:close`
+        # processou `lucida-monorepo#14` (Done) e o `orca worktree rm
+        # --worktree issue:14` apagou a worktree do `abacaxei-app#14`, que o
+        # `gh:dispatch` tinha criado 87s antes — a issue ficou em In Progress
+        # com `agent:running` e sem worktree, e todo tick repetia a remoção.
+        wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
         title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
         prompt="$PROMPT"
         [ -n "$prompt" ] || prompt="Implemente a issue $repo#$num — $title. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments."
 
-        if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
+        if orca worktree show --worktree "$wtsel" >/dev/null 2>&1; then
           # O prompt vai por ARQUIVO, não na linha de comando. O `--command` é
           # digitado num zsh interativo, e a expansão de histórico acontece ao
           # LER a linha: o `!` de `<!-- agent:review -->` vira
@@ -928,7 +936,7 @@ tasks:
           # de sessão acabada.
           pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
           printf '%s' "$prompt" > "$pf"
-          orca terminal create --worktree "issue:$num" --title "issue #$num" \
+          orca terminal create --worktree "$wtsel" --title "issue #$num" \
             --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null
           echo "terminal aberto na worktree issue-$num"
         else
@@ -1232,9 +1240,13 @@ tasks:
           # `zsh: event not found` apareceu). De quebra conserta o `gh:reap`, que
           # usa 'existe terminal' como sinal de vida e não distinguia sessão viva
           # de sessão acabada.
+          # Seletor ESCOPADO POR REPO: `issue:<n>` casa só pelo número e, com
+          # vários repos no board, atinge a worktree de outro repositório.
+          # Ver o comentário longo no `gh:orca`.
+          wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
           pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
           printf '%s' "$prompt" > "$pf"
-          if ! orca terminal create --worktree "issue:$num" \
+          if ! orca terminal create --worktree "$wtsel" \
                  --title "review #$pr" \
                  --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
@@ -1942,8 +1954,11 @@ tasks:
               fi
             fi
 
-            if orca worktree show --worktree "issue:$num" >/dev/null 2>&1; then
-              orca worktree rm --worktree "issue:$num" --run-hooks >/dev/null 2>&1 \
+            # Seletor ESCOPADO POR REPO — foi exatamente aqui que o `issue:<n>`
+            # global apagou a worktree do repo errado. Ver o `gh:orca`.
+            wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
+            if orca worktree show --worktree "$wtsel" >/dev/null 2>&1; then
+              orca worktree rm --worktree "$wtsel" --run-hooks >/dev/null 2>&1 \
                 && echo "    worktree issue-$num removida" \
                 || echo "    worktree issue-$num não removida — confira no Orca"
             fi
@@ -2468,7 +2483,10 @@ tasks:
               # consertado o grep por `id`, que prendeu as issues #116/#121/#123
               # do matria em 2026-09-01.
               # Worktree que não existe devolve 0, e o lock cai.
-              vivos=$(task gh:agents-busy WT="issue:$num" 2>/dev/null)
+              # Seletor ESCOPADO POR REPO: sem isto o reap contava o terminal
+              # da worktree de OUTRO repo com o mesmo número. Ver o `gh:orca`.
+              wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
+              vivos=$(task gh:agents-busy WT="$wtsel" 2>/dev/null)
               # `if`, não `[ … ] && continue`: teste falso aborta o bloco sob
               # o errexit do shell do Task.
               if [ "${vivos:-0}" != "0" ]; then continue; fi
