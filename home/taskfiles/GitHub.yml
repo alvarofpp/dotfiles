@@ -414,6 +414,152 @@ tasks:
         [ -n "$path" ] || { echo "  ! $nome: não está registrado no Orca" >&2; exit 1; }
         echo "$path"
 
+  merge-approved:
+    desc: "Mescla em cadeia todo PR `agent:approved` de um repo, sem esperar tick. REPO=owner/name"
+    summary: |
+      O merge é o passo humano do fluxo, mas "humano" não pode significar
+      "um PR a cada tick de 15 min". Esta task mescla a fila inteira de uma vez.
+
+      **O que travava a fila.** Todo PR do fluxo acrescenta uma linha no topo
+      de `docs/decisions/README.md`, e o repo declara `merge=union` pra esse
+      arquivo no `.gitattributes`. Só que **o GitHub não honra merge driver de
+      `.gitattributes`** — union existe apenas no git local. Então: PR A
+      mescla, os outros sete viram `DIRTY`/`CONFLICTING` no GitHub na mesma
+      hora, e cada um precisa de uma sessão de agente inteira só pra rodar
+      `git merge origin/main` e dar push. Medido em 2026-09-07: os 8 PRs
+      mesclavam **limpos** em sequência pelo `git merge-tree` local e os 8
+      apareciam em conflito no GitHub. A diferença era uma linha, sempre a
+      mesma.
+
+      **Como esta task resolve.** Ela traz a main pra branch usando o git
+      local, onde o union vale — e sem checkout: `git merge-tree` produz a
+      árvore, `git commit-tree` a transforma em commit de merge e o push vai
+      direto pra branch. Nada de worktree, nada de mexer no seu checkout.
+
+      Ordem: PR mais antigo primeiro. A cada volta a main já mudou, então o
+      próximo é atualizado contra a main nova.
+
+      **CI.** Não espera por padrão — a atualização é de doc e o código já
+      passou. Mas lê o estado dos checks antes e **pula PR vermelho**, dizendo
+      qual. `FORCE=1` mescla mesmo assim; `WAIT_CI=1` espera cada um ficar
+      verde antes de mesclar.
+
+      Conflito que o union não resolve (código de verdade) não é chutado aqui:
+      o PR é pulado com o motivo, e segue pro `gh:unstick`, que despacha um
+      agente pra resolver olhando os dois lados.
+
+      Examples:
+        - task gh:merge-approved REPO=mvinnicius22/abacaxei-app DRY=1
+        - task gh:merge-approved REPO=mvinnicius22/abacaxei-app
+        - task gh:merge-approved REPO=alvarofpp/matria METHOD=squash
+    requires:
+      vars: [REPO]
+    vars:
+      DIR: '{{.DIR | default ""}}'
+      METHOD: '{{.METHOD | default "merge"}}'
+      DRY: '{{.DRY | default "0"}}'
+      FORCE: '{{.FORCE | default "0"}}'
+      WAIT_CI: '{{.WAIT_CI | default "0"}}'
+    cmds:
+      - |
+        # Resolve o checkout por varredura barata antes de cair no
+        # `gh:repo-path`: o `orca repo list` que ele usa leva ~4 min com o
+        # runtime ocupado, e aqui ele seria chamado a cada rodada.
+        # `DIR=` curto-circuita os dois.
+        dir="{{.DIR}}"
+        if [ -z "$dir" ]; then
+          nome=$(printf '%s' "{{.REPO}}" | sed 's#.*/##')
+          for c in "$HOME/$nome" "$HOME"/*/"$nome"; do
+            [ -d "$c/.git" ] || continue
+            url=$(git -C "$c" remote get-url origin 2>/dev/null)
+            case "$url" in *"{{.REPO}}"*) dir="$c"; break ;; esac
+          done
+        fi
+        [ -n "$dir" ] || dir=$(task gh:repo-path REPO={{.REPO}}) || exit 1
+        cd "$dir" || exit 1
+        echo "checkout: $dir"
+        base=$(gh repo view {{.REPO}} --json defaultBranchRef --jq .defaultBranchRef.name)
+
+        prs=$(gh pr list -R {{.REPO}} --state open --label agent:approved \
+                --limit 50 --json number --jq '[.[].number] | sort | .[]')
+        [ -n "$prs" ] || { echo "nenhum PR agent:approved em {{.REPO}}."; exit 0; }
+        echo "fila: $(echo "$prs" | tr '\n' ' ')"
+
+        for pr in $prs; do
+          info=$(gh pr view "$pr" -R {{.REPO}} --json headRefName,mergeable,statusCheckRollup,title)
+          br=$(printf '%s' "$info" | jq -r .headRefName)
+          titulo=$(printf '%s' "$info" | jq -r .title)
+          # `state` cobre check run e `conclusion` cobre status legado; um dos
+          # dois vem nulo em cada tipo, e contar nulo como falha reprovaria PR
+          # verde.
+          ruins=$(printf '%s' "$info" | jq '[(.statusCheckRollup // [])[]
+                    | (.conclusion // .state // "") | ascii_downcase
+                    | select(. == "failure" or . == "timed_out" or . == "cancelled" or . == "error")] | length')
+
+          echo "── #$pr ($br) — $titulo"
+
+          if [ "${ruins:-0}" != "0" ] && [ "{{.FORCE}}" != "1" ]; then
+            echo "   ✗ $ruins check(s) vermelho(s) — pulando (FORCE=1 mescla assim mesmo)"
+            continue
+          fi
+
+          if [ "{{.WAIT_CI}}" = "1" ]; then
+            echo "   · esperando o CI…"
+            gh pr checks "$pr" -R {{.REPO}} --watch --fail-fast >/dev/null 2>&1 \
+              || { echo "   ✗ CI não ficou verde — pulando"; continue; }
+          fi
+
+          git fetch origin --quiet
+          mainsha=$(git rev-parse "origin/$base")
+          headsha=$(git rev-parse "origin/$br")
+
+          # Já contém a main? Nada a atualizar.
+          if git merge-base --is-ancestor "$mainsha" "$headsha"; then
+            echo "   · já está em dia com $base"
+          else
+            # merge-tree honra o .gitattributes (union), que é justamente o que
+            # o GitHub ignora. Sem working tree: só objetos.
+            tree=$(git merge-tree --write-tree "$headsha" "$mainsha" 2>/dev/null) || {
+              echo "   ✗ conflito real (não é o índice append-only) — deixa pro gh:unstick"
+              continue
+            }
+            novo=$(git commit-tree "$tree" -p "$headsha" -p "$mainsha" \
+                     -m "Merge branch '$base' into $br")
+            if [ "{{.DRY}}" = "1" ]; then
+              echo "   · [dry] traria $base pra $br (commit $novo)"
+            else
+              # Chaves obrigatórias: `$novo:refs/...` é lido como modificador
+              # `:r` do zsh e o refspec chega mutilado ("efs/heads/...").
+              git push origin "${novo}:refs/heads/${br}" --quiet \
+                && echo "   · $base trazida pra $br" \
+                || { echo "   ✗ push recusado — pulando"; continue; }
+            fi
+          fi
+
+          if [ "{{.DRY}}" = "1" ]; then
+            echo "   · [dry] mesclaria com --{{.METHOD}}"
+            continue
+          fi
+
+          # O GitHub recalcula mergeability de forma preguiçosa; logo depois do
+          # push ele ainda responde o valor velho e o merge sai 405. Tenta até
+          # o cache virar em vez de desistir na primeira.
+          ok=0
+          for _ in 1 2 3 4 5 6; do
+            if gh pr merge "$pr" -R {{.REPO}} --{{.METHOD}} --delete-branch >/dev/null 2>&1; then
+              ok=1; break
+            fi
+            sleep 10
+          done
+          if [ "$ok" = "1" ]; then
+            echo "   ✓ mesclado"
+          else
+            echo "   ✗ o GitHub recusou o merge — confira: gh pr view $pr -R {{.REPO}}"
+          fi
+        done
+
+        echo "--- fim. Rode 'task gh:done' pra acertar os cards do board. ---"
+
   review-ready:
     desc: "Diz se um repo cumpre o pré-requisito do fluxo: AGENTS.md válido. REPO=owner/name"
     summary: |
