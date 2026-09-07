@@ -299,10 +299,79 @@ tasks:
 
       Sai não-zero com o motivo. Rode solto pra saber por que o fluxo parou.
 
+      **Engine do Docker morto ele conserta sozinho.** Ver o comentário no
+      corpo: o Docker Desktop não se recupera, então o tick mata e relança a
+      app, espera até `DOCKER_WAIT` e segue. `DOCKER_COOLDOWN` evita relançar a
+      cada tick quando não adianta. `DOCKER_START=true` desarma o relançamento
+      (usado pra testar a detecção sem derrubar nada).
+
       Examples:
         - task gh:agents-ready
+        - task gh:agents-ready DOCKER_START=true
+    vars:
+      DOCKER_APP: '{{.DOCKER_APP | default "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe"}}'
+      DOCKER_WAIT: '{{.DOCKER_WAIT | default 180}}'
+      DOCKER_COOLDOWN: '{{.DOCKER_COOLDOWN | default 1800}}'
+      DOCKER_START: '{{.DOCKER_START | default "/mnt/c/Windows/System32/taskkill.exe /IM \"Docker Desktop.exe\" /F >/dev/null 2>&1 || true; sleep 5; /mnt/c/Windows/System32/cmd.exe /c start \"\" \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\" >/dev/null 2>&1 || true"}}'
     cmds:
       - |
+        # O engine do Docker é conferido ANTES do portão. Com ele morto, o
+        # `docker ps` abaixo falha e o tick dizia "stack svc fora do ar" — que
+        # é diagnóstico errado, e o fluxo repetia isso de hora em hora sem
+        # nunca tentar consertar. Em 2026-09-07 foram 37 ticks assim (9h15):
+        # o supervisor do Docker Desktop não recupera o engine sozinho, fica em
+        # loop eterno esperando o `docker.proxy.sock` que ninguém cria.
+        #
+        # Três tentativas antes de declarar morto: `docker info` também falha
+        # enquanto o engine está subindo, e matar um Docker que está nascendo
+        # seria pior que esperar.
+        vivo=0
+        for _ in 1 2 3; do
+          if docker info >/dev/null 2>&1; then vivo=1; break; fi
+          sleep 8
+        done
+
+        if [ "$vivo" = "0" ]; then
+          echo "engine do Docker não responde"
+          estado="$HOME/.local/state/gh-board/docker-restart"
+          mkdir -p "$(dirname "$estado")"
+          ultimo=0; [ -f "$estado" ] && read -r ultimo < "$estado"
+          agora=$(date +%s)
+
+          if [ ! -f "{{.DOCKER_APP}}" ]; then
+            echo "  sem Docker Desktop nesta máquina — nada a relançar"
+            exit 1
+          fi
+          # Cooldown: relançar a cada tick não conserta nada e ainda empilha
+          # processo. Uma tentativa a cada dois ticks.
+          if [ $(( agora - ${ultimo:-0} )) -lt {{.DOCKER_COOLDOWN}} ]; then
+            echo "  já relançado há menos de {{.DOCKER_COOLDOWN}}s — esperando o anterior"
+            exit 1
+          fi
+          echo "$agora" > "$estado"
+
+          echo "  relançando o Docker Desktop..."
+          # `docker desktop stop` e `restart` do CLI TRAVAM em "wsl.exe:
+          # context deadline exceeded" — testado nos dois incidentes, 06 e 07/09.
+          # Matar a app e relançar é o que funciona.
+          {{.DOCKER_START}}
+
+          n=0
+          while [ "$n" -lt {{.DOCKER_WAIT}} ]; do
+            sleep 10; n=$((n+10))
+            if docker info >/dev/null 2>&1; then break; fi
+          done
+          if ! docker info >/dev/null 2>&1; then
+            echo "  engine não voltou em {{.DOCKER_WAIT}}s — nada despachado"
+            exit 1
+          fi
+          echo "  engine de volta após ${n}s"
+          # Os containers da stack svc voltam sozinhos (`restart: unless-stopped`).
+          # Quem deu `task svc:down` de propósito não tem container pra reiniciar,
+          # então o portão continua fechado — o consentimento é preservado.
+          sleep 15
+        fi
+
         if [ -z "$(docker ps -q --filter name=svc-traefik --filter status=running)" ]; then
           echo "stack svc: fora do ar — fluxo autônomo desligado (task svc:up pra ligar)"
           exit 1
