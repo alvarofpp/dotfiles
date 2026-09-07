@@ -1889,6 +1889,32 @@ tasks:
           2>/dev/null \
         | while read -r ref; do
             repo="${ref%\#*}"; num="${ref##*\#}"
+
+            # Blocked SEM pergunta é beco sem saída: o destravamento abaixo
+            # procura um comentário com `<!-- agent:question`, e sem ele a issue
+            # nunca é alcançada por tick nenhum — Blocked também não é lida pelo
+            # `gh:prep` nem pelo `gh:dispatch`. Acontece quando a sessão de
+            # triagem move o card e morre antes de comentar (abacaxei-app#37,
+            # 2026-09-05: dois status changes em 13s e zero comentários; ficou
+            # parada dois dias sem ninguém poder destravar).
+            # Devolver pra Ready é seguro: o `gh:prep` re-tria e, se a dúvida
+            # for real, bloqueia de novo — aí com a pergunta.
+            perguntas=$(gh api "repos/$repo/issues/$num/comments" --paginate \
+              --jq '[.[] | select(.body | test("<!-- agent:question"))] | length' 2>/dev/null)
+            if [ "${perguntas:-0}" = "0" ]; then
+              # Um aviso só, pra um prep que falhe sempre não virar um
+              # comentário por tick.
+              ja=$(gh api "repos/$repo/issues/$num/comments" --paginate \
+                --jq '[.[] | select(.body | test("<!-- agent:blocked-sem-pergunta -->"))] | length' 2>/dev/null)
+              if [ "${ja:-0}" = "0" ]; then
+                gh issue comment "$num" -R "$repo" --body "$(printf '<!-- agent:blocked-sem-pergunta -->\n**Fluxo** — esta issue estava em Blocked sem nenhuma pergunta registrada, e nesse estado nada consegue destravá-la. Devolvendo pra Ready pra ser triada de novo.')" >/dev/null 2>&1 || true
+              fi
+              echo "  ~ $ref: Blocked sem pergunta — devolvendo pra Ready"
+              task gh:issue-status REF="$ref" VALUE="Ready" >/dev/null 2>&1 \
+                || task gh:issue-status REF="$ref" VALUE="Ready"
+              continue
+            fi
+
             respondida=$(gh issue view "$num" -R "$repo" --json comments \
               --jq '[.comments[] | .body] as $b
                     | ([$b | to_entries[] | select(.value | test("<!-- agent:question")) | .key] | last) as $q
