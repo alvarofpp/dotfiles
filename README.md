@@ -51,6 +51,11 @@ cd dotfiles
 ./stow.sh
 ```
 
+On WSL2, `windows/.wslconfig` is **copied** to `/mnt/c/Users/<you>/`, not
+symlinked — Windows does not follow a symlink into the WSL ext4, and a symlinked
+`.wslconfig` is read as absent, with no error. It only takes effect after
+`wsl --shutdown`; check with `grep MemTotal /proc/meminfo`.
+
 ## Appearance
 
 For my color theme I like [Catppuccin][themes-catppuccin].
