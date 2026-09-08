@@ -2075,9 +2075,10 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Quatro: a detecção de pergunta humana do `gh:pending-question`, o
+      Cinco: a detecção de pergunta humana do `gh:pending-question`, o
       orçamento de rodadas do `gh:review-requested`, a máquina de estados do
-      `gh:gate-watch` e o filtro do `gh:issues` sobre o snapshot do board.
+      `gh:gate-watch`, o filtro do `gh:issues` sobre o snapshot do board e a
+      leitura de parentesco do `gh:kin`.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -2089,6 +2090,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/review-rounds.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/gate-watch.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/board-cache.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/kin.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
