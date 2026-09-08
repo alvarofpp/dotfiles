@@ -789,6 +789,18 @@ tasks:
       Terminal que nunca escreveu nada conta como vivo e não é fechado — é o
       terminal recém-criado, que ainda não teve tempo de imprimir.
 
+      **Sessão PARADA não é sessão morta.** Claude Code que bate no limite de
+      gasto fica vivo na TUI, com o prompt inteiro no contexto, e retoma com um
+      `orca terminal send` — mas para de escrever, que é exatamente o sinal que
+      este corte usa pra declarar morte. Em 2026-09-04 quatro sessões do
+      `abacaxei-app` ficaram assim; custou zero porque o limite bateu antes de
+      qualquer trabalho, mas no meio de uma implementação custaria a sessão.
+
+      Por isso, antes de fechar, a tela é lida: terminal cuja última saída casa
+      com o texto do limite (`STALL_RE`) conta como **vivo** e não é tocado. O
+      lock fica de pé, o `dispatch` não abre um segundo agente ao lado, e você
+      retoma quando a cota voltar.
+
       Sai `0` quando a worktree não existe (o `orca` falha e a lista vem
       vazia), que é o que o `gh:reap` espera pra soltar o lock.
 
@@ -799,6 +811,9 @@ tasks:
       vars: [WT]
     vars:
       IDLE_MIN: '{{.IDLE_MIN | default 30}}'
+      # O texto que separa "parada" de "morta". Vale pro limite mensal, pro de
+      # taxa e pro pedido de upgrade — os três deixam a sessão viva esperando.
+      STALL_RE: '{{.STALL_RE | default "spend limit|usage limit|rate limit|approaching .* limit|/upgrade"}}'
     cmds:
       - |
         # 30 min = dois ticks do timer. Um tick só deixaria o corte encostado
@@ -809,24 +824,33 @@ tasks:
         # `gh:reap` nunca chegaria à contagem 0 que solta o lock.
         lst=$(orca terminal list --worktree "{{.WT}}" --json 2>/dev/null || true)
 
-        printf '%s' "$lst" \
+        candidatos=$(printf '%s' "$lst" \
           | { jq -r --argjson c "$corte" '(.result.terminals // [])[]
                    | select((.lastOutputAt // 0) > 0 and (.lastOutputAt / 1000) < $c)
-                   | .handle' 2>/dev/null || true; } \
-        | while read -r h; do
-            [ -n "$h" ] || continue
-            # `|| true`: o `orca terminal close` sai 1 mesmo quando fecha, e o
-            # shell do Task roda com errexit — sem isto o bloco morre aqui e a
-            # contagem nunca é impressa.
-            orca terminal close --terminal "$h" >/dev/null 2>&1 || true
-          done
+                   | .handle' 2>/dev/null || true; })
+
+        # Parado ≠ morto: a tela decide. Só os candidatos são lidos (um por
+        # tick, no máximo), então o custo é o do caso raro.
+        mortos=0
+        parados=0
+        for h in $candidatos; do
+          [ -n "$h" ] || continue
+          tela=$(orca terminal read --terminal "$h" --screen 2>/dev/null || true)
+          if printf '%s' "$tela" | grep -qiE '{{.STALL_RE}}'; then
+            parados=$((parados + 1))
+            echo "  · terminal $h parado no limite de uso — mantido vivo" >&2
+            continue
+          fi
+          # `|| true`: o `orca terminal close` sai 1 mesmo quando fecha, e o
+          # shell do Task roda com errexit — sem isto o bloco morre aqui e a
+          # contagem nunca é impressa.
+          orca terminal close --terminal "$h" >/dev/null 2>&1 || true
+          mortos=$((mortos + 1))
+        done
 
         total=$(printf '%s' "$lst" | jq -r '(.result.terminals // []) | length' 2>/dev/null || true)
-        mortos=$(printf '%s' "$lst" \
-          | jq -r --argjson c "$corte" '[(.result.terminals // [])[]
-                   | select((.lastOutputAt // 0) > 0 and (.lastOutputAt / 1000) < $c)]
-                   | length' 2>/dev/null || true)
-        echo $(( ${total:-0} - ${mortos:-0} ))
+        # O parado entra na contagem de ocupados: é ele que segura o lock.
+        echo $(( ${total:-0} - mortos ))
 
   labels:
     desc: "Cria (idempotente) os labels de estado do fluxo num repo. REPO=owner/name"
@@ -2142,10 +2166,11 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Cinco: a detecção de pergunta humana do `gh:pending-question`, o
+      Seis: a detecção de pergunta humana do `gh:pending-question`, o
       orçamento de rodadas do `gh:review-requested`, a máquina de estados do
-      `gh:gate-watch`, o filtro do `gh:issues` sobre o snapshot do board e a
-      leitura de parentesco do `gh:kin`.
+      `gh:gate-watch`, o filtro do `gh:issues` sobre o snapshot do board, a
+      leitura de parentesco do `gh:kin` e o `STALL_RE` do `gh:agents-busy` —
+      que decide se um terminal calado está parado ou morto.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -2158,6 +2183,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/gate-watch.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/board-cache.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/kin.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/stall.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
