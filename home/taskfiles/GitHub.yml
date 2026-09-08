@@ -100,12 +100,36 @@ tasks:
       merge é decisão do dono, não efeito colateral de linkar o projeto.
 
       Idempotente — repo já na política não recebe PATCH. Chamado pelo
-      `gh:link`, que é quando um repo entra no fluxo.
+      `gh:link`, que é quando um repo entra no fluxo, e pelo tick.
+
+      **Autolimite de cadência.** Settings mexidas pela UI não voltavam sozinhas:
+      bastava alguém religar "Rebase and merge" pra armadilha voltar, e ela só
+      aparece no momento em que um merge falha. Rodar a cada tick conserta isso
+      e custa uma chamada por repo a cada 15 min, que é caro pra um desvio raro
+      — daí o `EVERY`: uma passada por dia, marcada em
+      `~/.local/state/gh-board/merge-policy`. `EVERY=0` força agora.
+
+      Arguments:
+        - EVERY: segundos entre passadas (default 86400). `0` ignora o limite.
+        - STATE: onde mora o carimbo.
 
       Examples:
         - task gh:merge-policy
+        - task gh:merge-policy EVERY=0
+    vars:
+      EVERY: '{{.EVERY | default 86400}}'
+      STATE: '{{.STATE | default "$HOME/.local/state/gh-board/merge-policy"}}'
     cmds:
       - |
+        # O carimbo vem antes do trabalho: passada que falha no meio não fica
+        # tentando de novo a cada tick, e o custo por tick continua previsível.
+        if [ "{{.EVERY}}" != "0" ]; then
+          estado="{{.STATE}}"; mkdir -p "$(dirname "$estado")"
+          ultimo=0; [ -f "$estado" ] && read -r ultimo < "$estado"
+          if [ $(( $(date +%s) - ${ultimo:-0} )) -lt {{.EVERY}} ]; then exit 0; fi
+          date +%s > "$estado"
+        fi
+
         task gh:repos | sort -u | while read -r repo; do
           case "$repo" in
             {{.PROJECT_OWNER}}/*) ;;
@@ -345,13 +369,29 @@ tasks:
       cada tick quando não adianta. `DOCKER_START=true` desarma o relançamento
       (usado pra testar a detecção sem derrubar nada).
 
+      **Cota da API fecha o portão.** O sinal é uma sonda GraphQL, não o
+      `gh api rate_limit`: aquele endpoint reportou `remaining 5000, used 0`
+      enquanto toda chamada falhava (2026-09-08). O que estoura é o limite
+      secundário, que ele não reflete. `RATE_FLOOR` é o piso — não zero, porque
+      tick que começa com pouca sobra morre no meio e deixa `agent:running`
+      preso.
+
       Examples:
         - task gh:agents-ready
         - task gh:agents-ready DOCKER_START=true
+        # portão fechado por cota esgotada:
+        - task gh:agents-ready RATE_PROBE='echo {\"errors\":[{\"type\":\"RATE_LIMIT\"}]}'
+        # portão fechado pelo piso, com o horário do reset:
+        - task gh:agents-ready RATE_PROBE='echo {\"data\":{\"rateLimit\":{\"remaining\":42,\"resetAt\":\"2026-09-08T16:00:00Z\"}}}'
     vars:
       DOCKER_APP: '{{.DOCKER_APP | default "/mnt/c/Program Files/Docker/Docker/Docker Desktop.exe"}}'
       DOCKER_WAIT: '{{.DOCKER_WAIT | default 180}}'
       DOCKER_COOLDOWN: '{{.DOCKER_COOLDOWN | default 1800}}'
+      # Piso de cota, não zero: tick que começa com pouca sobra morre no meio, e
+      # tick morto no meio deixa `agent:running` preso.
+      RATE_FLOOR: '{{.RATE_FLOOR | default 500}}'
+      # Costura de teste: o comando que sonda a cota.
+      RATE_PROBE: '{{.RATE_PROBE | default "gh api graphql -f query=\"query{ rateLimit{ remaining resetAt } }\" 2>&1"}}'
       DOCKER_START: '{{.DOCKER_START | default "/mnt/c/Windows/System32/taskkill.exe /IM \"Docker Desktop.exe\" /F >/dev/null 2>&1 || true; sleep 5; /mnt/c/Windows/System32/cmd.exe /c start \"\" \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\" >/dev/null 2>&1 || true"}}'
     cmds:
       - |
@@ -414,6 +454,33 @@ tasks:
 
         if [ -z "$(docker ps -q --filter name=svc-traefik --filter status=running)" ]; then
           echo "stack svc: fora do ar — fluxo autônomo desligado (task svc:up pra ligar)"
+          exit 1
+        fi
+
+        # Cota da API. NÃO usa `gh api rate_limit`: medido em 2026-09-08, aquele
+        # endpoint reportou `graphql: remaining 5000, used 0` enquanto TODA chamada
+        # GraphQL falhava com "API rate limit exceeded" — e seguiu discordando depois
+        # do reset que ele mesmo anunciou. O que bloqueia é um limite secundário, com
+        # janela própria, que aquele endpoint não reflete.
+        #
+        # Por isso o sinal é uma SONDA: a chamada mais barata que existe. Se ela passa,
+        # o tick pode falar com a API; se é recusada, o motivo vem na própria resposta.
+        # Custa uma requisição contra as ~40 que o tick faz.
+        cota=$({{.RATE_PROBE}}) || true
+
+        if printf '%s' "$cota" | grep -qi 'rate limit\|RATE_LIMITED\|graphql_rate_limit'; then
+          echo "cota da API do GitHub esgotada — nada despachado"
+          reset=$(printf '%s' "$cota" | grep -o '"resetAt":"[^"]*"' | cut -d'"' -f4)
+          [ -n "$reset" ] && echo "  reset em $reset"
+          exit 1
+        fi
+
+        # Passou a sonda, mas pode estar no fim: o piso protege o meio do tick.
+        restante=$(printf '%s' "$cota" | grep -o '"remaining":[0-9]*' | cut -d: -f2)
+        if [ -n "$restante" ] && [ "$restante" -lt {{.RATE_FLOOR}} ]; then
+          echo "cota da API baixa: $restante restantes (piso {{.RATE_FLOOR}}) — nada despachado"
+          reset=$(printf '%s' "$cota" | grep -o '"resetAt":"[^"]*"' | cut -d'"' -f4)
+          [ -n "$reset" ] && echo "  reset em $reset"
           exit 1
         fi
 
@@ -2592,6 +2659,17 @@ tasks:
           # Entrar no board não é etapa do fluxo — ele começa quando você move
           # pra Ready. Item novo em Backlog é registrado calado.
           if [ -z "$antes" ] && [ "$status" = "Backlog" ]; then
+            echo "$url $status" >> "$novo"; continue
+          fi
+
+          # PR SEU só avisa no `Ready`. `In Review`, `Blocked` e `Done` do card
+          # de PR repetem, palavra por palavra, o que a linha da issue já disse
+          # no mesmo tick — dobra o volume sem acrescentar nada. O `Ready` fica
+          # porque é o único que pede ação sua (o merge), e a issue não o diz.
+          #
+          # Não vale pro `pr-alheio`: desde 2026-09-01 ele tem vocabulário
+          # próprio (👋🔍✍️) e não ecoa issue nenhuma, porque não há issue.
+          if [ "$kind" = "pr" ] && [ "$status" != "Ready" ]; then
             echo "$url $status" >> "$novo"; continue
           fi
 
