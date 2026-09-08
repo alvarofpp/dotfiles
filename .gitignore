@@ -1,10 +1,6 @@
 .idea
 bin
-home/.config/JetBrains/
 home/.config/gh/hosts.yml
-home/.config/libreoffice/
-home/.config/Emdash/
-home/.config/dconf/
 home/.config/psysh/
 
 # Hermes setup workspace — material privado, não vai pro repo

@@ -16,10 +16,6 @@ LICENSE
 setup.sh
 windows-terminal-settings.json
 iterm/
-home/.config/JetBrains/
-home/.config/libreoffice/
-home/.config/Emdash/
-home/.config/dconf/
 stow.sh
 .editorconfig
 
