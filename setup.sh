@@ -183,6 +183,21 @@ for bin in claude opencode; do
   checkBin "$bin"
 done
 
+echo "  -- plataforma --"
+# Mesmo teste do `stow.sh` (is_wsl2), e é ele quem decide se `etc/` e
+# `windows/` entram. Fora do WSL2 os dois são pulados de propósito: `wsl.conf`
+# e `.wslconfig` não significam nada em macOS nem em Linux nativo.
+if [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null; then
+  echo "  ✅ WSL2 — stow.sh aplica home/, ai/, etc/ e windows/"
+  if [ ! -d /mnt/c/Users/alvar ]; then
+    echo "  ⚠️  /mnt/c/Users/alvar não existe — pacote windows/ será pulado"
+  fi
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  echo "  ✅ macOS — stow.sh aplica home/ e ai/; etc/ e windows/ ficam de fora"
+else
+  echo "  ✅ Linux nativo — stow.sh aplica home/ e ai/; etc/ e windows/ ficam de fora"
+fi
+
 echo "  -- repo state --"
 if [ -d "$HOME/dotfiles" ]; then
   echo "  ✅ ~/dotfiles existe"
@@ -194,6 +209,22 @@ if [ -d "$HOME/dotfiles" ]; then
 else
   echo "  ⚠️  ~/dotfiles não existe — clone manualmente"
 fi
+
+echo "  -- config de máquina (não vai pra repo) --"
+# Segredo não entra em git, nem no submódulo privado. Máquina nova fica sem
+# estes dois e o sintoma é silêncio, não erro.
+for f in "$HOME/.config/gh-board/telegram.env" "$HOME/.zshrc.local"; do
+  if [ -f "$f" ]; then
+    echo "  ✅ ${f/#$HOME/\~}"
+  else
+    echo "  ⚠️  ${f/#$HOME/\~} ausente"
+    case "$f" in
+      *telegram.env) echo "      → sem ele o 'task gh:notify' não avisa nada, e sai 0 (aviso é conforto, não pode derrubar o tick)."
+                     echo "        Precisa de TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID." ;;
+      *zshrc.local)  echo "      → é onde moram as chaves (ex.: MINIMAX_API_KEY); o ~/.zshrc o carrega se existir." ;;
+    esac
+  fi
+done
 
 echo ""
 echo "🎆 Done"
