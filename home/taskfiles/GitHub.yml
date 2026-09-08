@@ -22,6 +22,9 @@ vars:
   # Defaults aplicados pelo `gh:defaults` em item sem valor. O workflow
   # built-in "Item added to project" está desligado no projeto e não há
   # mutation pra reabilitá-lo, então quem preenche é o `gh:sync`.
+  # Snapshot do board (ver `gh:board-scan`). Var global porque todo ponto que
+  # escreve Status ou lock precisa descartá-lo na mesma linha da escrita.
+  BOARD_CACHE: $HOME/.local/state/gh-board/items.jsonl
   DEFAULT_STATUS: Backlog
   DEFAULT_PRIORITY: P3
 
@@ -240,6 +243,9 @@ tasks:
                 && echo "  ~ $ref: tem dono humano — Ignored"
             done
         fi
+        # Escreveu Status em item nenhum ou em muitos: descarta o snapshot uma
+        # vez só, aqui, em vez de a cada mutação do laço.
+        rm -f {{.BOARD_CACHE}}
         echo "defaults aplicados"
 
   unlink:
@@ -299,6 +305,9 @@ tasks:
           mutation($p:ID!,$i:ID!,$f:ID!,$v:String!){ updateProjectV2ItemFieldValue(
             input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$v}}){ clientMutationId } }' \
           -f p="$project" -f i="{{.ITEM}}" -f f="$field" -f v="$option" >/dev/null
+
+        # Board mudou: o snapshot que o `gh:issues` lê está velho.
+        rm -f {{.BOARD_CACHE}}
 
   # ---------------------------------------------------------------------------
   # Fluxo autônomo. O estado é o **Status da issue no board**, não um arquivo:
@@ -819,6 +828,91 @@ tasks:
             gh label create "$name" -R "{{.REPO}}" --color "$color" --description "$desc" --force >/dev/null
           done
 
+  board-scan:
+    desc: "Materializa UMA varredura do Project num arquivo, pro tick não repeti-la."
+    summary: |
+      O `gh:issues` era uma varredura paginada do Project inteiro por chamada,
+      e o tick o chama sete vezes (`prep`, `dispatch`, `pr-tick`, `settle`, e
+      três no `answer`). Com o board em ~250 itens isso é ~21 páginas por tick
+      só aqui — e em 2026-09-08 o GraphQL passou a recusar com
+      `API rate limit exceeded` enquanto o `gh api rate_limit` ainda dizia
+      `remaining: 5000` (ver `dotfiles-ai#94`).
+
+      Aqui a varredura vira arquivo (JSON Lines, um item por linha) e as sete
+      chamadas viram sete `jq` locais. O custo deixa de crescer com o número de
+      chamadas; só com o tamanho do board.
+
+      **Por que filtrar por view não resolveria.** `ProjectV2View.filter` é uma
+      string que a UI aplica do lado dela — não há conexão `items` na view, e
+      `ProjectV2.items` não aceita filtro por campo. Mesmo que aceitasse, o
+      multiplicador é a repetição, não o tamanho da página.
+
+      **Validade.** O snapshot vale por `TTL` segundos (default 300, contra um
+      tick de ~3 min) e é descartado por qualquer escrita do fluxo — ver
+      `gh:board-stale`. Sem isso o `dispatch` leria o board de antes do `prep`.
+
+      A janela que sobra é a escrita que vem de **fora** do taskfile: o agente
+      tirando o `agent:running` ao acabar, ou você movendo um card na UI. As
+      duas só podem esconder trabalho do tick atual, que entra no seguinte —
+      nunca despachar duas vezes a mesma issue, porque `agent:running` só é
+      **posto** por tasks daqui, e essas invalidam.
+
+      Arguments:
+        - TTL: validade do snapshot em segundos (default 300).
+        - CACHE: onde ele mora.
+
+      Examples:
+        - task gh:board-scan
+        - task gh:board-scan TTL=0    # força varredura nova
+    vars:
+      TTL: '{{.TTL | default 300}}'
+      CACHE: '{{.CACHE | default .BOARD_CACHE}}'
+    cmds:
+      - |
+        cache="{{.CACHE}}"
+        # Snapshot no prazo é reaproveitado; fora dele, revarre.
+        if [ -s "$cache" ]; then
+          idade=$(( $(date +%s) - $(stat -c %Y "$cache") ))
+          [ "$idade" -lt {{.TTL}} ] && exit 0
+        fi
+
+        mkdir -p "$(dirname "$cache")"
+        # `--paginate` aplica o `--jq` por página, então isto sai como JSON
+        # Lines: um item por linha, todas as páginas concatenadas.
+        if gh api graphql --paginate -f query='
+          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ id
+                content{ __typename ... on Issue{ number state repository{ nameWithOwner }
+                  labels(first:30){ nodes{ name } }
+                  blockedBy(first:20){ nodes{ state } } } }
+                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[]' > "$cache.novo" 2>/dev/null && [ -s "$cache.novo" ]; then
+          mv "$cache.novo" "$cache"
+        else
+          # Varredura falhou (rate limit, rede). NÃO envenena o snapshot: o
+          # anterior fica, e o `gh:issues` cai no caminho vazio de sempre.
+          rm -f "$cache.novo"
+        fi
+
+  board-stale:
+    desc: "Descarta o snapshot do board. Chamado por quem escreve Status ou lock."
+    summary: |
+      Toda escrita do fluxo no board — Status por `gh:issue-status`, e os locks
+      `agent:running`/`agent:human` — passa por aqui, senão o passo seguinte do
+      mesmo tick leria o board de antes dela.
+
+      Barato de propósito: um `rm`. O custo de invalidar demais é uma varredura
+      a mais; o de invalidar de menos é despacho duplicado.
+
+      Examples:
+        - task gh:board-stale
+    vars:
+      CACHE: '{{.CACHE | default .BOARD_CACHE}}'
+    cmds:
+      - rm -f "{{.CACHE}}"
+
   issues:
     desc: "Lista as issues abertas num Status do board. STATUS=Ready|In Progress|..."
     summary: |
@@ -832,31 +926,30 @@ tasks:
       serializada espera a irmã) também sai: começar antes é retrabalho.
       PR nunca entra: aqui só issue.
 
+      Não vai à rede: lê o snapshot do `gh:board-scan`, que é uma varredura só
+      por tick em vez de uma por chamada.
+
       Examples:
         - task gh:issues STATUS=Ready
         - task gh:issues STATUS="In Progress"
     requires:
       vars: [STATUS]
+    vars:
+      CACHE: '{{.CACHE | default .BOARD_CACHE}}'
     cmds:
+      - task: board-scan
+        vars: { CACHE: '{{.CACHE}}' }
       - |
-        gh api graphql --paginate -f query='
-          query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
-            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
-              nodes{ id
-                content{ __typename ... on Issue{ number state repository{ nameWithOwner }
-                  labels(first:30){ nodes{ name } }
-                  blockedBy(first:20){ nodes{ state } } } }
-                status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
-          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
-          --jq '.data.user.projectV2.items.nodes[]
-                | select(.content.__typename == "Issue")
-                | select(.content.state == "OPEN")
-                | select([.content.labels.nodes[].name] | index("agent:running") | not)
-                | select([.content.labels.nodes[].name] | index("agent:human") | not)
-                | select([.content.blockedBy.nodes[].state] | index("OPEN") | not)
-                | select((.status.name // "") == "{{.STATUS}}")
-                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id' \
-          2>/dev/null || true
+        # Snapshot ausente = varredura falhou. Sai vazio, como sempre saiu.
+        [ -s "{{.CACHE}}" ] || exit 0
+        jq -r 'select(.content.__typename == "Issue")
+               | select(.content.state == "OPEN")
+               | select([.content.labels.nodes[].name] | index("agent:running") | not)
+               | select([.content.labels.nodes[].name] | index("agent:human") | not)
+               | select([.content.blockedBy.nodes[].state] | index("OPEN") | not)
+               | select((.status.name // "") == "{{.STATUS}}")
+               | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id' \
+          < "{{.CACHE}}" 2>/dev/null || true
 
   trusted:
     desc: "Diz se os comentários da issue vêm só de quem pode destravá-la. REF=owner/repo#N"
@@ -1303,11 +1396,13 @@ tasks:
 
           echo "→ $ref: $([ -n "$pr" ] && echo "aplicando review do #$pr" || echo implementando)"
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+          rm -f {{.BOARD_CACHE}}
           if task gh:orca ISSUE="$ref" PROMPT="$prompt" >/dev/null; then
             ativos=$(( ativos + 1 ))
           else
             echo "  falhou ao abrir a worktree — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+            rm -f {{.BOARD_CACHE}}
           fi
         done
 
@@ -1455,7 +1550,9 @@ tasks:
               "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
             gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
             gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
+            rm -f {{.BOARD_CACHE}}
             gh issue edit "$num" -R "$repo" --add-label agent:human >/dev/null
+            rm -f {{.BOARD_CACHE}}
             task gh:issue-status REF="$ref" VALUE=Blocked
             continue
           fi
@@ -1468,6 +1565,7 @@ tasks:
 
           echo "→ $ref: revisando #$pr (rodada $((rounds+1)))"
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+          rm -f {{.BOARD_CACHE}}
           # Prompt por arquivo pelo mesmo motivo do `gh:orca`: `!` na linha
           # digitada vira expansão de histórico do zsh e mata o comando.
           # `&& exit` no fim: sessão que termina bem fecha o terminal. Sem isso
@@ -1489,6 +1587,7 @@ tasks:
                  --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+            rm -f {{.BOARD_CACHE}}
           fi
         done
 
@@ -1798,9 +1897,11 @@ tasks:
 
               echo "→ $repo#$num: PR #$pr está $estado — mandando destravar"
               gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+              rm -f {{.BOARD_CACHE}}
               if ! task gh:orca ISSUE="$repo#$num" PROMPT="$prompt" >/dev/null; then
                 echo "  falhou ao abrir a worktree — soltando o lock"
                 gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+                rm -f {{.BOARD_CACHE}}
               fi
             done
         done
@@ -1958,6 +2059,7 @@ tasks:
             fi
             echo "  ~ $ref: respondida — voltando pra In Progress"
             gh issue edit "$num" -R "$repo" --remove-label agent:human >/dev/null 2>&1 || true
+            rm -f {{.BOARD_CACHE}}
             # O `agent:human` do teto de rodadas foi posto nos dois — issue e
             # PR. Sem tirar do PR aqui, o `gh:pr-board` mantém o card dele em
             # Blocked pra sempre, com a issue já retomada.
@@ -1965,6 +2067,7 @@ tasks:
               --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null \
             | while read -r pr; do
                 gh pr edit "$pr" -R "$repo" --remove-label agent:human >/dev/null 2>&1 || true
+                rm -f {{.BOARD_CACHE}}
               done
             task gh:issue-status REF="$ref" VALUE="In Progress"
           done
@@ -1972,11 +2075,12 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Três: a detecção de pergunta humana do `gh:pending-question`, o orçamento
-      de rodadas do `gh:review-requested` e a máquina de estados do
-      `gh:gate-watch`. Nada de cópia — os programas jq são extraídos do próprio
-      `GitHub.yml` e o `gate-watch` roda de verdade, com as costuras `GATE`,
-      `STATE` e `DRY` injetadas; cópia que envelhece testa o passado.
+      Quatro: a detecção de pergunta humana do `gh:pending-question`, o
+      orçamento de rodadas do `gh:review-requested`, a máquina de estados do
+      `gh:gate-watch` e o filtro do `gh:issues` sobre o snapshot do board.
+      Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
+      as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
+      `CACHE` injetadas; cópia que envelhece testa o passado.
 
       Examples:
         - task gh:test
@@ -1984,6 +2088,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/pending-question.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-rounds.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/gate-watch.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/board-cache.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
@@ -2131,9 +2236,11 @@ tasks:
 
           echo "→ $ref: pergunta sua pro time de $time"
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
+          rm -f {{.BOARD_CACHE}}
           if ! task gh:orca ISSUE="$ref" PROMPT="$prompt" >/dev/null; then
             echo "  falhou ao abrir a worktree — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+            rm -f {{.BOARD_CACHE}}
           fi
         done
 
@@ -2756,6 +2863,7 @@ tasks:
               if [ "${vivos:-0}" != "0" ]; then continue; fi
               echo "  ~ $repo#$num: nenhum terminal vivo — soltando o lock"
               gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
+              rm -f {{.BOARD_CACHE}}
             done
         done
 
