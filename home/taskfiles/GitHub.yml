@@ -160,6 +160,12 @@ tasks:
       daqui, não da UI. Item fechado/merged fica de fora de propósito: o filtro
       da view "All work" já o esconde, e marcá-lo como Backlog seria mentira.
 
+      Numa segunda passada, manda pra `Ignored` toda issue aberta com assignee
+      que não seja você. O `gh:prep` já fazia isso, mas só ao triar — o que
+      exige a issue passar por `Ready`. Issue de outra pessoa parada em
+      `Backlog` ficava visível na view `All work` pra sempre; três do
+      `abacaxei-app` estavam assim. Aqui a marca é aplicada na entrada.
+
       Chamado no fim do `gh:sync`; rode solto só pra consertar o board.
 
       Examples:
@@ -209,6 +215,31 @@ tasks:
             done
             [ "$n" -gt 0 ] && echo "  ~ $item ($n campo(s))"
           done
+
+        # Issue de outra pessoa -> `Ignored`, na entrada e não só na triagem.
+        # `Done`/`Dropped`/`Ignored` ficam de fora: já são estados finais, e
+        # reescrevê-los apagaria o desfecho real da issue.
+        ignored_option=$(pick status 'Ignored' option)
+        if [ -n "$ignored_option" ]; then
+          gh api graphql --paginate -f query='
+            query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+              items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+                nodes{ id
+                  content{ __typename ... on Issue{ number state repository{ nameWithOwner }
+                    assignees(first:10){ nodes{ login } } } }
+                  status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }'             -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}}             --jq '.data.user.projectV2.items.nodes[]
+                  | select(.content.__typename == "Issue")
+                  | select(.content.state == "OPEN")
+                  | select(([.content.assignees.nodes[].login] - ["{{.PROJECT_OWNER}}"]) | length > 0)
+                  | select(((.status.name // "") | IN("Done","Dropped","Ignored")) | not)
+                  | .id + " " + .content.repository.nameWithOwner + "#" + (.content.number|tostring)'           | while read -r item ref; do
+              gh api graphql -f query='
+                mutation($p:ID!,$i:ID!,$f:ID!,$v:String!){ updateProjectV2ItemFieldValue(
+                  input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$v}}){ clientMutationId } }' \
+                -f p="$project" -f i="$item" -f f="$status_field" -f v="$ignored_option" >/dev/null \
+                && echo "  ~ $ref: tem dono humano — Ignored"
+            done
+        fi
         echo "defaults aplicados"
 
   unlink:
