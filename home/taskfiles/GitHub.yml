@@ -1191,33 +1191,31 @@ tasks:
       com `blockedBy` e o PR dela tem `--base` na branch da irmã. Doc
       append-only é da última filha.
 
-      **Teto de {{.MAX_AGENTS}} agentes simultâneos.** Cada agente sobe a
-      instância inteira do projeto — 7 containers no abacaxei, 12 na matria —
-      e o tick não olhava quantas já estavam de pé. Em 2026-09-06 o board
-      tinha 10 issues em In Progress, o tick despachou as 10 de uma vez, 70
-      containers subiram na mesma VM do WSL e o engine do Docker morreu às
-      04:21 afogado em health check e DNS. As 10 sessões morreram junto e
-      deixaram o `agent:running` preso — e como o `gh:reap` também depende do
-      `gh:agents-ready`, que depende do Docker, o fluxo inteiro parou calado.
+      **Sem teto de agentes simultâneos — quem segura é a memória.** Cada
+      agente sobe a instância inteira do projeto: 7 containers no abacaxei,
+      12 na matria. Em 2026-09-06 o board tinha 10 issues em In Progress, o
+      tick despachou as 10 de uma vez, 70 containers subiram na mesma VM do
+      WSL e o engine do Docker morreu às 04:21 afogado em health check e DNS.
+      As 10 sessões morreram junto e deixaram o `agent:running` preso — e como
+      o `gh:reap` também depende do `gh:agents-ready`, que depende do Docker,
+      o fluxo inteiro parou calado. Um teto fixo de agentes foi a primeira
+      resposta a isso; hoje o freio é só o piso de memória, que mede em vez de
+      supor.
 
-      O que sobra do teto fica pro próximo tick: 15 min depois as vagas que
-      fecharam são preenchidas. `MAX_AGENTS=1` serializa o fluxo.
-
-      **`MIN_FREE_MB` é o que faz do teto uma garantia e não um palpite.** O
-      custo de um agente é dominado pelo toolchain, não pelos containers: quem
-      o oom-killer derrubou em 2026-09-05 foi um `dart:frontend_server` de
-      832 MB, e um agente de repo Flutter come 1,5–2,5 GB entre Claude Code,
-      analysis server e `flutter test`. Sete disso não cabem numa VM de 15,5 GB;
-      cabem numa de 24 GB. Como o `.wslconfig` já mentiu uma vez sobre esse
-      número (era symlink, o Windows nunca leu — ver `CLAUDE.md`), o teto não
-      confia na conta: mede `MemAvailable` antes de cada despacho e para quando
-      a folga acaba, valha o `.wslconfig` ou não.
+      **`MIN_FREE_MB` é o freio, e é o que importa.** O custo de um agente é
+      dominado pelo toolchain, não pelos containers: quem o oom-killer
+      derrubou em 2026-09-05 foi um `dart:frontend_server` de 832 MB, e um
+      agente de repo Flutter come 1,5–2,5 GB entre Claude Code, analysis
+      server e `flutter test`. Como o `.wslconfig` já mentiu uma vez sobre a
+      RAM da VM (era symlink, o Windows nunca leu — ver `CLAUDE.md`), o freio
+      não confia na conta: mede `MemAvailable` antes de cada despacho e para
+      quando a folga acaba, valha o `.wslconfig` ou não. O que sobrou fica pro
+      próximo tick, 15 min depois. `MIN_FREE_MB` alto serializa o fluxo.
 
       Examples:
         - task gh:dispatch
-        - task gh:dispatch MAX_AGENTS=1
+        - task gh:dispatch MIN_FREE_MB=8192
     vars:
-      MAX_AGENTS: '{{.MAX_AGENTS | default 7}}'
       MIN_FREE_MB: '{{.MIN_FREE_MB | default 3072}}'
     cmds:
       - |
@@ -1232,15 +1230,9 @@ tasks:
                 --limit 100 --json number --jq 'length' 2>/dev/null || echo 0)
           ativos=$(( ativos + ${n:-0} ))
         done
-        echo "· $ativos/{{.MAX_AGENTS}} agentes de pé"
+        echo "· $ativos agente(s) de pé"
 
         task gh:issues STATUS="In Progress" | while read -r ref item; do
-          # `break`, não `exit`: o teto encerra o despacho, não o tick.
-          if [ "$ativos" -ge "{{.MAX_AGENTS}}" ]; then
-            echo "  · teto de {{.MAX_AGENTS}} agentes — o resto espera o próximo tick"
-            break
-          fi
-
           # `MemAvailable`, não `MemFree`: cache conta como disponível, e é o
           # número que o kernel usa pra decidir se chama o oom-killer.
           livre=$(( $(awk '/^MemAvailable:/{print $2}' /proc/meminfo) / 1024 ))
@@ -1335,7 +1327,7 @@ tasks:
       Examples:
         - task gh:pr-tick
     vars:
-      MAX_ROUNDS: 3
+      MAX_ROUNDS: 5
     cmds:
       - |
         task gh:agents-ready || exit 0
