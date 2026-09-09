@@ -561,7 +561,7 @@ tasks:
         antes=$(git -C "$path" rev-parse --short HEAD)
         if git -C "$path" merge --ff-only --quiet "origin/$padrao" 2>/dev/null; then
           depois=$(git -C "$path" rev-parse --short HEAD)
-          [ "$antes" = "$depois" ] && exit 0
+          if [ "$antes" = "$depois" ]; then exit 0; fi
           n=$(git -C "$path" rev-list --count "$antes..$depois")
           echo "    {{.REPO}}: $padrao $antes → $depois ($n commit(s))"
         else
@@ -964,7 +964,11 @@ tasks:
         # Snapshot no prazo é reaproveitado; fora dele, revarre.
         if [ -s "$cache" ]; then
           idade=$(( $(date +%s) - $(stat -c %Y "$cache") ))
-          [ "$idade" -lt {{.TTL}} ] && exit 0
+          # `if`, não `[ … ] && exit 0`: o shell do Task roda com errexit e um
+          # teste FALSO no fim de bloco aborta o script inteiro — snapshot
+          # velho nunca chegava a ser revarrido, e todo tick com cache
+          # existente e fora do prazo lia board vazio.
+          if [ "$idade" -lt {{.TTL}} ]; then exit 0; fi
         fi
 
         mkdir -p "$(dirname "$cache")"
