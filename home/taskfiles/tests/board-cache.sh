@@ -35,6 +35,8 @@ item() { # tipo, numero, estado, status, labels(csv), blockedBy(csv de estados)
   item Issue       6 CLOSED "In Progress" ""                     ""
   item Issue       7 OPEN   "Ready"       ""                     ""
   item Issue       8 OPEN   ""            ""                     ""
+  item Issue      10 OPEN   "In Progress" "agent:skip"         ""
+  item Issue      11 OPEN   "Ready"       "tipo:bug,agent:skip" ""
   item PullRequest 9 OPEN   "In Progress" ""                     ""
 } > "$cache"
 

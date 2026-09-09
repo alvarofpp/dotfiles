@@ -864,6 +864,7 @@ tasks:
         agent:changes   revisão pediu alteração; a bola é do autor
         agent:approved  passou na revisão — esperando o SEU merge
         agent:human     parou esperando decisão humana
+        agent:skip      você assumiu — nenhum tick toca nesta issue
         agent:untrusted sinal de injeção no texto da issue ou de um comentário
 
       `agent:approved` existe porque o merge é seu: review `APPROVED` no próprio
@@ -914,6 +915,7 @@ tasks:
           'agent:changes|d93f0b|revisão pediu alteração' \
           'agent:approved|0e8a16|passou na revisão — pronto pro merge' \
           'agent:human|b60205|precisa de um humano' \
+          'agent:skip|c5def5|eu resolvo — o tick de automação ignora esta issue' \
           'agent:untrusted|5319e7|sinal de injeção no texto — precisa de triagem humana' \
         | while IFS='|' read -r name color desc; do
             gh label create "$name" -R "{{.REPO}}" --color "$color" --description "$desc" --force >/dev/null
@@ -1016,7 +1018,9 @@ tasks:
 
       Issue com `agent:running` sai da lista: já tem sessão trabalhando nela.
       Com `agent:human`, idem — parou esperando você, e redespachar produziria
-      o mesmo veredito toda vez. Issue **bloqueada por outra** ainda aberta
+      o mesmo veredito toda vez. Com `agent:skip`, também: é você que vai
+      resolver essa, na mão, e o tick inteiro fica de fora até você tirar o
+      label. Issue **bloqueada por outra** ainda aberta
       (`blockedBy`, dependência nativa do GitHub — é como uma sub-issue
       serializada espera a irmã) também sai: começar antes é retrabalho.
       PR nunca entra: aqui só issue.
@@ -1041,6 +1045,7 @@ tasks:
                | select(.content.state == "OPEN")
                | select([.content.labels.nodes[].name] | index("agent:running") | not)
                | select([.content.labels.nodes[].name] | index("agent:human") | not)
+               | select([.content.labels.nodes[].name] | index("agent:skip") | not)
                | select([.content.blockedBy.nodes[].state] | index("OPEN") | not)
                | select((.status.name // "") == "{{.STATUS}}")
                | .content.repository.nameWithOwner + "#" + (.content.number|tostring) + " " + .id' \
@@ -1968,7 +1973,7 @@ tasks:
               labels=$(gh issue view "$num" -R "$repo" --json labels \
                          --jq '[.labels[].name] | join(",")' 2>/dev/null) || continue
               case ",$labels," in
-                *,agent:running,*|*,agent:human,*) continue ;;
+                *,agent:running,*|*,agent:human,*|*,agent:skip,*) continue ;;
               esac
 
               fim="Poste no PR um comentário com o marcador <!-- agent:author --> e o prefixo **Implementação** — (O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:author -->\n**Implementação** — o texto), dizendo em até três linhas o que estava travado e o que você fez — é o que permite conferir sem refazer. NÃO mergeie o PR: o merge é do Álvaro, e o repo está em squash-only. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
@@ -2086,6 +2091,9 @@ tasks:
       foi o teto de rodadas do `gh:pr-tick`, e o card do PR ficaria em Blocked
       pra sempre se só a issue fosse limpa.
 
+      Issue com `agent:skip` não passa por aqui: você assumiu, e destravar
+      sozinho devolveria a issue pro `gh:dispatch`.
+
       Achou resposta: tira `agent:human` e devolve pra In Progress, onde o
       `gh:dispatch` retoma de onde parou — o histórico está na issue e na
       worktree, que continua de pé.
@@ -2097,12 +2105,14 @@ tasks:
         gh api graphql --paginate -f query='
           query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
             items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
-              nodes{ content{ __typename ... on Issue{ number state repository{ nameWithOwner } } }
+              nodes{ content{ __typename ... on Issue{ number state repository{ nameWithOwner }
+                  labels(first:30){ nodes{ name } } } }
                 status:fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }' \
           -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
           --jq '.data.user.projectV2.items.nodes[]
                 | select(.content.__typename == "Issue")
                 | select(.content.state == "OPEN")
+                | select([.content.labels.nodes[].name] | index("agent:skip") | not)
                 | select((.status.name // "") == "Blocked")
                 | .content.repository.nameWithOwner + "#" + (.content.number|tostring)' \
           2>/dev/null \
