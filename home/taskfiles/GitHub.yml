@@ -2310,6 +2310,12 @@ tasks:
               # aparecer quando começa.
               [ -n "$item" ] && task gh:status ITEM="$item" VALUE="In Progress" >/dev/null 2>&1
 
+              # Marcador de fim de tarefa da rodada anterior sai agora, como no
+              # `gh:orca` — worktree `pr-<n>` também ganha marcador, e sem isto
+              # o `gh:agents-busy` do próximo tick leria "já acabou" sobre um
+              # revisor que mal começou.
+              rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/gh-board/done/${repo##*/}_pr-$pr"
+
               echo "→ $repo#$pr: revisão pedida a você — despachando revisor"
               if [ -n "$wt" ]; then
                 pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")

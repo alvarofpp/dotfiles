@@ -77,5 +77,20 @@ else
   falhas=$((falhas + 1))
 fi
 
+# --- quem APAGA o marcador ao despachar. Dois pontos o fazem (`gh:orca` pra
+# `issue-<n>`, `gh:review-requested` pra `pr-<n>`), e um erro de digitação ali
+# não dá erro: o marcador velho fica, e o tick seguinte fecha um agente que mal
+# começou. As linhas são extraídas e AVALIADAS, não conferidas por texto.
+while IFS= read -r linha; do
+  chave=$(repo="lucida-ia/lucida-monorepo" num=7 pr=33           XDG_STATE_HOME="$tmp/state" bash -c "
+            ${linha/rm -f /printf '%s' }" 2>/dev/null)
+  chave=${chave##*/}
+  case "$chave" in
+    lucida-monorepo_issue-7|lucida-monorepo_pr-33) st=ok ;;
+    *) st=FALHOU; falhas=$((falhas + 1)) ;;
+  esac
+  printf '%-7s %-40s %s\n' "$st" "limpeza ao despachar" "$chave"
+done < <(grep -oE 'rm -f "\$\{XDG_STATE_HOME[^"]*"' "$yml")
+
 [ "$falhas" -eq 0 ] && echo "done-marker: ok" || echo "done-marker: $falhas falha(s)"
 exit "$falhas"
