@@ -1062,6 +1062,9 @@ tasks:
       vars: [WT]
     vars:
       IDLE_MIN: '{{.IDLE_MIN | default 30}}'
+      # Com marcador de fim de tarefa não há o que inferir — sobra só a folga
+      # pra distinguir "acabou" de "acabou o turno e você assumiu o teclado".
+      DONE_IDLE_MIN: '{{.DONE_IDLE_MIN | default 2}}'
       # O texto que separa "parada" de "morta". Vale pro limite mensal, pro de
       # taxa e pro pedido de upgrade — os três deixam a sessão viva esperando.
       STALL_RE: '{{.STALL_RE | default "spend limit|usage limit|rate limit|approaching .* limit|/upgrade"}}'
@@ -1070,6 +1073,39 @@ tasks:
         # 30 min = dois ticks do timer. Um tick só deixaria o corte encostado
         # na granularidade da própria varredura.
         corte=$(( $(date +%s) - {{.IDLE_MIN}} * 60 ))
+
+        # Marcador de fim de tarefa, escrito pelo hook Stop
+        # (`ai/.claude/hooks/orca-task-done.sh`). Ele existe porque o `&& exit`
+        # do `gh:orca` nunca fechou nada: `claude "<prompt>"` num TTY é sessão
+        # interativa e não retorna. Com o marcador o fim da tarefa é um FATO,
+        # não uma inferência sobre a tela — e os 30 min de espera viram
+        # {{.DONE_IDLE_MIN}}.
+        #
+        # A derivação da chave é a MESMA do hook; divergir faria um escrever
+        # onde o outro não lê, e o sintoma seria "nada mudou". O
+        # `tests/done-marker.sh` extrai as duas e confere que batem.
+        wt="{{.WT}}"
+        marcador=""
+        case "$wt" in
+          path:*)
+            rel=${wt#path:}
+            rel=${rel#"$HOME"/orca/workspaces/}
+            repo=${rel%%/*}; resto=${rel#*/}; nome=${resto%%/*}
+            if [ -n "$repo" ] && [ -n "$nome" ] && [ "$repo" != "$nome" ]; then
+              case "$nome" in
+                issue-[0-9]*|pr-[0-9]*)
+                  marcador="${XDG_STATE_HOME:-$HOME/.local/state}/gh-board/done/${repo}_${nome}" ;;
+              esac
+            fi
+            ;;
+        esac
+        # A folga continua existindo: o marcador diz que o TURNO acabou, e
+        # turno só é igual a tarefa em sessão que ninguém assumiu. Terminal em
+        # que você está digitando tem saída recente e escapa por aqui.
+        if [ -n "$marcador" ] && [ -f "$marcador" ]; then
+          corte=$(( $(date +%s) - {{.DONE_IDLE_MIN}} * 60 ))
+          echo "  · fim de tarefa marcado — corte de {{.DONE_IDLE_MIN}} min" >&2
+        fi
         # `|| true` aqui e nos `jq` abaixo: worktree que não existe faz o `orca`
         # sair não-zero, e o shell do Task roda com errexit — sem isto o
         # `gh:reap` nunca chegaria à contagem 0 que solta o lock.
@@ -1098,6 +1134,11 @@ tasks:
           orca terminal close --terminal "$h" >/dev/null 2>&1 || true
           mortos=$((mortos + 1))
         done
+
+        # Marcador consumido. O `gh:orca` também o apaga ao despachar — os dois
+        # juntos garantem que marcador presente significa sempre "o agente
+        # DESTE despacho acabou", nunca o do anterior.
+        if [ "$mortos" -gt 0 ] && [ -n "$marcador" ]; then rm -f "$marcador"; fi
 
         total=$(printf '%s' "$lst" | jq -r '(.result.terminals // []) | length' 2>/dev/null || true)
         # O parado entra na contagem de ocupados: é ele que segura o lock.
@@ -1604,6 +1645,11 @@ tasks:
         # `gh:dispatch` tinha criado 87s antes — a issue ficou em In Progress
         # com `agent:running` e sem worktree, e todo tick repetia a remoção.
         wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
+        # Marcador de fim de tarefa da rodada ANTERIOR sai agora: se ficasse, o
+        # `gh:agents-busy` do próximo tick leria "já acabou" sobre um agente que
+        # mal começou. Quem o escreve é o hook Stop
+        # (`ai/.claude/hooks/orca-task-done.sh`).
+        rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/gh-board/done/${repo##*/}_issue-$num"
         title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
         prompt="$PROMPT"
         [ -n "$prompt" ] || prompt="Implemente a issue $repo#$num — $title. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments."
@@ -1616,14 +1662,14 @@ tasks:
           # que travou os PRs #130-#132 em 2026-08-31). Escapar com `\!` mata o
           # erro mas deixa a barra dentro do marcador; por arquivo, a linha
           # digitada não tem `!` nenhum.
-          # `&& exit` no fim: sessão que termina bem fecha o terminal. Sem isso
-          # cada despacho — implementar, revisar, aplicar review, responder
-          # pergunta, destravar merge — deixa um Claude Code ocioso no prompt, e
-          # a worktree da issue #121 juntou OITO num dia. Falha fica aberta de
-          # propósito: o erro na tela é o que permite depurar (foi assim que o
-          # `zsh: event not found` apareceu). De quebra conserta o `gh:reap`, que
-          # usa 'existe terminal' como sinal de vida e não distinguia sessão viva
-          # de sessão acabada.
+          # `&& exit` no fim: só fecha o terminal quando o `claude` RETORNA, e
+          # sessão interativa não retorna — termina o trabalho e fica no prompt.
+          # Vale pra `claude -p` e pra erro de inicialização (o
+          # `zsh: event not found` apareceu assim); pro caso normal, quem fecha
+          # é o marcador de fim de tarefa que o hook Stop escreve
+          # (`ai/.claude/hooks/orca-task-done.sh`) e o `gh:agents-busy` lê.
+          # Falha fica aberta de propósito: o erro na tela é o que permite
+          # depurar.
           pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
           printf '%s' "$prompt" > "$pf"
           orca terminal create --worktree "$wtsel" --title "issue #$num" \
@@ -1919,14 +1965,14 @@ tasks:
           rm -f {{.BOARD_CACHE}}
           # Prompt por arquivo pelo mesmo motivo do `gh:orca`: `!` na linha
           # digitada vira expansão de histórico do zsh e mata o comando.
-          # `&& exit` no fim: sessão que termina bem fecha o terminal. Sem isso
-          # cada despacho — implementar, revisar, aplicar review, responder
-          # pergunta, destravar merge — deixa um Claude Code ocioso no prompt, e
-          # a worktree da issue #121 juntou OITO num dia. Falha fica aberta de
-          # propósito: o erro na tela é o que permite depurar (foi assim que o
-          # `zsh: event not found` apareceu). De quebra conserta o `gh:reap`, que
-          # usa 'existe terminal' como sinal de vida e não distinguia sessão viva
-          # de sessão acabada.
+          # `&& exit` no fim: só fecha o terminal quando o `claude` RETORNA, e
+          # sessão interativa não retorna — termina o trabalho e fica no prompt.
+          # Vale pra `claude -p` e pra erro de inicialização (o
+          # `zsh: event not found` apareceu assim); pro caso normal, quem fecha
+          # é o marcador de fim de tarefa que o hook Stop escreve
+          # (`ai/.claude/hooks/orca-task-done.sh`) e o `gh:agents-busy` lê.
+          # Falha fica aberta de propósito: o erro na tela é o que permite
+          # depurar.
           # Seletor ESCOPADO POR REPO: `issue:<n>` casa só pelo número e, com
           # vários repos no board, atinge a worktree de outro repositório.
           # Ver o comentário longo no `gh:orca`.
@@ -2431,14 +2477,16 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Oito: a detecção de pergunta humana do `gh:pending-question`, o
+      Nove: a detecção de pergunta humana do `gh:pending-question`, o
       orçamento de rodadas do `gh:review-requested`, a máquina de estados do
       `gh:gate-watch`, o filtro do `gh:issues` sobre o snapshot do board, a
       leitura de parentesco do `gh:kin`, o `STALL_RE` do `gh:agents-busy` —
       que decide se um terminal calado está parado ou morto — e o fallback do
       `gh:close` pra worktree que o Orca esqueceu, que é quem pode apagar o
-      banco errado — mais o filtro do `gh:automerge-check`, que decide o que
-      mescla sem você.
+      banco errado —, o filtro do `gh:automerge-check`, que decide o que mescla
+      sem você, e o acordo entre o hook Stop e o `gh:agents-busy` sobre onde
+      mora o marcador de fim de tarefa (divergir ali não dá erro: o hook
+      escreve onde ninguém lê).
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -2454,6 +2502,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/stall.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/orphan-instance.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/automerge.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/done-marker.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
