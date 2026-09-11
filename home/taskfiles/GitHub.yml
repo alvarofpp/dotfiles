@@ -1005,10 +1005,112 @@ tasks:
     cmds:
       - |
         path=$(task gh:repo-path REPO="{{.REPO}}" 2>/dev/null) || exit 1
-        if ! task ai:agents-doc REPO="$path" MODE=check >/dev/null 2>&1; then
-          echo "  ! {{.REPO}}: AGENTS.md ausente ou inválido — rode /agents-doc lá"
-          exit 1
+        if motivo=$(task ai:agents-doc REPO="$path" MODE=check 2>&1); then exit 0; fi
+
+        # A razão, e não só "não passou": esta linha vira comentário de PR no
+        # `gh:review-gate-notice`, e "ausente ou inválido" obrigava quem lesse
+        # a rodar o check na mão pra descobrir qual dos dois era — foi
+        # exatamente o que custou a investigação do lucida-monorepo#117.
+        # O `sed` tira o rótulo do repo e o `(rode … REPO=/home/…)`: path local
+        # não tem o que fazer num PR de terceiro.
+        razao=$(printf '%s\n' "$motivo" | sed -n 's/^ *! *[^:]*: *//p' | sed 's/ (rode .*//' | tail -1)
+        echo "  ! {{.REPO}}: ${razao:-AGENTS.md ausente ou inválido} — rode /agents-doc lá"
+        exit 1
+
+  review-gate-notice:
+    desc: "Avisa, no próprio PR, que o repo está fora do fluxo de revisão. REPO=owner/name"
+    summary: |
+      O portão do `gh:review-requested` é o `gh:review-ready`, e ele reprovava
+      **calado**: repo sem `AGENTS.md` válido saía da varredura no primeiro
+      `continue`, e o PR de terceiro que pediu revisão ficava esperando um
+      revisor que nunca sairia. Nada no log dizia o número do PR; nada no PR
+      dizia que ninguém viria.
+
+      Foi o que aconteceu no `lucida-ia/lucida-monorepo#117`: o catálogo do
+      `AGENTS.md` estava velho por **uma linha** (uma `description` cortada num
+      comprimento que o gerador não usa mais), o repo inteiro saiu da fila, e o
+      PR ficou com CI verde, revisão pedida e nenhum comentário — enquanto o
+      board mostrava o card em dia.
+
+      O aviso vai pro **PR**, não pra issue: PR de terceiro não tem card de
+      issue no board pra abrigá-lo. É a mesma razão pela qual a pergunta de
+      rodadas do `gh:review-requested` também mora no PR.
+
+      **Uma vez por PR**, e o estado é o próprio comentário
+      (`<!-- agent:blocked:review-ready -->`), não arquivo: o tick roda de 15 em
+      15 min e repetir o aviso seria spam no PR de outra pessoa. O preço é que
+      um repo que volte a quebrar depois de consertado não gera aviso novo no
+      mesmo PR — que já carrega o primeiro.
+
+      Arguments:
+        - REPO: owner/name.
+        - MOTIVO: a saída do `gh:review-ready`; a razão entra no comentário.
+        - JSON: costura de teste — arquivo com a saída de `gh pr list --json`.
+        - DRY: não consulta nem comenta; imprime os PRs que receberiam o aviso.
+
+      Examples:
+        - task gh:review-gate-notice REPO=lucida-ia/lucida-monorepo
+    requires:
+      vars: [REPO]
+    vars:
+      JSON: '{{.JSON | default ""}}'
+      DRY: '{{.DRY | default ""}}'
+    env:
+      # Por `env`, não por `{{.MOTIVO}}` no meio do script: a razão pode conter
+      # crase (a razão "os contextos citam <agente>" vem com o nome em crase)
+      # dentro de aspas duplas vira substituição de comando.
+      MOTIVO: '{{.MOTIVO | default ""}}'
+    cmds:
+      - |
+        # Os mesmos três filtros do `gh:review-requested`: PR de terceiro (sem
+        # `agent`), não-draft, com revisão pedida a você. Sem eles o aviso
+        # cairia em PR que ninguém esperava que fosse revisado.
+        if [ -n "{{.JSON}}" ]; then
+          lista=$(cat "{{.JSON}}")
+        else
+          lista=$(gh pr list -R "{{.REPO}}" --state open --limit 50 \
+                    --json number,isDraft,labels,reviewRequests 2>/dev/null) || lista='[]'
         fi
+
+        prs=$(printf '%s' "$lista" | jq -r '.[]
+                | select(.isDraft | not)
+                | select([.labels[].name] | index("agent") | not)
+                | select([.reviewRequests[].login] | index("{{.PROJECT_OWNER}}"))
+                | .number' 2>/dev/null) || prs=""
+
+        # Sem o `!` e sem o rótulo do repo: o comentário já está no repo, e
+        # repetir o nome dele na citação só gasta linha.
+        razao=$(printf '%s' "$MOTIVO" | tail -1 | sed "s|^ *! *||; s|^{{.REPO}}: *||")
+
+        for pr in $prs; do
+          # `ja` resolvido ANTES do `if` que desvia: `continue` dentro de `if`
+          # aninhado em `if` não sai do laço no shell do Task — ver o comentário
+          # longo no `gh:pr-tick`.
+          ja=0
+          if [ -z "{{.DRY}}" ]; then
+            ja=$(gh pr view "$pr" -R "{{.REPO}}" --json comments \
+                   --jq '[.comments[] | select(.body | contains("agent:blocked:review-ready"))] | length' \
+                   2>/dev/null) || ja=0
+          fi
+          if [ "${ja:-0}" != "0" ]; then continue; fi
+
+          corpo=$(printf '%s\n%s\n\n%s\n\n%s' \
+            "<!-- agent:blocked:review-ready -->" \
+            "**Fluxo** — este PR não vai receber revisão automática: o \`AGENTS.md\` deste repositório não passa no check do fluxo, e é dele que a revisão tira quem revisa o quê." \
+            "> ${razao:-AGENTS.md ausente ou inválido}" \
+            "Pra destravar: rode \`/agents-doc\` no repo e commite o \`AGENTS.md\` — o tick seguinte pega este PR sozinho.")
+
+          if [ -n "{{.DRY}}" ]; then
+            # Número no stdout, corpo no stderr: o teste confere os dois sem
+            # precisar de uma segunda costura pra ler o comentário.
+            printf '%s\n' "$pr"
+            printf '%s\n' "$corpo" >&2
+          elif gh pr comment "$pr" -R "{{.REPO}}" --body "$corpo" >/dev/null 2>&1; then
+            echo "  ~ avisado em {{.REPO}}#$pr: repo fora do fluxo de revisão"
+          else
+            echo "  falhou o aviso em {{.REPO}}#$pr — retentando no próximo tick"
+          fi
+        done
 
   agents-busy:
     desc: "Quantos agentes AINDA trabalham numa worktree. Fecha os que acabaram. WT=<seletor>"
@@ -2012,6 +2114,11 @@ tasks:
       do fluxo já exige (`gh:review-ready`). Repo de terceiro entra adicionando
       o arquivo lá, o que é um gesto deliberado de quem mantém o repo.
 
+      **Repo que não passa no portão é dito, não pulado em silêncio.** O
+      `gh:review-gate-notice` comenta no próprio PR que ninguém virá revisar e
+      por quê — sem isso o PR fica com CI verde, revisão pedida e nenhuma
+      pista, que foi o que segurou o `lucida-ia/lucida-monorepo#117`.
+
       A worktree nasce **da branch do PR** (`--base-branch`), porque é onde as
       mudanças estão — revisar a partir da `main` seria revisar outra coisa. Ela
       vira `pr-<n>` e o `gh:close` a remove quando o PR fecha ou é mesclado.
@@ -2053,7 +2160,13 @@ tasks:
         task gh:agents-ready || exit 0
 
         task gh:repos | sort -u | while read -r repo; do
-          task gh:review-ready REPO="$repo" >/dev/null 2>&1 || continue
+          # Reprovar aqui não pode ser calado: quem espera é PR de OUTRA
+          # pessoa, e o silêncio se lê como "o revisor não achou nada".
+          if ! motivo=$(task gh:review-ready REPO="$repo" 2>&1); then
+            task gh:review-gate-notice REPO="$repo" MOTIVO="$motivo" \
+              || echo "  ! $repo: fora do fluxo, e o aviso no PR falhou"
+            continue
+          fi
 
           gh api graphql -f query='
             query($o:String!,$r:String!){ repository(owner:$o,name:$r){
@@ -2486,7 +2599,9 @@ tasks:
       banco errado —, o filtro do `gh:automerge-check`, que decide o que mescla
       sem você, e o acordo entre o hook Stop e o `gh:agents-busy` sobre onde
       mora o marcador de fim de tarefa (divergir ali não dá erro: o hook
-      escreve onde ninguém lê).
+      escreve onde ninguém lê), e quem recebe o aviso do
+      `gh:review-gate-notice` — errar ali é ruído em PR de outra pessoa, ou
+      silêncio pra quem esperava revisão.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -2503,6 +2618,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/orphan-instance.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/automerge.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/done-marker.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
