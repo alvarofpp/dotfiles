@@ -2180,11 +2180,13 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Seis: a detecção de pergunta humana do `gh:pending-question`, o
+      Sete: a detecção de pergunta humana do `gh:pending-question`, o
       orçamento de rodadas do `gh:review-requested`, a máquina de estados do
       `gh:gate-watch`, o filtro do `gh:issues` sobre o snapshot do board, a
-      leitura de parentesco do `gh:kin` e o `STALL_RE` do `gh:agents-busy` —
-      que decide se um terminal calado está parado ou morto.
+      leitura de parentesco do `gh:kin`, o `STALL_RE` do `gh:agents-busy` —
+      que decide se um terminal calado está parado ou morto — e o fallback do
+      `gh:close` pra worktree que o Orca esqueceu, que é quem pode apagar o
+      banco errado.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -2198,6 +2200,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/board-cache.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/kin.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/stall.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/orphan-instance.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
@@ -2377,6 +2380,16 @@ tasks:
       deixava a worktree órfã pra sempre, sem erro nenhum. As duas ações são
       independentes: fecha o que estiver aberto, apaga a worktree que existir.
 
+      **Worktree que o Orca esqueceu tem fallback.** A remoção passa pelo Orca
+      porque é o `--run-hooks` que dispara o `archive` do `orca.yaml`, e é ele
+      que chama o `dev:destroy`. Quando o Orca não conhece mais a worktree
+      (runtime morta no meio do arquivamento, `archive` que falhou), esse
+      caminho some — e a instância fica de pé pra sempre. Aí a instância é
+      derrubada direto: containers pelo label `com.docker.compose.project`,
+      a rede `_default` e os volumes `<projeto>_*`. O nome do projeto vem do
+      caminho (`<repo>-issue-<n>`), então a instância principal do repo não
+      tem como cair aqui.
+
       Examples:
         - task gh:close
     cmds:
@@ -2441,6 +2454,47 @@ tasks:
               orca worktree rm --worktree "$wtsel" --run-hooks >/dev/null 2>&1 \
                 && echo "    worktree issue-$num removida" \
                 || echo "    worktree issue-$num não removida — confira no Orca"
+            else
+              # Orca já esqueceu a worktree: o `--run-hooks` nunca roda, o
+              # `archive` do `orca.yaml` nunca chama o `dev:destroy`, e a
+              # instância fica de pé pra sempre — sem log e sem erro, porque
+              # o `if` sem `else` sai calado. Em 2026-09-10 um OOM matou a
+              # runtime do Orca no meio do arquivamento de 6 issues e sobraram
+              # 42 containers e 12 volumes nomeados, limpos na mão (o
+              # `docker:gc` não encosta em volume nomeado, de propósito).
+              #
+              # O nome do projeto é DERIVÁVEL do caminho pela mesma regra do
+              # `COMPOSE_PROJECT_NAME` (ver a regra global `devcontainers.md`):
+              # worktree `issue-<n>` não começa com o nome do repo, então o
+              # nome é `<repo>-issue-<n>`. Construir assim é o que garante que
+              # a instância PRINCIPAL (`<repo>_*`) nunca entre aqui.
+              proj=$(printf '%s-issue-%s' "${repo##*/}" "$num" | tr '[:upper:]' '[:lower:]')
+              cts=$(docker ps -aq --filter "label=com.docker.compose.project=$proj" 2>/dev/null || true)
+              vols=$(docker volume ls -q --filter "name=^${proj}_" 2>/dev/null || true)
+              if [ -n "$cts" ] || [ -n "$vols" ]; then
+                echo "    worktree issue-$num não existe mais no Orca — derrubando $proj na mão"
+                if [ -n "$cts" ]; then
+                  docker rm -f $cts >/dev/null 2>&1 || true
+                  echo "      $(printf '%s\n' "$cts" | wc -l) container(s) removido(s)"
+                fi
+                # A rede só sai depois dos containers, e só existe se a
+                # instância chegou a subir.
+                docker network rm "${proj}_default" >/dev/null 2>&1 \
+                  && echo "      rede ${proj}_default removida" || true
+                if [ -n "$vols" ]; then
+                  docker volume rm $vols >/dev/null 2>&1 || true
+                  restou=$(docker volume ls -q --filter "name=^${proj}_" 2>/dev/null || true)
+                  if [ -z "$restou" ]; then
+                    echo "      volume(s) removido(s): $(printf '%s\n' "$vols" | tr '\n' ' ')"
+                  else
+                    echo "      volume(s) que NÃO saíram (ainda em uso?): $(printf '%s\n' "$restou" | tr '\n' ' ')"
+                  fi
+                fi
+                # O `chown` do `dev:destroy` também não rodou: o que o
+                # container escreveu como root segue root no bind mount.
+                wtdir="$HOME/orca/workspaces/${repo##*/}/issue-$num"
+                [ -d "$wtdir" ] && echo "      $wtdir ainda no disco — pode ter arquivo root:root" || true
+              fi
             fi
 
             # O checkout onde VOCÊ trabalha fica atrás de tudo que o fluxo
