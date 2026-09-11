@@ -866,9 +866,13 @@ tasks:
           linha=${linha%%#*}
           linha=$(printf '%s' "$linha" | tr -d '[:space:]')
           [ -n "$linha" ] || continue
-          # `if`, não `[ ... ] && ...`: o shell do Task tem errexit, e um
-          # `&&` cuja esquerda é falsa mata o bloco inteiro no meio do laço —
-          # foi o que engoliu a mensagem do repo de terceiro não autorizado.
+          # `if`, não `[ ... ] && ...`. O errexit do shell do Task pega o
+          # comando NU que falha e o `&&` que fecha o bloco (é o caso do
+          # `gh:board-scan`); `[ … ] && cmd` no MEIO do laço não aborta —
+          # medido em 2026-09-11, e o comentário anterior dizia que sim. O
+          # que ele engole é o resultado falso, em silêncio, que é como a
+          # mensagem do repo de terceiro não autorizado se perdeu. O `if`
+          # resolve os dois casos e diz o que quer dizer.
           if [ "$porglob" = sim ]; then
             case "$repo" in $linha) ok=1; break ;; esac
           elif [ "$linha" = "$repo" ]; then
@@ -2202,10 +2206,12 @@ tasks:
                               | select(.path | endswith($s)) | .path' 2>/dev/null | head -1)
               if [ -n "$wt" ]; then
                 vivos=$(task gh:agents-busy WT="path:$wt" 2>/dev/null)
-                # `if`, não `[ … ] && continue`: o shell do Task roda com
-                # errexit e um teste FALSO aborta o bloco inteiro. Enquanto a
-                # guarda só sabia dizer "tem terminal", nunca dava falso aqui
-                # e a armadilha ficou dormente.
+                # `if`, não `[ … ] && continue`: o desvio fica explícito e
+                # não depende de onde a linha cai no bloco. (Medido em
+                # 2026-09-11: `[ … ] && continue` no meio do laço NÃO aborta
+                # sob o errexit do Task, ao contrário do que dizia este
+                # comentário; quem aborta é o comando nu que falha e o `&&`
+                # que fecha o bloco.)
                 if [ "${vivos:-0}" != "0" ]; then continue; fi
               fi
 
