@@ -624,6 +624,13 @@ tasks:
       o PR é pulado com o motivo, e segue pro `gh:unstick`, que despacha um
       agente pra resolver olhando os dois lados.
 
+      **`AUTO=1` é o modo do tick, e ele pede licença por PR.** Sem `AUTO`, a
+      fila inteira mescla — é você mandando, e a task obedece. Com `AUTO=1`
+      cada PR passa pelo `gh:automerge-check` antes, que falha fechado e só
+      libera o que o interruptor autorizou; o que ele barrar fica na fila, com
+      o motivo impresso. Merge automático deixa comentário no PR dizendo qual
+      regra o liberou.
+
       Examples:
         - task gh:merge-approved REPO=mvinnicius22/abacaxei-app DRY=1
         - task gh:merge-approved REPO=mvinnicius22/abacaxei-app
@@ -636,6 +643,8 @@ tasks:
       DRY: '{{.DRY | default "0"}}'
       FORCE: '{{.FORCE | default "0"}}'
       WAIT_CI: '{{.WAIT_CI | default "0"}}'
+      AUTO: '{{.AUTO | default "0"}}'
+      ALLOW: '{{.ALLOW | default "$HOME/.local/state/gh-board/automerge"}}'
     cmds:
       - |
         # Resolve o checkout por varredura barata antes de cair no
@@ -677,6 +686,20 @@ tasks:
           if [ "${ruins:-0}" != "0" ] && [ "{{.FORCE}}" != "1" ]; then
             echo "   ✗ $ruins check(s) vermelho(s) — pulando (FORCE=1 mescla assim mesmo)"
             continue
+          fi
+
+          # `AUTO=1`: ninguém pediu este merge, então ele precisa de licença.
+          # Roda ANTES de trazer a main — o push de atualização mexe no
+          # `mergeable` do GitHub, e julgar depois julgaria um estado que a
+          # própria task acabou de criar.
+          veredito=""
+          if [ "{{.AUTO}}" = "1" ]; then
+            if veredito=$(task gh:automerge-check REPO={{.REPO}} PR="$pr" ALLOW="{{.ALLOW}}" 2>/dev/null); then
+              echo "   · ${veredito}"
+            else
+              echo "   ⏸ ${veredito:-human: filtro não soube decidir} — fica pra você"
+              continue
+            fi
           fi
 
           if [ "{{.WAIT_CI}}" = "1" ]; then
@@ -729,12 +752,240 @@ tasks:
           done
           if [ "$ok" = "1" ]; then
             echo "   ✓ mesclado"
+            # Merge que ninguém pediu tem que dizer por que pôde. Sem este
+            # comentário não há como auditar o filtro depois — é ele que faz
+            # o papel que uma label faria, e sobre o head que de fato mesclou.
+            if [ -n "$veredito" ]; then
+              gh pr comment "$pr" -R {{.REPO}} --body "$(printf '<!-- agent:automerge -->\n**Fluxo** — Mesclado automaticamente: %s\n\nO filtro é o `task gh:automerge-check`, e este repo está autorizado em `~/.local/state/gh-board/automerge`. Pra tirar o repo do automerge, apague a linha dele; pra desligar tudo, apague o arquivo.' "${veredito#auto: }")" >/dev/null 2>&1 || true
+            fi
           else
             echo "   ✗ o GitHub recusou o merge — confira: gh pr view $pr -R {{.REPO}}"
           fi
         done
 
         echo "--- fim. Rode 'task gh:done' pra acertar os cards do board. ---"
+
+  automerge-check:
+    desc: "Diz se um PR aprovado pode mesclar sozinho ou exige você. REPO=owner/name PR=<n>"
+    summary: |
+      O merge é o único passo humano do fluxo, e a fila acumula: em 2026-09-07
+      eram 8 PRs `agent:approved` parados ao mesmo tempo, quase todos mudança
+      pequena de app. Revisar de novo, um por um, não acrescentava nada na
+      maioria — mas alguns claramente não podem passar sem olho humano.
+
+      Esta task é o filtro. Imprime **uma linha** e decide pelo código de saída:
+
+        auto: <o que liberou>     rc=0   pode mesclar sozinho
+        human: <o que barrou>     rc=1   exige você
+
+      **Falha fechado.** Qualquer sinal ausente, ilegível ou truncado devolve
+      `human`. Repo sem CI nenhum nunca mescla sozinho, e isso é de propósito:
+      "CI verde" é um dos sinais que autorizam, e ausência de sinal não é
+      autorização.
+
+      **O critério é calculado na hora, não guardado em label.** Label parece
+      auditável, mas envelhece no instante em que um commit novo entra — é o
+      mesmo furo que o `gh:pr-tick` já conserta à mão no `agent:approved`
+      ("aprovado mas com N commits depois da revisão — reabrindo"). O rastro
+      auditável é o comentário que o `gh:merge-approved` posta no PR dizendo
+      qual regra liberou, e esse rastro é sobre o head que de fato mesclou.
+
+      **O interruptor é um arquivo, e ele é os dois interruptores.**
+      `~/.local/state/gh-board/automerge`, um repo por linha, `#` comenta:
+
+        alvarofpp/*          glob vale pros repos SEUS
+        mvinnicius22/abacaxei-app    repo de terceiro: só nome literal
+
+      Arquivo ausente ou vazio = automerge desligado em tudo (o default).
+      Glob **nunca** alcança repo de outro dono — autorizar terceiro exige
+      escrever o nome inteiro, porque mesclar no repositório de outra pessoa
+      sem ela ver é decisão dela, não efeito colateral de um asterisco.
+
+      **O que barra (basta um):**
+
+        repo fora da lista                  o interruptor, que é o default
+        PR não OPEN, draft, ou não MERGEABLE
+        label agent:human ou agent:changes  já disseram que precisa de gente
+        nenhuma revisão com corpo           `agent:approved` sem revisão atrás
+        mais de {{.MAX_ROUNDS_AUTO}} rodada(s)   precisou de segunda passada
+        thread de revisão aberta            o revisor deixou coisa no ar
+        commit (não-merge) depois da revisão   mescla o que ninguém revisou
+        CI que não está inteiramente verde
+        diff acima de {{.MAX_LINES}} linhas
+        caminho de risco no diff            ver `RISCO`
+
+      **Por que o veredito `approve` não entra na lista.** No fluxo, autor e
+      revisor são a **mesma conta** do GitHub, e o GitHub recusa aprovar o
+      próprio PR: toda revisão do fluxo sai `COMMENTED`, nos 10 PRs mesclados
+      que serviram de amostra. Exigir `APPROVED` desligaria o filtro pra
+      sempre, em silêncio. Quem faz esse papel é o label `agent:approved` (que
+      o `gh:merge-approved` já usa pra montar a fila) mais a ausência de thread
+      aberta.
+
+      **Caminho de risco** cobre migration e SQL, `.github/`, Dockerfile e
+      compose, stack de deploy, manifest e lock de dependência, `.env`,
+      `Taskfile`, hooks do Claude Code, `routes/` e `config/` (contrato público
+      e config de produção) e `*Policy.php` (política de acesso).
+
+      Arguments:
+        - REPO, PR: o PR a julgar.
+        - MAX_LINES: teto de linhas alteradas (default 200).
+        - MAX_ROUNDS_AUTO: rodadas de revisão toleradas (default 1).
+        - ALLOW: o arquivo do interruptor.
+        - RISCO: a ERE dos caminhos que forçam humano.
+        - JSON: lê o PR deste arquivo em vez da API. É a costura que deixa o
+          teste dirigir as regras sem inventar PR no GitHub.
+
+      Examples:
+        - task gh:automerge-check REPO=alvarofpp/matria PR=174
+    requires:
+      vars: [REPO, PR]
+    vars:
+      MAX_LINES: '{{.MAX_LINES | default 200}}'
+      MAX_ROUNDS_AUTO: '{{.MAX_ROUNDS_AUTO | default 1}}'
+      ALLOW: '{{.ALLOW | default "$HOME/.local/state/gh-board/automerge"}}'
+      JSON: '{{.JSON | default ""}}'
+      RISCO: '{{.RISCO | default "(^|/)(migrations?|seeders?)/|\\.sql$|(^|/)\\.github/|Dockerfile|(^|/)(docker-)?(compose|stack)[^/]*\\.ya?ml$|(^|/)docker-stack[^/]*\\.ya?ml$|(^|/)(composer|package|pubspec)\\.(json|ya?ml)$|(^|/)(composer\\.lock|package-lock\\.json|pnpm-lock\\.yaml|yarn\\.lock|pubspec\\.lock|uv\\.lock|poetry\\.lock|Cargo\\.(toml|lock)|go\\.(mod|sum)|Gemfile(\\.lock)?|requirements[^/]*\\.txt)$|(^|/)\\.env|(^|/)Taskfile[^/]*\\.ya?ml$|(^|/)\\.claude/hooks/|(^|/)(routes|config)/|Policy\\.php$"}}'
+    cmds:
+      - |
+        repo="{{.REPO}}"; pr="{{.PR}}"
+        barra() { echo "human: $1"; exit 1; }
+
+        # 1. O interruptor. Arquivo ausente = desligado em tudo, que é o
+        #    default — e é o que faz esta task ser inerte até você optar.
+        lista=$(eval echo "{{.ALLOW}}")
+        [ -f "$lista" ] || barra "automerge desligado (não existe $lista)"
+        # Repo de outro dono não é alcançável por glob: mesclar no repositório
+        # de alguém sem essa pessoa ver é decisão dela.
+        case "$repo" in
+          {{.PROJECT_OWNER}}/*) porglob=sim ;;
+          *) porglob=nao ;;
+        esac
+        ok=0
+        while IFS= read -r linha || [ -n "$linha" ]; do
+          linha=${linha%%#*}
+          linha=$(printf '%s' "$linha" | tr -d '[:space:]')
+          [ -n "$linha" ] || continue
+          # `if`, não `[ ... ] && ...`: o shell do Task tem errexit, e um
+          # `&&` cuja esquerda é falsa mata o bloco inteiro no meio do laço —
+          # foi o que engoliu a mensagem do repo de terceiro não autorizado.
+          if [ "$porglob" = sim ]; then
+            case "$repo" in $linha) ok=1; break ;; esac
+          elif [ "$linha" = "$repo" ]; then
+            ok=1; break
+          fi
+        done < "$lista"
+        [ "$ok" = 1 ] || barra "$repo não está autorizado em $lista"
+
+        # 2. Um giro de API traz tudo. `files(first:100)`: PR mais largo que
+        #    isso vem truncado, e julgar risco por lista incompleta é
+        #    exatamente o erro que falhar fechado existe pra impedir.
+        o="${repo%%/*}"; n="${repo##*/}"
+        if [ -n "{{.JSON}}" ]; then
+        j=$(cat "{{.JSON}}") || barra "não consegui ler {{.JSON}}"
+        else
+        j=$(gh api graphql -f query='
+          query($o:String!,$n:String!,$pr:Int!){ repository(owner:$o,name:$n){
+            pullRequest(number:$pr){
+              state isDraft mergeable additions deletions changedFiles
+              labels(first:30){ nodes{ name } }
+              reviews(first:50){ nodes{ body submittedAt } }
+              reviewThreads(first:100){ nodes{ isResolved } }
+              files(first:100){ nodes{ path } }
+              commits(last:30){ nodes{ commit{ committedDate parents{ totalCount }
+                statusCheckRollup{ state } } } } } } }' \
+          -f o="$o" -f n="$n" -F pr="$pr" --jq '.data.repository.pullRequest' 2>/dev/null) \
+          || barra "não consegui ler o PR #$pr"
+        fi
+        [ -n "$j" ] && [ "$j" != "null" ] || barra "não consegui ler o PR #$pr"
+
+        leia() { printf '%s' "$j" | jq -r "$1" 2>/dev/null; }
+
+        [ "$(leia .state)" = "OPEN" ] || barra "PR não está aberto"
+        [ "$(leia .isDraft)" = "false" ] || barra "PR está em draft"
+        merg=$(leia .mergeable)
+        [ "$merg" = "MERGEABLE" ] || barra "mergeable=$merg — o GitHub não diz que mescla limpo"
+
+        for l in agent:human agent:changes; do
+          [ "$(leia "[.labels.nodes[].name] | index(\"$l\") // \"-\"")" = "-" ] \
+            || barra "label $l no PR"
+        done
+
+        # 3. Revisão: rodadas contadas como no `gh:pr-tick` (review COM corpo é
+        #    passada de revisor; corpo vazio é comentário ancorado solto).
+        rodadas=$(leia '[.reviews.nodes[] | select((.body // "") != "")] | length')
+        [ "${rodadas:-0}" -ge 1 ] || barra "nenhuma revisão com corpo — agent:approved sem revisão atrás"
+        [ "${rodadas:-0}" -le {{.MAX_ROUNDS_AUTO}} ] \
+          || barra "$rodadas rodadas de revisão (teto {{.MAX_ROUNDS_AUTO}}) — precisou de segunda passada"
+
+        abertas=$(leia '[.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+        [ "${abertas:-1}" = "0" ] || barra "$abertas thread(s) de revisão aberta(s)"
+
+        # 4. Código depois da revisão. Merge commit não conta: é a própria
+        #    atualização da main que o `gh:merge-approved` empurra, e contá-la
+        #    reprovaria todo PR que ele mesmo põe em dia.
+        ultima=$(leia '[.reviews.nodes[] | select((.body // "") != "") | .submittedAt] | max // ""')
+        [ -n "$ultima" ] || barra "revisão sem data — não dá pra saber o que veio depois"
+        depois=$(leia "[.commits.nodes[].commit | select(.parents.totalCount < 2) | select(.committedDate > \"$ultima\")] | length")
+        [ "${depois:-1}" = "0" ] || barra "$depois commit(s) depois da revisão — ninguém olhou esse código"
+
+        # 5. CI. Rollup nulo = repo sem check nenhum: ausência de sinal não é
+        #    autorização.
+        ci=$(leia '.commits.nodes[-1].commit.statusCheckRollup.state // "SEM_CI"')
+        [ "$ci" = "SUCCESS" ] || barra "CI=$ci"
+
+        # 6. Tamanho e risco.
+        linhas=$(( $(leia .additions) + $(leia .deletions) ))
+        [ "$linhas" -le {{.MAX_LINES}} ] || barra "$linhas linhas alteradas (teto {{.MAX_LINES}})"
+
+        arqs=$(leia .changedFiles)
+        vistos=$(leia '.files.nodes | length')
+        [ "${vistos:-0}" = "${arqs:-1}" ] \
+          || barra "$arqs arquivos e só consegui ler $vistos — lista truncada"
+        risco=$(leia '.files.nodes[].path' | grep -iE '{{.RISCO}}' | head -3 | tr '\n' ' ')
+        [ -z "$risco" ] || barra "caminho de risco no diff: $risco"
+
+        echo "auto: $linhas linha(s) em $arqs arquivo(s) de baixo risco, $rodadas rodada(s) de revisão, nenhuma thread aberta, CI verde"
+
+  automerge:
+    desc: "Mescla sozinho o que o filtro liberar, em todo repo do board."
+    summary: |
+      O laço do tick: pra cada repo com PR `agent:approved` na fila, chama o
+      `gh:merge-approved AUTO=1`, que submete cada PR ao `gh:automerge-check`.
+
+      **Inerte por default.** Sem o arquivo do interruptor
+      (`~/.local/state/gh-board/automerge`) sai na primeira linha, sem gastar
+      uma chamada de API — é o que permite pendurá-lo no tick antes de você
+      decidir usar. Ligar é escrever os repos lá, um por linha.
+
+      Repo que falha não derruba o resto: um checkout ausente ou um push
+      recusado para naquele repo e o laço segue.
+
+      **Sai sempre zero**, como o `gh:gate-watch`: a unit é `Type=oneshot` e
+      um `ExecStart` não-zero abortaria os que viriam depois.
+
+      Arguments:
+        - ALLOW: o arquivo do interruptor (o mesmo do `gh:automerge-check`).
+
+      Examples:
+        - task gh:automerge
+    vars:
+      ALLOW: '{{.ALLOW | default "$HOME/.local/state/gh-board/automerge"}}'
+    cmds:
+      - |
+        lista=$(eval echo "{{.ALLOW}}")
+        [ -f "$lista" ] || exit 0
+        grep -qvE '^\s*(#|$)' "$lista" || exit 0
+
+        for repo in $(task gh:repos | sort -u); do
+          n=$(gh pr list -R "$repo" --state open --label agent:approved \
+                --limit 1 --json number --jq 'length' 2>/dev/null || echo 0)
+          [ "${n:-0}" -gt 0 ] || continue
+          # `ALLOW` desce junto: sem isso o laço curto-circuitaria por um
+          # arquivo e filtraria por outro.
+          task gh:merge-approved REPO="$repo" AUTO=1 ALLOW="$lista" || true
+        done
+        exit 0
 
   review-ready:
     desc: "Diz se um repo cumpre o pré-requisito do fluxo: AGENTS.md válido. REPO=owner/name"
@@ -2180,13 +2431,14 @@ tasks:
   test:
     desc: "Roda os checks do namespace gh:."
     summary: |
-      Sete: a detecção de pergunta humana do `gh:pending-question`, o
+      Oito: a detecção de pergunta humana do `gh:pending-question`, o
       orçamento de rodadas do `gh:review-requested`, a máquina de estados do
       `gh:gate-watch`, o filtro do `gh:issues` sobre o snapshot do board, a
       leitura de parentesco do `gh:kin`, o `STALL_RE` do `gh:agents-busy` —
       que decide se um terminal calado está parado ou morto — e o fallback do
       `gh:close` pra worktree que o Orca esqueceu, que é quem pode apagar o
-      banco errado.
+      banco errado — mais o filtro do `gh:automerge-check`, que decide o que
+      mescla sem você.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -2201,6 +2453,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/kin.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/stall.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/orphan-instance.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/automerge.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"

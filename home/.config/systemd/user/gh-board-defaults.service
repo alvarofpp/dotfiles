@@ -31,6 +31,12 @@ ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-tick
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:review-requested
 # PR aprovado que parou de mesclar (conflito, atrasado, CI vermelho).
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:unstick
+# PR aprovado que o filtro liberar mescla sozinho. Inerte enquanto não existir
+# `~/.local/state/gh-board/automerge` — que é o default, e é como isto entra no
+# tick sem mudar nada até você optar. Depois do `unstick`, que é quem põe o PR
+# aprovado em dia, e antes do `settle`, pra o que mesclou agora fechar no mesmo
+# tick.
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:automerge
 # In Review sem PR aberto -> confere critérios de aceite e decide Done.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:settle
 # Done/Dropped -> fecha a issue e apaga a worktree.
