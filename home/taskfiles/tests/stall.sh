@@ -33,6 +33,10 @@ caso "resumo de fim de tarefa"  viva "Done. 3 files changed, tests green."
 caso "erro de build"            viva "error: cannot find module 'foo'"
 caso "tela vazia"               viva ""
 caso "diff no meio"             viva "+  const limite = 10; // teto de itens"
+# O caso real: revisor falando de rate limit de API. Prendeu o lock da issue
+# #228 do abacaxei-app por dez horas em 2026-09-12.
+caso "revisão citando rate limit" viva 'docs/references/API.md:123: a tabela-resumo "Rate limits" ficou com 5/min'
+caso "revisão citando usage"      viva "o gráfico de usage limit da tela de billing não bate com a doc"
 
 [ "$falhas" -eq 0 ] && echo "stall: ok" || echo "stall: $falhas falha(s)"
 exit "$falhas"

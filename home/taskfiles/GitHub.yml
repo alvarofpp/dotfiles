@@ -1247,7 +1247,21 @@ tasks:
       DONE_IDLE_MIN: '{{.DONE_IDLE_MIN | default 2}}'
       # O texto que separa "parada" de "morta". Vale pro limite mensal, pro de
       # taxa e pro pedido de upgrade — os três deixam a sessão viva esperando.
-      STALL_RE: '{{.STALL_RE | default "spend limit|usage limit|rate limit|approaching .* limit|/upgrade"}}'
+      #
+      # Cada alternativa carrega o VERBO do aviso (`exceeded`, `reached`,
+      # `approaching`), e não só o substantivo: `rate limit` e `usage limit`
+      # pelados casavam com a tela de um revisor que estava FALANDO de rate
+      # limit de API. O aviso de verdade sempre traz o verbo junto
+      # (`usage limit reached`, `approaching your usage limit`). Em
+      # 2026-09-12 isso prendeu o `agent:running` da issue #228 do
+      # abacaxei-app por dez horas e o `gh:unstick` pulou o PR #233 em todo
+      # tick — a pior falha possível, porque `gh:issues` esconde issue com
+      # esse label e ela sai do fluxo sem aparecer em lugar nenhum.
+      STALL_RE: '{{.STALL_RE | default "spend limit|rate limit exceeded|limit reached|approaching .* limit|/upgrade"}}'
+      # Teto do benefício da dúvida. Sessão parada de verdade volta com um
+      # `orca terminal send`; passada de longe a janela de 5h de cota, o que
+      # sobra é falso positivo do STALL_RE segurando o lock pra sempre.
+      STALL_MAX_MIN: '{{.STALL_MAX_MIN | default 720}}'
     cmds:
       - |
         # 30 min = dois ticks do timer. Um tick só deixaria o corte encostado
@@ -1296,6 +1310,14 @@ tasks:
                    | select((.lastOutputAt // 0) > 0 and (.lastOutputAt / 1000) < $c)
                    | .handle' 2>/dev/null || true; })
 
+        # O teto: passado dele, nem a tela salva. É o que impede um falso
+        # positivo do STALL_RE de segurar o lock pra sempre.
+        teto=$(( $(date +%s) - {{.STALL_MAX_MIN}} * 60 ))
+        teimosos=$(printf '%s' "$lst" \
+          | { jq -r --argjson c "$teto" '(.result.terminals // [])[]
+                   | select((.lastOutputAt // 0) > 0 and (.lastOutputAt / 1000) < $c)
+                   | .handle' 2>/dev/null || true; })
+
         # Parado ≠ morto: a tela decide. Só os candidatos são lidos (um por
         # tick, no máximo), então o custo é o do caso raro.
         mortos=0
@@ -1303,7 +1325,9 @@ tasks:
         for h in $candidatos; do
           [ -n "$h" ] || continue
           tela=$(orca terminal read --terminal "$h" --screen 2>/dev/null || true)
-          if printf '%s' "$tela" | grep -qiE '{{.STALL_RE}}'; then
+          if printf '%s\n' "$teimosos" | grep -qx -- "$h"; then
+            echo "  · terminal $h parado há mais de {{.STALL_MAX_MIN}} min — fechando mesmo assim" >&2
+          elif printf '%s' "$tela" | grep -qiE '{{.STALL_RE}}'; then
             parados=$((parados + 1))
             echo "  · terminal $h parado no limite de uso — mantido vivo" >&2
             continue
