@@ -8,6 +8,15 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# Sem isto o default de oneshot é `infinity`, e tick que trava trava o FLUXO:
+# o timer não dispara enquanto a passada anterior estiver de pé, então nada
+# anda e nada avisa. Em 2026-09-12 uma passada ficou das 13:52 às 18:57 — 5h
+# com 3min50s de CPU, ou seja parada esperando — e o `gh:unstick` do PR #233 do
+# abacaxei-app, que é dos últimos da fila, só rodou duas passadas depois.
+# 45 min é o dobro do tick mais lento já medido (27 min, quando o `gh:sync`
+# ainda re-adicionava o board inteiro). Morto por timeout, o próximo tick nasce
+# limpo e o `gh:reap` solta o lock que a passada interrompida tenha deixado.
+TimeoutStartSec=2700
 Environment=PATH=/home/alvaro/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 WorkingDirectory=%h
 # Vigia do portão: avisa no Telegram quando o fluxo passa 3 ticks desligado.
