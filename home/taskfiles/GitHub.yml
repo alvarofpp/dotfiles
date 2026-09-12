@@ -227,17 +227,47 @@ tasks:
       Repos come from `task gh:repos`, so a newly linked repo is picked up
       with no edit to this file.
 
+      **O que já está no board é lido antes, numa varredura só.** O
+      `gh project item-add` é idempotente e sai zero para item repetido, então
+      chamá-lo pra tudo "funcionava" — e drenava o orçamento de **pontos do
+      GraphQL**, que é o que o `gh:agents-ready` sonda. Medido em 2026-09-12:
+      637 itens no board, zero duplicados, ~637 mutations por tick, quatro
+      ticks por hora; `rateLimit.used` em 4696/5000 com o `core` REST intacto
+      em 5000/5000. Com o portão fechado o tick não despacha nada — foi o que
+      segurou o `gh:unstick` dos PRs #233/#235 do `abacaxei-app`. Ver
+      `dotfiles-ai#101`.
+
+      A varredura custa uma página por 100 itens; o filtro reduz o custo do
+      caso normal (board em dia) a isso. Falhando a varredura, o filtro some e
+      o sync volta a ser o caro de antes: item de fora do board em silêncio é
+      pior que ponto gasto.
+
+      O `  + <url>` volta a significar "entrou agora".
+
       Examples:
         - task gh:sync
     cmds:
       - |
+        ja=$(mktemp "${TMPDIR:-/tmp}/gh-sync-board.XXXXXX")
+        gh api graphql --paginate \
+          -f query='query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
+            items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
+              nodes{ content{ ... on Issue{ url } ... on PullRequest{ url } } } } } } }' \
+          -f o={{.PROJECT_OWNER}} -F n={{.PROJECT_NUMBER}} \
+          --jq '.data.user.projectV2.items.nodes[].content.url // empty' > "$ja" 2>/dev/null || true
+
+        # Arquivo vazio é o modo de falha seguro: `grep -Fxv -f` sem padrão
+        # nenhum deixa passar tudo, e o sync volta a ser o de antes.
+        [ -s "$ja" ] || echo "  · não consegui ler o board — adicionando sem filtro" >&2
+
         task gh:repos | sort -u | while read -r repo; do
           gh issue list -R "$repo" --state open --limit 500 --json url --jq '.[].url'
           gh pr    list -R "$repo" --state open --limit 500 --json url --jq '.[].url'
-        done | while read -r url; do
+        done | { grep -Fxv -f "$ja" || true; } | while read -r url; do
           gh project item-add {{.PROJECT_NUMBER}} --owner {{.PROJECT_OWNER}} --url "$url" >/dev/null \
             && echo "  + $url"
         done
+        rm -f "$ja"
       - task: defaults
       - echo "sync concluído"
 
