@@ -80,6 +80,70 @@ tasks:
             exit 1 ;;
         esac
 
+  onboard:
+    desc: "Põe um repo novo no fluxo de agentes: Orca + board + labels + sync. REPO=owner/name"
+    summary: |
+      A entrada de um repo no fluxo são quatro passos mecânicos e um que só um
+      agente faz. Esta task encadeia os quatro e termina apontando o quinto —
+      a lista morava na cabeça, e repo entrava faltando pedaço.
+
+        1. `orca repo add`   sem registro no Orca não há worktree: o
+                             `gh:repo-path` reprova o repo antes do despacho.
+        2. `gh:link`         entra no board e vira squash-only (`gh:merge-policy`).
+        3. `gh:labels`       os `agent:*` existem antes da primeira issue.
+        4. `gh:sync`         issue e PR abertos viram card em `Backlog`.
+        5. `AGENTS.md`       `/agents-doc` no checkout. É o pré-requisito do
+                             `gh:review-ready`; sem ele toda issue em `Ready`
+                             cai em `Blocked`. Precisa de agente, então sai
+                             como recado no fim, não como passo daqui.
+
+      O automerge **não** entra: quem autoriza é
+      `~/.local/state/gh-board/automerge`, e o glob `alvarofpp/*` já cobre repo
+      seu. Repo de outro dono exige duas linhas na mão — a do `EXTRA_REPOS` (o
+      `gh:link` recusa, e o erro dele não aborta o resto) e a do automerge.
+
+      Idempotente: repo já registrado no Orca, já linkado ou já com os labels
+      passa reto.
+
+      Arguments:
+        - REPO: owner/name. Nome pelado assume {{.PROJECT_OWNER}}.
+        - CHECKOUT: caminho local. Default: o que o Orca já conhece, senão
+          `$HOME/<owner>/<nome>`.
+
+      Examples:
+        - task gh:onboard REPO=neurofolio-capital
+        - task gh:onboard REPO=lucida-ia/lucida-monorepo CHECKOUT=~/lucida/lucida-monorepo
+    requires:
+      vars: [REPO]
+    cmds:
+      - |
+        case "{{.REPO}}" in
+          */*) repo="{{.REPO}}" ;;
+          *)   repo="{{.PROJECT_OWNER}}/{{.REPO}}" ;;
+        esac
+        nome=${repo##*/}
+
+        checkout="{{.CHECKOUT}}"
+        [ -n "$checkout" ] || checkout=$(task gh:repo-path REPO="$repo" 2>/dev/null) || checkout="$HOME/${repo%%/*}/$nome"
+        [ -d "$checkout/.git" ] || {
+          echo "  ! $repo: sem checkout em $checkout — clone antes (gh repo clone $repo $checkout)"
+          exit 1
+        }
+
+        if orca repo list 2>/dev/null | awk -v n="$nome" '$2 == n { achou = 1 } END { exit !achou }'; then
+          echo "  · $nome: já registrado no Orca"
+        else
+          orca repo add --path "$checkout" >/dev/null && echo "  ~ $nome: registrado no Orca ($checkout)"
+        fi
+
+        task gh:link REPO="$repo" || true
+        task gh:labels REPO="$repo"
+        task gh:sync
+
+        task gh:review-ready REPO="$repo" \
+          && echo "  ✓ $repo: no fluxo." \
+          || echo "  → falta o AGENTS.md: rode /agents-doc em $checkout — até lá o repo está no board, mas issue em Ready vai pra Blocked"
+
   merge-policy:
     desc: "Deixa só o squash como método de merge nos repos SEUS do board."
     summary: |
