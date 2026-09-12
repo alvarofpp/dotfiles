@@ -140,7 +140,9 @@ tasks:
         task gh:labels REPO="$repo"
         task gh:sync
 
-        task gh:review-ready REPO="$repo" \
+        # 2>/dev/null: o motivo sai no stdout do review-ready; o stderr aqui
+        # é só o "Failed to run task" do Task, que assusta à toa.
+        task gh:review-ready REPO="$repo" 2>/dev/null \
           && echo "  ✓ $repo: no fluxo." \
           || echo "  → falta o AGENTS.md: rode /agents-doc em $checkout — até lá o repo está no board, mas issue em Ready vai pra Blocked"
 
