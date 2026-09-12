@@ -898,6 +898,7 @@ tasks:
       `~/.local/state/gh-board/automerge`, um repo por linha, `#` comenta:
 
         alvarofpp/*          glob vale pros repos SEUS
+        !alvarofpp/repo-x    `!` NEGA, e ganha de qualquer linha que autorize
         mvinnicius22/abacaxei-app    repo de terceiro: só nome literal
 
       Arquivo ausente ou vazio = automerge desligado em tudo (o default).
@@ -965,6 +966,21 @@ tasks:
           {{.PROJECT_OWNER}}/*) porglob=sim ;;
           *) porglob=nao ;;
         esac
+        # `!padrão` NEGA, e a negação ganha: é o que tira UM repo de dentro do
+        # glob sem trocar o glob por uma lista à mão — com lista, repo novo
+        # nasceria fora do automerge em silêncio, que é o erro caro na direção
+        # oposta. Passada própria, antes da lista de autorização, pra ordem das
+        # linhas não decidir nada.
+        while IFS= read -r linha || [ -n "$linha" ]; do
+          linha=${linha%%#*}
+          linha=$(printf '%s' "$linha" | tr -d '[:space:]')
+          case "$linha" in
+            "!"?*)
+              padrao=${linha#!}
+              case "$repo" in $padrao) barra "$repo está negado em $lista (!$padrao)" ;; esac ;;
+          esac
+        done < "$lista"
+
         ok=0
         while IFS= read -r linha || [ -n "$linha" ]; do
           linha=${linha%%#*}

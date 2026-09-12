@@ -9,7 +9,9 @@
 set -uo pipefail
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-allow="$tmp/allow"; printf 'alvarofpp/*\nterceiro/autorizado\n' > "$allow"
+# A linha negada vem ANTES do glob de propósito: a negação tem que ganhar em
+# qualquer ordem, senão tirar um repo do automerge viraria questão de posição.
+allow="$tmp/allow"; printf '!alvarofpp/negado\nalvarofpp/*\nterceiro/autorizado\n' > "$allow"
 
 # PR que passa em tudo. Cada caso altera UM campo com jq e espera reprovar.
 base=$(cat <<'JSON'
@@ -47,6 +49,7 @@ caso "PR pequeno, revisado, CI verde"        auto  '.'
 caso "repo fora da lista"                    human '.'  alvarofpp2/outro
 caso "terceiro NÃO alcançado por glob"       human '.'  mvinnicius22/abacaxei-app
 caso "terceiro autorizado por nome literal"  auto  '.'  terceiro/autorizado
+caso "repo negado, mesmo dentro do glob"     human '.'  alvarofpp/negado
 
 # --- estado do PR
 caso "PR fechado"                            human '.state = "MERGED"'
