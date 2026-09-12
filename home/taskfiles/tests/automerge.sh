@@ -108,5 +108,18 @@ seguro "docs/references/I18N.md"
 seguro "web/tests/Feature/Api/PostTest.php"
 seguro "apps/admin/resources/js/lang/pt-BR/common.ts"
 
+# --- o `gh:merge-approved` chama o filtro DEPOIS de um `cd` no checkout do
+# projeto, e o `task` resolve o Taskfile do CWD. Sem voltar pro home ele acha o
+# Taskfile do projeto, não encontra a task, e imprime a lista de tasks DELE como
+# se fosse o veredito — foi o que aconteceu na primeira execução real. Falha
+# fechado, então nada mescla errado; o filtro só deixa de existir, calado.
+yml="$(dirname "$0")/../GitHub.yml"
+chamada=$(grep -n 'task gh:automerge-check REPO={{.REPO}}' "$yml" | head -1)
+case "$chamada" in
+  *'cd ~ && task gh:automerge-check'*) st=ok ;;
+  *) st=FALHOU; falhas=$((falhas + 1)) ;;
+esac
+printf '%-7s %-46s %s\n' "$st" "filtro chamado a partir do home" "${chamada#*:}"
+
 [ "$falhas" -eq 0 ] && echo "automerge: ok" || echo "automerge: $falhas falha(s)"
 exit "$falhas"

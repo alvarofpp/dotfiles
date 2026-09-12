@@ -694,7 +694,15 @@ tasks:
           # própria task acabou de criar.
           veredito=""
           if [ "{{.AUTO}}" = "1" ]; then
-            if veredito=$(task gh:automerge-check REPO={{.REPO}} PR="$pr" ALLOW="{{.ALLOW}}" 2>/dev/null); then
+            # `cd ~` obrigatório: a task já fez `cd "$dir"` lá em cima, e o
+            # `task` resolve o Taskfile do CWD — dentro do checkout do projeto
+            # ele acha o Taskfile DELE, não encontra `gh:automerge-check`, e
+            # imprime a lista de tasks do projeto como se fosse o veredito.
+            # Medido em 2026-09-12, na primeira execução real: a fila inteira
+            # saiu "⏸ task: Available tasks for this project:". Falhou fechado,
+            # então nada mesclou errado — mas o filtro não rodava. Mesma
+            # armadilha que o `(cd ~ && task gh:subissue …)` do `gh:dispatch`.
+            if veredito=$(cd ~ && task gh:automerge-check REPO={{.REPO}} PR="$pr" ALLOW="{{.ALLOW}}" 2>/dev/null); then
               echo "   · ${veredito}"
             else
               echo "   ⏸ ${veredito:-human: filtro não soube decidir} — fica pra você"
