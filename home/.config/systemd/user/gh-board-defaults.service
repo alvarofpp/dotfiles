@@ -26,6 +26,7 @@ ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:gate-watch
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sync
 # Issue cujo agente morreu perde o lock e volta pra fila.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:reap
+ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sweep
 # Blocked que já teve resposta humana volta pra In Progress.
 ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:unblock
 # Pergunta sua com prefixo impl:/review:/agent: ganha o time que responde.

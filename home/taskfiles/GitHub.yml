@@ -2732,7 +2732,8 @@ tasks:
       `gh:close` pra worktree que o Orca esqueceu, que é quem pode apagar o
       banco errado —, o filtro do `gh:automerge-check`, que decide o que mescla
       sem você, o que o `gh:agents-busy` fecha (agente no prompt, parado no
-      limite, shell calado — com um `orca` falso no PATH), e quem recebe o aviso do
+      limite, shell calado — com um `orca` falso no PATH), quais worktrees o
+      `gh:sweep` varre (fluxo sim, `agent:skip` e árvore principal não), e quem recebe o aviso do
       `gh:review-gate-notice` — errar ali é ruído em PR de outra pessoa, ou
       silêncio pra quem esperava revisão.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
@@ -2751,6 +2752,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/orphan-instance.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/automerge.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/agents-busy.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/sweep.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
 
   pending-question:
@@ -3591,6 +3593,87 @@ tasks:
               rm -f {{.BOARD_CACHE}}
             done
         done
+
+  sweep:
+    desc: "Fecha terminal parado em worktree do fluxo sem lock — o que o gh:reap não olha."
+    summary: |
+      O `gh:reap` só chama o `gh:agents-busy` pra issue com `agent:running`, e
+      quem tira esse label é o próprio agente, ao terminar. Sessão que acabou
+      CERTO sai da varredura, e o terminal fica no prompt pra sempre: em
+      2026-09-13 eram vários Claudes ociosos em quatro worktrees do
+      abacaxei-app, comendo a RAM que o `MIN_FREE_MB` protege.
+
+      A regra é a do `gh:agents-busy` — é ele quem decide o que fecha —,
+      aplicada a toda worktree `issue-<n>`/`pr-<n>` com terminal vivo. Issue
+      com `agent:skip` fica de fora: você assumiu. Sem snapshot do board não
+      varre, porque sem ele não dá pra saber quem tem `agent:skip`.
+
+      Roda depois do `gh:reap` e antes do `gh:dispatch`: RAM liberada aqui é a
+      que o despacho confere.
+
+      Examples:
+        - task gh:sweep
+        - task gh:sweep DRY=1    # só lista as worktrees que seriam varridas
+    vars:
+      CACHE: '{{.CACHE | default .BOARD_CACHE}}'
+    cmds:
+      - task: board-scan
+        vars: { CACHE: '{{.CACHE}}' }
+      - |
+        {{if not .DRY}}task gh:agents-ready || exit 0{{end}}
+        [ -s "{{.CACHE}}" ] || exit 0
+        skip=$(jq -r 'select(.content.__typename == "Issue")
+                      | select([(.content.labels.nodes // [])[].name] | index("agent:skip"))
+                      | (.content.repository.nameWithOwner | split("/")[1]) + "/issue-" + (.content.number | tostring)' \
+                 < "{{.CACHE}}" 2>/dev/null || true)
+        orca terminal list --json 2>/dev/null \
+          | { jq -r '(.result.terminals // [])[].worktreePath // empty' 2>/dev/null || true; } \
+          | sort -u \
+          | while read -r wt; do
+              rel=${wt#"$HOME"/orca/workspaces/}
+              if [ "$rel" = "$wt" ]; then continue; fi
+              case "${rel#*/}" in issue-[0-9]*|pr-[0-9]*) ;; *) continue ;; esac
+              if printf '%s\n' "$skip" | grep -qx -- "$rel"; then continue; fi
+              {{if .DRY}}echo "$rel"{{else}}task gh:agents-busy WT="path:$wt" >/dev/null || true{{end}}
+            done
+
+  ps:
+    desc: "O que roda agora nas worktrees do fluxo — agente, estado, última mensagem. Só leitura."
+    summary: |
+      Uma linha por agente em worktree `issue-<n>`/`pr-<n>` com terminal vivo,
+      com o que o Orca sabe dele (`orca worktree ps`). Poupa juntar labels com
+      `orca terminal list` worktree por worktree.
+
+      **O estado vem do hook, não da tela, e envelhece.** Hook perdido deixa
+      `working` numa sessão que já está no prompt — foi o que a issue-236 do
+      abacaxei-app mostrou em 2026-09-13. Serve pra olhar; quem decide o que
+      fechar é o `gh:agents-busy`, pelo `tui-idle`.
+
+      Examples:
+        - task gh:ps
+    cmds:
+      - |
+        # `agents` guarda também pane que já fechou; só entra quem tem terminal
+        # vivo — senão cada revisão antiga da worktree vira uma linha.
+        panes=$(orca terminal list --json 2>/dev/null \
+          | { jq -c '[(.result.terminals // [])[] | .tabId + ":" + .leafId]' 2>/dev/null || true; })
+        orca worktree ps --limit 1000 --json 2>/dev/null \
+        | { jq -r --arg ws "$HOME/orca/workspaces/" --argjson agora "$(date +%s)" --argjson panes "${panes:-[]}" '
+              ["WORKTREE", "AGENTE", "ESTADO", "HÁ", "ÚLTIMA MENSAGEM"],
+              ( (.result.worktrees // [])[]
+                | select(.path | startswith($ws))
+                | select(.displayName | test("^(issue|pr)-[0-9]+$"))
+                | select((.liveTerminalCount // 0) > 0)
+                | . as $w
+                | ([(.agents // [])[] | select(.paneKey as $p | $panes | index($p))]
+                   | if . == [] then [{}] else . end)[]
+                | [ $w.repo + "/" + $w.displayName,
+                    (.agentType // "-"),
+                    (.state // "-"),
+                    (if .stateStartedAt then (($agora - .stateStartedAt / 1000) / 60 | floor | tostring) + "min" else "-" end),
+                    ((.lastAssistantMessage // "") | split("\n")[0] | .[0:90]) ] )
+              | @tsv' 2>/dev/null || true; } \
+        | column -t -s "$(printf '\t')"
 
   done:
     desc: "Move pra Done os itens do board cuja issue/PR já fechou."
