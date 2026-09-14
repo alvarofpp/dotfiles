@@ -38,7 +38,7 @@ caso() {
 caso "so o PR que pediu revisao sua" "117" "$tmp/prs.json"
 
 # Lista vazia não é erro: repo fora do fluxo sem PR esperando por você não tem
-# a quem avisar, e o tick de 15 min passa por aqui em todo repo reprovado.
+# a quem avisar, e o tick de 10 min passa por aqui em todo repo reprovado.
 printf '[]\n' > "$tmp/vazio.json"
 caso "repo sem PR esperando" "" "$tmp/vazio.json"
 

@@ -5,7 +5,7 @@
 # A task roda de verdade; o que é injetado são as costuras `GATE` (o comando
 # que decide), `STATE` (onde mora o contador) e `DRY` (imprime em vez de
 # mandar no Telegram). O caso que justifica o teste é o do latch: sem ele o
-# tick de 15 min repetiria o alerta a noite inteira.
+# tick de 10 min repetiria o alerta a noite inteira.
 set -uo pipefail
 
 estado=$(mktemp); rm -f "$estado"

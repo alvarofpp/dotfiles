@@ -5,7 +5,7 @@
 # O programa jq é EXTRAÍDO do GitHub.yml, não copiado: cópia que envelhece
 # testa o passado. Os casos que justificam o teste são dois — o autor do PR não
 # autoriza as próprias rodadas extras (ele não tem acesso de escrita), e
-# pergunta sem resposta tem que sair como pendente, senão o tick de 15 min
+# pergunta sem resposta tem que sair como pendente, senão o tick de 10 min
 # repete o pedido no PR de outra pessoa pra sempre.
 set -uo pipefail
 

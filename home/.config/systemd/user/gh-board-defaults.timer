@@ -1,8 +1,8 @@
 [Unit]
-Description=Roda o gh-board-defaults a cada 15 min
+Description=Roda o gh-board-defaults a cada 10 min
 
 [Timer]
-OnCalendar=*:0/15
+OnCalendar=*:0/10
 # Pega o que passou enquanto o notebook estava desligado/suspenso.
 Persistent=true
 RandomizedDelaySec=60

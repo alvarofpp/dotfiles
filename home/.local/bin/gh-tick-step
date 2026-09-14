@@ -6,7 +6,7 @@
 # `trap : TERM`, e não `trap '' TERM`: ignorar o sinal seria herdado pelo `task`,
 # e o `TimeoutStartSec` da unit não o mataria. Com handler, o `task` morre, o rc
 # sai 143 e a linha da etapa culpada é gravada antes de o shell sair.
-# ponytail: ~1700 linhas/dia sem rotação; truncar quando o arquivo pesar.
+# ponytail: ~2600 linhas/dia (18 etapas × 144 ticks) sem rotação; truncar quando pesar.
 arq="${GH_TICK_LOG:-$HOME/.local/state/gh-board/tick.jsonl}"
 mkdir -p "$(dirname "$arq")"
 trap : TERM
