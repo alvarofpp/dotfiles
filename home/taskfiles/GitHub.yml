@@ -2956,6 +2956,10 @@ tasks:
       deixava a worktree órfã pra sempre, sem erro nenhum. As duas ações são
       independentes: fecha o que estiver aberto, apaga a worktree que existir.
 
+      **Card que saiu do board também.** Worktree `issue-<n>` do Orca cuja issue
+      está fechada sai mesmo sem card — o card some (removido do Project) e a
+      instância ficaria de pé pra sempre.
+
       **Worktree que o Orca esqueceu tem fallback.** A remoção passa pelo Orca
       porque é o `--run-hooks` que dispara o `archive` do `orca.yaml`, e é ele
       que chama o `dev:destroy`. Quando o Orca não conhece mais a worktree
@@ -3078,12 +3082,30 @@ tasks:
             task gh:pull REPO="$repo"
           done
 
-        # Worktree de revisão (`pr-<n>`, do `gh:review-requested`) não tem issue
-        # e não passa pelo laço acima: some quando o PR fecha ou é mesclado.
+        # Worktree `issue-<n>` cujo card SAIU do board não passa pelo laço acima,
+        # que só enxerga card em Done/Dropped. Em 2026-09-14 a
+        # `abacaxei-app#236` fechou com PR mesclado, o card sumiu do Project e a
+        # instância seguiu de pé — 7 containers ressuscitados a cada boot pelo
+        # `restart:`. A issue fechada é a fonte da verdade, não o card.
         orca worktree list --json 2>/dev/null \
           | jq -r '(.result.worktrees // .result)[]
-                   | select(.path | test("/pr-[0-9]+$"))
-                   | "\(.projectId | sub("^github:";"")) \(.path | capture("/pr-(?<n>[0-9]+)$").n) \(.path)"' \
+                   | select(.path | test("/orca/workspaces/[^/]+/issue-[0-9]+$"))
+                   | "\(.projectId | sub("^github:";"")) \(.path | capture("/issue-(?<n>[0-9]+)$").n) \(.path)"' \
+            2>/dev/null \
+        | while read -r repo num path; do
+            estado=$(gh issue view "$num" -R "$repo" --json state --jq .state 2>/dev/null) || continue
+            if [ "$estado" != "CLOSED" ]; then continue; fi
+            orca worktree rm --worktree "path:$path" --run-hooks >/dev/null 2>&1 \
+              && echo "  ~ $repo#$num fechada fora do board — worktree issue-$num removida"
+          done
+
+        # Worktree de revisão (`pr-<n>` do `gh:review-requested`, `<repo>-review-pr-<n>`
+        # do `/review-pr`) não tem issue e não passa pelo laço acima: some quando
+        # o PR fecha ou é mesclado.
+        orca worktree list --json 2>/dev/null \
+          | jq -r '(.result.worktrees // .result)[]
+                   | select(.path | test("[/-]pr-[0-9]+$"))
+                   | "\(.projectId | sub("^github:";"")) \(.path | capture("[/-]pr-(?<n>[0-9]+)$").n) \(.path)"' \
             2>/dev/null \
         | while read -r repo pr path; do
             estado=$(gh pr view "$pr" -R "$repo" --json state --jq .state 2>/dev/null) || continue
