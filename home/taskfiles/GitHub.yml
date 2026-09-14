@@ -31,6 +31,7 @@ vars:
   # no zsh interativo do Orca. Volta pro Opus sem editar nada:
   # `IMPL_RUNNER=claude` no env da unit do tick, ou na linha de comando.
   IMPL_RUNNER: '{{.IMPL_RUNNER | default "claude-mini"}}'
+  METRICS_FILE: $HOME/.local/state/gh-board/metrics.jsonl
   DEFAULT_STATUS: Backlog
   DEFAULT_PRIORITY: P3
 
@@ -3787,3 +3788,132 @@ tasks:
         | while read -r item; do
             task gh:status ITEM="$item" VALUE=Done && echo "  ~ $item → Done"
           done
+
+  metrics:
+    desc: "Métricas das issues fechadas do fluxo (append-only, fora do git) e o resumo."
+    summary: |
+      Uma linha por issue fechada em `METRICS_FILE`: ciclo de Status com o tempo
+      em cada um, retrabalho, rodadas de revisão, veredito e achados por
+      severidade, interações por marcador e o esforço dos PRs. Fora do git
+      porque é agregado de todos os repos — versionado, conflitaria entre PRs
+      paralelos por construção.
+
+      Idempotente: issue que já tem linha não é consultada de novo nem
+      reescrita. Só entra issue que passou pelo board (mudança de Status no
+      projeto); fechada sem PR (Dropped) entra com os campos de revisão nulos.
+
+      Tudo sai da API — a worktree, e com ela o `.claude/reviews/pr-<n>.json`,
+      some quando a issue fecha, e o JSON só guarda a última rodada:
+        Status     ProjectV2ItemStatusChangedEvent da issue
+        PRs        cross-reference de PR do mesmo repo com `Refs|Closes #N`
+        rodadas    reviews do dono com `<!-- agent:review -->`, como o `gh:pr-tick`
+        veredito   label `agent:changes`/`agent:approved` posta a cada rodada
+        achados    1º comentário da thread: `**Revisão** — <severidade>:`
+
+      Arguments:
+        - REPO: owner/name (default: todos do `gh:repos`).
+
+      Examples:
+        - task gh:metrics
+        - task gh:metrics REPO=mvinnicius22/abacaxei-app
+    cmds:
+      - |
+        arq="{{.METRICS_FILE}}"
+        mkdir -p "$(dirname "$arq")"; touch "$arq"
+        repos="{{.REPO}}"
+        [ -n "$repos" ] || repos=$(task gh:repos)
+
+        # Duas queries em vez de uma aninhada: com os PRs dentro do timeline da
+        # issue, o custo GraphQL multiplica pelo `first:` do timeline (~30
+        # pontos por issue) mesmo quando quase toda referência é de issue.
+        # ponytail: `first:` fixo — issue com >60 eventos ou PR com >50 threads
+        # sai truncada; paginar quando alguma medir isso.
+        QI='query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){ issue(number:$n){
+          number title closedAt stateReason parent{number} subIssues{totalCount}
+          comments(first:100){nodes{body}}
+          timelineItems(first:60,itemTypes:[PROJECT_V2_ITEM_STATUS_CHANGED_EVENT,CROSS_REFERENCED_EVENT]){nodes{
+            __typename
+            ... on ProjectV2ItemStatusChangedEvent{createdAt previousStatus status project{number}}
+            ... on CrossReferencedEvent{source{... on PullRequest{number body repository{nameWithOwner}}}}
+          }} } } }'
+        QP='query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){ pullRequest(number:$n){
+          number additions deletions changedFiles commits{totalCount}
+          reviews(first:50){nodes{body author{login}}}
+          comments(first:100){nodes{body}}
+          reviewThreads(first:50){nodes{comments(first:20){nodes{body}}}}
+          timelineItems(first:50,itemTypes:[LABELED_EVENT]){nodes{... on LabeledEvent{label{name}}}}
+        } } }'
+        # Entrada: [issue, [prs]]. Issue sem Status no projeto não é do fluxo: sai vazia.
+        JQ='.[0] as $i | .[1] as $prs
+          | def marca: (capture("<!-- agent:(?<m>[a-z]+) -->").m // "humano");
+            def conta: group_by(.) | map({key: .[0], value: length}) | from_entries;
+          [$i.timelineItems.nodes[]
+            | select(.__typename == "ProjectV2ItemStatusChangedEvent" and .project.number == $proj)
+            | {de: .previousStatus, para: .status, em: .createdAt}] as $t
+          | if ($t | length) == 0 then empty else
+            { repo: $repo, issue: $i.number, titulo: $i.title, fechada_em: $i.closedAt,
+              motivo: $i.stateReason, status_final: $t[-1].para, transicoes: $t,
+              tempo_s: ([range(0; ($t | length) - 1) as $k
+                         | {s: $t[$k].para, d: (($t[$k+1].em | fromdate) - ($t[$k].em | fromdate))}]
+                        | group_by(.s) | map({key: .[0].s, value: (map(.d) | add)}) | from_entries),
+              retrabalho: { review_para_progress: ([$t[] | select(.de == "In Review" and .para == "In Progress")] | length),
+                            blocked: ([$t[] | select(.para == "Blocked")] | length) },
+              interacoes: { issue: ([$i.comments.nodes[].body | marca] | conta),
+                            pr: ([$prs[] | (.comments.nodes[].body, .reviews.nodes[].body,
+                                            .reviewThreads.nodes[].comments.nodes[].body)
+                                  | select(. != "") | marca] | conta) },
+              sub_issue: ($i.parent != null), filhas: $i.subIssues.totalCount,
+              prs: [$prs[].number] }
+            + if ($prs | length) == 0 then {rodadas: null, veredictos: null, achados: null, esforco: null} else
+              { rodadas: ([$prs[].reviews.nodes[]
+                           | select(.author.login == $dono and ((.body // "") | test("<!-- agent:review -->")))] | length),
+                veredictos: [$prs[].timelineItems.nodes[].label.name
+                             | select(. == "agent:changes" or . == "agent:approved") | ltrimstr("agent:")],
+                achados: ([$prs[].reviewThreads.nodes[].comments.nodes[0].body // empty
+                           | capture("\\*\\*Revisão\\*\\* — (?<s>nit|sugestão|importante|bloqueante):") | .s] | conta),
+                esforco: { commits: ([$prs[].commits.totalCount] | add), arquivos: ([$prs[].changedFiles] | add),
+                           adicoes: ([$prs[].additions] | add), remocoes: ([$prs[].deletions] | add) } }
+            end
+          end'
+
+        for repo in $repos; do
+          o="${repo%/*}"; r="${repo#*/}"; novas=0
+          feitas=$(jq -r --arg r "$repo" 'select(.repo == $r) | .issue' "$arq")
+          for num in $(gh issue list -R "$repo" --state closed --limit 1000 \
+                         --search "project:{{.PROJECT_OWNER}}/{{.PROJECT_NUMBER}}" --json number --jq '.[].number'); do
+            printf '%s\n' "$feitas" | grep -qx "$num" && continue
+            # Falha de API não grava nada: a issue volta na próxima rodada.
+            issue=$(gh api graphql -F o="$o" -F r="$r" -F n="$num" -f query="$QI" --jq .data.repository.issue) \
+              || { echo "  ! $repo#$num: API falhou — fica pra próxima"; continue; }
+            prs=$(printf '%s' "$issue" | jq -r --arg repo "$repo" --arg n "$num" \
+              '[.timelineItems.nodes[].source? | select(.number != null and .repository.nameWithOwner == $repo
+                 and ((.body // "") | test("(?i)(refs|closes|fixes) #" + $n + "\\b")))] | map(.number) | unique | .[]')
+            prjson="[]"
+            if [ -n "$prs" ]; then
+              prjson=$(for pr in $prs; do
+                gh api graphql -F o="$o" -F r="$r" -F n="$pr" -f query="$QP" --jq .data.repository.pullRequest
+              done | jq -s .) || { echo "  ! $repo#$num: API falhou nos PRs — fica pra próxima"; continue; }
+            fi
+            linha=$(printf '%s\n%s\n' "$issue" "$prjson" | jq -cs --arg repo "$repo" --arg dono "{{.PROJECT_OWNER}}" \
+              --argjson proj {{.PROJECT_NUMBER}} "$JQ")
+            [ -n "$linha" ] || continue
+            printf '%s\n' "$linha" >> "$arq"
+            novas=$((novas + 1))
+          done
+          echo "  $repo: $novas issue(s) nova(s)"
+        done
+
+        echo
+        jq -rs --arg repo "{{.REPO}}" '
+          map(select($repo == "" or .repo == $repo)) as $l
+          | ([$l[].rodadas | select(. != null)] | sort) as $r
+          | "Resumo — \($l | length) issues, \($r | length) com PR",
+            "  mediana de rodadas por issue: \(if ($r | length) == 0 then "-"
+               else ($r[(($r | length) - 1) / 2 | floor] + $r[($r | length) / 2 | floor]) / 2 end)",
+            "  achados por severidade: \([$l[].achados // {} | to_entries[]] | group_by(.key)
+               | map("\(.[0].key) \(map(.value) | add)") | join(", "))",
+            "  maior retrabalho (In Review → In Progress + Blocked):",
+            ($l | map(select(.retrabalho.review_para_progress + .retrabalho.blocked > 0))
+                | sort_by(-(.retrabalho.review_para_progress + .retrabalho.blocked)) | .[:5][]
+                | "    \(.repo)#\(.issue)  \(.retrabalho.review_para_progress) volta(s), \(.retrabalho.blocked) blocked — \(.titulo)")
+        ' "$arq"
