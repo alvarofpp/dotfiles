@@ -465,6 +465,11 @@ tasks:
       cada tick quando não adianta. `DOCKER_START=true` desarma o relançamento
       (usado pra testar a detecção sem derrubar nada).
 
+      **Porta publicada pendurada ele republica.** O Traefik responde por
+      dentro e o host leva reset em `127.0.0.1:8090` — o alvo do `tailscale
+      serve` das instâncias. `docker restart svc-traefik` + `svc:reconnect`
+      conserta; não fecha o portão. `SVC_URL`/`SVC_HEAL` são a costura de teste.
+
       **Cota da API fecha o portão.** O sinal é uma sonda GraphQL, não o
       `gh api rate_limit`: aquele endpoint reportou `remaining 5000, used 0`
       enquanto toda chamada falhava (2026-09-08). O que estoura é o limite
@@ -488,6 +493,9 @@ tasks:
       RATE_FLOOR: '{{.RATE_FLOOR | default 500}}'
       # Costura de teste: o comando que sonda a cota.
       RATE_PROBE: '{{.RATE_PROBE | default "gh api graphql -f query=\"query{ rateLimit{ remaining resetAt } }\" 2>&1"}}'
+      # Costura de teste do reparo da porta publicada: a URL sondada e o conserto.
+      SVC_URL: '{{.SVC_URL | default "http://127.0.0.1:8090/"}}'
+      SVC_HEAL: '{{.SVC_HEAL | default "docker restart svc-traefik >/dev/null && (cd ~ && task svc:reconnect)"}}'
       DOCKER_START: '{{.DOCKER_START | default "/mnt/c/Windows/System32/taskkill.exe /IM \"Docker Desktop.exe\" /F >/dev/null 2>&1 || true; sleep 5; /mnt/c/Windows/System32/cmd.exe /c start \"\" \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\" >/dev/null 2>&1 || true"}}'
     cmds:
       - |
@@ -551,6 +559,18 @@ tasks:
         if [ -z "$(docker ps -q --filter name=svc-traefik --filter status=running)" ]; then
           echo "stack svc: fora do ar — fluxo autônomo desligado (task svc:up pra ligar)"
           exit 1
+        fi
+
+        # Porta publicada pendurada: o Traefik responde por dentro e o host leva
+        # reset (ou timeout) em 127.0.0.1:8090 — que é o alvo do `tailscale
+        # serve`, então as instâncias somem do tailnet sem erro em log nenhum
+        # (dotfiles-ai#112, 2026-09-13). É o proxy de porta do Docker Desktop,
+        # que só se registra de novo quando o container republica as portas.
+        # Não fecha o portão: o fluxo não depende dessa porta, só o acesso humano.
+        if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 {{.SVC_URL}})" = "000" ] \
+           && docker exec svc-traefik wget -q -S -O /dev/null -T 5 http://localhost:80/ 2>&1 | grep -q 'HTTP/'; then
+          echo "porta publicada do svc-traefik pendurada — republicando"
+          {{.SVC_HEAL}}
         fi
 
         # Cota da API. NÃO usa `gh api rate_limit`: medido em 2026-09-08, aquele
