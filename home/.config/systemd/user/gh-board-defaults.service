@@ -21,47 +21,47 @@ Environment=PATH=/home/alvaro/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/loc
 WorkingDirectory=%h
 # Vigia do portão: avisa no Telegram quando o fluxo passa 3 ticks desligado.
 # Primeiro de propósito — é o que responde "este tick vale alguma coisa?".
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:gate-watch
+ExecStart=%h/.local/bin/gh-tick-step gh:gate-watch
 # Issue e PR novos entram no board; o `sync` termina chamando `defaults`.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sync
+ExecStart=%h/.local/bin/gh-tick-step gh:sync
 # Issue cujo agente morreu perde o lock e volta pra fila.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:reap
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:sweep
+ExecStart=%h/.local/bin/gh-tick-step gh:reap
+ExecStart=%h/.local/bin/gh-tick-step gh:sweep
 # Blocked que já teve resposta humana volta pra In Progress.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:unblock
+ExecStart=%h/.local/bin/gh-tick-step gh:unblock
 # Pergunta sua com prefixo impl:/review:/agent: ganha o time que responde.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:answer
+ExecStart=%h/.local/bin/gh-tick-step gh:answer
 # Ready -> triagem (/issue-prep). Síncrono: nada de worktree nesta fase.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:prep
+ExecStart=%h/.local/bin/gh-tick-step gh:prep
 # In Progress -> agente implementando, ou aplicando o que a revisão pediu.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:dispatch
+ExecStart=%h/.local/bin/gh-tick-step gh:dispatch
 # In Review -> ciclo de revisão do PR. Para em agent:approved; o merge é dele.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-tick
+ExecStart=%h/.local/bin/gh-tick-step gh:pr-tick
 # PR de outra pessoa que pediu revisão sua: despacha o revisor.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:review-requested
+ExecStart=%h/.local/bin/gh-tick-step gh:review-requested
 # PR aprovado que parou de mesclar (conflito, atrasado, CI vermelho).
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:unstick
+ExecStart=%h/.local/bin/gh-tick-step gh:unstick
 # PR aprovado que o filtro liberar mescla sozinho. Inerte enquanto não existir
 # `~/.local/state/gh-board/automerge` — que é o default, e é como isto entra no
 # tick sem mudar nada até você optar. Depois do `unstick`, que é quem põe o PR
 # aprovado em dia, e antes do `settle`, pra o que mesclou agora fechar no mesmo
 # tick.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:automerge
+ExecStart=%h/.local/bin/gh-tick-step gh:automerge
 # In Review sem PR aberto -> confere critérios de aceite e decide Done.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:settle
+ExecStart=%h/.local/bin/gh-tick-step gh:settle
 # Done/Dropped -> fecha a issue e apaga a worktree.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:close
+ExecStart=%h/.local/bin/gh-tick-step gh:close
 # Card de PR ganha Status próprio (In Review / Ready-é-seu / Blocked / Done).
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:pr-board
+ExecStart=%h/.local/bin/gh-tick-step gh:pr-board
 # Higiene: item fechado fora do fluxo sai do Status antigo.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:done
+ExecStart=%h/.local/bin/gh-tick-step gh:done
 
 # Higiene de settings: repõe o squash-only que alguém tenha desfeito pela UI.
 # Autolimitado a uma passada por dia (`EVERY` no gh:merge-policy) — rodar a
 # cada tick custaria uma chamada de API por repo pra consertar um desvio raro.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:merge-policy
+ExecStart=%h/.local/bin/gh-tick-step gh:merge-policy
 # Por último: avisa no Telegram o que parou esperando humano (PR pra mergear,
 # issue travada). Depois do pr-board, que é quem põe o card do PR em Ready.
-ExecStart=/home/linuxbrew/.linuxbrew/bin/task gh:notify
+ExecStart=%h/.local/bin/gh-tick-step gh:notify
 StandardOutput=journal
 StandardError=journal
