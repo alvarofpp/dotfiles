@@ -45,6 +45,11 @@ tasks:
 
       Diretório que existe não é tocado, então worktree em uso não corre risco.
 
+      **Processo também.** Qualquer processo seu cujo `cwd` está em
+      `~/orca/workspaces/` e sumiu (ou foi pra `.orca-worktree-trash/`) leva
+      SIGTERM — o teste Flutter roda no host, e o arquivamento da worktree só
+      derruba o que está em container.
+
       Arguments:
         - DRY: `DRY=1` só lista, não apaga.
 
@@ -73,7 +78,7 @@ tasks:
           # Órfão de verdade: cwd apagado e ainda de pé. Confere o cmdline pra
           # não matar um pid reciclado por outro programa.
           if [ -d "/proc/$pid" ] && grep -qa claude "/proc/$pid/cmdline" 2>/dev/null; then
-            kill "$pid" 2>/dev/null || true
+            /usr/bin/kill "$pid" 2>/dev/null || true
           fi
           rm -f "$f" "${f%.json}".*.key
         done
@@ -101,4 +106,27 @@ tasks:
           echo "  transcript $(basename "$d") — $cwd"
           if [ -n "{{.DRY}}" ]; then continue; fi
           rm -rf "$d"
+        done
+
+        # Processo preso a worktree apagada (dotfiles-ai#114). O teste Flutter
+        # roda no host, fora do container, então o `dev:destroy` do
+        # arquivamento não o alcança: em 2026-09-14 seis `flutter_tester`
+        # (~1,4GB) seguiram de pé 1h38, adotados pelo `systemd --user`. Mesmo
+        # critério das sessões — o `cwd` sumiu, ou está na lixeira do Orca —,
+        # lido do `/proc` porque processo não deixa arquivo. O glob é do
+        # DIRETÓRIO, não de `/proc/*/cwd`: o shell do Task descarta do glob o
+        # link que aponta pra pasta apagada — exatamente o caso que interessa.
+        # E `kill` é `/usr/bin/kill`: no shell do Task o `kill` puro sai com
+        # "unsupported builtin", e o `2>/dev/null || true` o deixava mudo — o
+        # laço de sessões acima nunca tinha matado órfão nenhum.
+        for d in /proc/[0-9]*; do
+          cwd=$(readlink "$d/cwd" 2>/dev/null) || continue
+          case "$cwd" in
+            "$HOME"/orca/workspaces/*" (deleted)"|"$HOME"/orca/workspaces/*/.orca-worktree-trash/*) ;;
+            *) continue ;;
+          esac
+          pid="${d#/proc/}"
+          echo "  processo $pid ($(cat "/proc/$pid/comm" 2>/dev/null)) — ${cwd% (deleted)}"
+          if [ -n "{{.DRY}}" ]; then continue; fi
+          /usr/bin/kill "$pid" 2>/dev/null || true
         done

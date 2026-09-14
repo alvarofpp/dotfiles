@@ -2831,6 +2831,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/agents-busy.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/sweep.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/prune-orphan.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
