@@ -1962,6 +1962,7 @@ tasks:
 
         vinda do prep       não há PR ainda -> implementa do zero
         vinda do review     há PR aberto    -> aplica o que a revisão pediu
+        PR sem agent:changes                -> já aplicado: In Review, sem sessão
 
       O agente cria a branch e a linka no **Development** da issue antes do
       primeiro push, roda o QA local do projeto (o que o `Taskfile`/runner
@@ -2053,9 +2054,23 @@ tasks:
 
           repo="${ref%\#*}"; num="${ref##*\#}"
 
-          pr=$(gh pr list -R "$repo" --state open --label agent --limit 50 \
-                 --json number,body --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' \
-                 2>/dev/null | head -1)
+          # PR aberto da issue: "<número> <sim|nao>", o segundo dizendo se ele
+          # ainda tem `agent:changes`. Numa linha só e em variável porque o
+          # `tests/dispatch-changes.sh` a extrai daqui.
+          prq='.[] | select(.body // "" | test("(?i)(refs|closes) #" + $n + "\\b")) | "\(.number) \(if ([.labels[].name] | index("agent:changes")) != null then "sim" else "nao" end)"'
+          read -r pr pede_mudanca <<< "$(gh pr list -R "$repo" --state open --label agent --limit 50 \
+                 --json number,body,labels 2>/dev/null | jq -r --arg n "$num" "$prq" 2>/dev/null | head -1)"
+
+          # PR aberto e já sem `agent:changes`: a sessão anterior aplicou a
+          # revisão (ou abriu o PR) e só não moveu o card. Despachar de novo abre
+          # sessão paga sem trabalho — em 2026-09-14 a `abacaxei-app#154` gastou
+          # duas assim (dotfiles-ai#115). Move pra revisão e segue.
+          if [ -n "$pr" ] && [ "$pede_mudanca" = "nao" ]; then
+            task gh:issue-status REF="$ref" VALUE="In Review" >/dev/null \
+              && echo "  ~ $ref: PR #$pr já sem agent:changes — In Review, sem abrir sessão"
+            rm -f {{.BOARD_CACHE}}
+            continue
+          fi
 
           # Sub-issue: mãe com filha aberta e sem PR próprio é container —
           # o trabalho está nas filhas, e despachá-la seria implementar de
@@ -2832,6 +2847,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/sweep.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/prune-orphan.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/dispatch-changes.sh"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
