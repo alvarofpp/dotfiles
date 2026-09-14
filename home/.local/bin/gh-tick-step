@@ -1,0 +1,18 @@
+#!/bin/sh
+# Uma etapa do tick do board: roda `task <etapa>` e anexa etapa, início, fim e rc
+# em tick.jsonl (dotfiles-ai#113). Sem isto, 5h de etapa travada e 5h de
+# trabalho são o mesmo silêncio no journal.
+#
+# `trap : TERM`, e não `trap '' TERM`: ignorar o sinal seria herdado pelo `task`,
+# e o `TimeoutStartSec` da unit não o mataria. Com handler, o `task` morre, o rc
+# sai 143 e a linha da etapa culpada é gravada antes de o shell sair.
+# ponytail: ~1700 linhas/dia sem rotação; truncar quando o arquivo pesar.
+arq="${GH_TICK_LOG:-$HOME/.local/state/gh-board/tick.jsonl}"
+mkdir -p "$(dirname "$arq")"
+trap : TERM
+inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ); t0=$(date +%s)
+task "$1"; rc=$?
+printf '{"passada":"%s","etapa":"%s","inicio":"%s","fim":"%s","duracao_s":%s,"rc":%s}\n' \
+  "${INVOCATION_ID:-manual}" "$1" "$inicio" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  "$(( $(date +%s) - t0 ))" "$rc" >> "$arq"
+exit "$rc"
