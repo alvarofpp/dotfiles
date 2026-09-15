@@ -144,6 +144,28 @@ provedor "MiniMax pelo RUNS_FILE"   16 "claude-model minimax-m3"        "$limite
 provedor "MiniMax de antes do log"  17 -                                "$limite_mm"                         minimax-m3 s
 provedor "Opus no limite: sem sonda" 18 claude                          "Claude usage limit reached"         - n
 
+# Revisor em processo (`claude -p`) rodando na worktree segura a sessão no
+# prompt; sem ele, ou com `-p` só dentro do texto do prompt, ela fecha. O
+# `claude` falso é script com shebang direto: o nome do processo sai do
+# arquivo, que é o que o `pgrep -x claude` casa.
+mkdir -p "$tmp/wt"; wt=$(cd "$tmp/wt" && pwd -P)
+printf '#!/bin/bash\nsleep 30\n' > "$tmp/bin/claude"; chmod +x "$tmp/bin/claude"
+filho() { # $1 descrição  $2 esperado (fecha|fica)  $3.. argumentos do `claude` (nenhum = sem processo)
+  local d=$1 e=$2 pid=""; shift 2
+  : > "$tmp/stub/fechados"; echo w1 > "$tmp/stub/ociosos"; printf '❯' > "$tmp/stub/tela-w1"
+  jq -n --argjson o $(( (agora - 5 * 60) * 1000 )) '{ok:true, result:{terminals:[{handle:"w1", lastOutputAt:$o}]}}' > "$tmp/stub/list.json"
+  if [ $# -gt 0 ]; then
+    (cd "$wt" && exec "$tmp/bin/claude" "$@") & pid=$!
+    sleep 0.3
+  fi
+  roda "path:$wt" true "$tmp/state" >/dev/null
+  [ -n "$pid" ] && { pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; }
+  confere "$d" "$e" "$(grep -qx w1 "$tmp/stub/fechados" && echo fecha || echo fica)"
+}
+filho "no prompt com claude -p na worktree" fica --model x -p --agent revisor
+filho "no prompt, -p só no texto do prompt"  fecha "rode claude-model x -p"
+filho "no prompt, sem processo"              fecha
+
 # Worktree que não existe devolve 0 — é o que solta o lock no `gh:reap`.
 rm -f "$tmp/stub/list.json"
 confere "worktree que não existe" 0 "$(roda "path:/nao/existe" true "$tmp/state")"
