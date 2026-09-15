@@ -40,7 +40,8 @@ confere "M3: resposta repetida conta uma vez"      "2 150 30 5" "$(jq -r '.model
 confere "subagente entra na sessão, synthetic não" "MiniMax-M3,claude-opus-5" "$(jq -r '.modelos | keys | join(",")' <<< "$sessao")"
 confere "horário sem milissegundo"                 "2026-09-15T00:00:01Z 2026-09-15T00:09:59Z" "$(jq -r '"\(.inicio) \(.fim)"' <<< "$sessao")"
 
-runs=$(mktemp); sess=$(mktemp); trap 'rm -f "$runs" "$sess"' EXIT
+runs=$(mktemp); sess=$(mktemp); mods=$(mktemp); trap 'rm -f "$runs" "$sess" "$mods"' EXIT
+printf '%s\n' '{"repo":"o/app","issue":7,"em":"x","plano":"glm-5.3","critica":"kimi-k3","execucao":"minimax-m3","julgamento":"opus","conferencia":"deepseek-v4-flash"}' > "$mods"
 printf '%s\n' \
   '{"repo":"o/app","issue":7,"etapa":"plano","runner":"claude","em":"2026-09-15T00:00:30Z"}' \
   '{"repo":"o/app","issue":7,"etapa":"execucao","runner":"claude-mini","em":"2026-09-15T01:00:00Z"}' \
@@ -50,11 +51,12 @@ s() { printf '{"repo_nome":"%s","issue":7,"sessao":"%s","inicio":"%s","modelos":
   s app e1 2026-09-15T01:00:05Z MiniMax-M3 2
   s app e2 2026-09-15T02:00:00Z MiniMax-M3 4      # retomada, depois de tudo
   s outro r1 2026-09-15T01:30:05Z claude-opus-5 8; } > "$sess"
-issue=$(jq -cn '{repo: "o/app", issue: 7}' | jq -c --arg nome app --slurpfile runs "$runs" --slurpfile sess "$sess" "$JQE")
+issue=$(jq -cn '{repo: "o/app", issue: 7}' | jq -c --arg nome app --slurpfile runs "$runs" --slurpfile sess "$sess" --slurpfile mods "$mods" "$JQE")
+confere "designação sem repo/issue/em"             "glm-5.3 deepseek-v4-flash null" "$(jq -r '"\(.designacao.plano) \(.designacao.conferencia) \(.designacao.em)"' <<< "$issue")"
 confere "etapas na ordem, repo alheio fora"        "plano:claude execucao:claude-mini" "$(jq -r '[.etapas[] | "\(.etapa):\(.runner)"] | join(" ")' <<< "$issue")"
 confere "sessão na folga cai no plano"             "1 claude-opus-5" "$(jq -r '.etapas[0] | "\(.sessoes) \(.modelos | keys | join(","))"' <<< "$issue")"
 confere "execução soma as duas sessões"            "2 6" "$(jq -r '.etapas[1] | "\(.sessoes) \(.modelos["MiniMax-M3"].saida)"' <<< "$issue")"
-confere "issue sem etapa sai com lista vazia"      "[]" "$(jq -cn '{repo: "o/x", issue: 1}' | jq -c --arg nome x --slurpfile runs "$runs" --slurpfile sess "$sess" "$JQE" | jq -c .etapas)"
+confere "issue sem etapa nem designação"           "[[],null]" "$(jq -cn '{repo: "o/x", issue: 1}' | jq -c --arg nome x --slurpfile runs "$runs" --slurpfile sess "$sess" --slurpfile mods "$mods" "$JQE" | jq -c '[.etapas, .designacao]')"
 
 echo "model-metrics: $([ "$falhas" = 0 ] && echo ok || echo "$falhas falha(s)")"
 exit "$falhas"
