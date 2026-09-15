@@ -30,7 +30,7 @@ Este repo **não tem** `TODO.md` nem `CHANGELOG.md` — deixaram de existir em 2
 
 O `AGENTS.md` **voltou** pra raiz em 2026-09-08. Ele tinha saído em 2026-09-03 por descrever o fluxo autônomo inteiro (board, repos de cliente, quais camadas de segurança nunca foram exercitadas) num repositório público; a versão de volta é o recorte que pode ser público — stow, tasks, testes de task, bootstrap, serviços da máquina, docs e o ponteiro do submódulo.
 
-- **Pendência do parent é issue** em [`alvarofpp/dotfiles`](https://github.com/alvarofpp/dotfiles/issues). Não recriar `TODO.md`.
+- **Pendência é issue em [`alvarofpp/dotfiles-ai`](https://github.com/alvarofpp/dotfiles-ai/issues)** — inclusive a do parent (`home/taskfiles/`, `stow.sh`). **Nunca** abrir issue em `alvarofpp/dotfiles`: ele é público, e a issue carrega detalhe do fluxo e de repos de cliente. Commit no parent referencia `Refs alvarofpp/dotfiles-ai#N`. Não recriar `TODO.md`.
 - **Decisão do parent** vira um arquivo em [`ai/docs/decisions/`](ai/docs/decisions/README.md) (`YYYY-MM-DD-slug.md`) — commit separado, porque é outro repositório. **Sem índice**: o diretório já é o índice, e uma linha compartilhada por todos os PRs abertos é conflito por construção.
 - O recorte **privado** de 2026-09-03 segue arquivado em [`ai/docs/agents-dotfiles.md`](ai/docs/agents-dotfiles.md), como base histórica. O que vale é o `AGENTS.md` da raiz: `task gh:review-ready REPO=alvarofpp/dotfiles` sai zero, e PR aqui ganha revisor.
 
