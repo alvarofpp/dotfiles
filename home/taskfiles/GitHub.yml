@@ -964,7 +964,7 @@ tasks:
 
       Arguments:
         - REPO, PR: o PR a julgar.
-        - MAX_LINES: teto de linhas alteradas (default 100).
+        - MAX_LINES: teto de linhas alteradas (default 200).
         - MAX_ROUNDS_AUTO: rodadas de revisão toleradas (default 1).
         - ALLOW: o arquivo do interruptor.
         - RISCO: a ERE dos caminhos que forçam humano.
@@ -976,11 +976,11 @@ tasks:
     requires:
       vars: [REPO, PR]
     vars:
-      # 100 (dotfiles-ai#118): sem ninguém olhando, só onde a revisão ainda acha
-      # ~4 achados a cada 100 linhas — de 101 a 200 cai pra ~2. Metade do teto de
-      # plano de propósito: o merge automático é o único passo sem humano. Ver
-      # ai/docs/decisions/2026-09-15-teto-de-pr-pela-densidade-de-achados.md.
-      MAX_LINES: '{{.MAX_LINES | default 100}}'
+      # 200, o mesmo teto do plano (dotfiles-ai#118). Os dados sugeriam 100 — a
+      # revisão acha ~4 achados a cada 100 linhas até ali e ~2 de 101 a 200 —,
+      # mas 100 tiraria do automerge mais da metade dos PRs que hoje mesclam
+      # sozinhos. Ver ai/docs/decisions/2026-09-15-teto-de-pr-pela-densidade-de-achados.md.
+      MAX_LINES: '{{.MAX_LINES | default 200}}'
       MAX_ROUNDS_AUTO: '{{.MAX_ROUNDS_AUTO | default 1}}'
       ALLOW: '{{.ALLOW | default "$HOME/.local/state/gh-board/automerge"}}'
       JSON: '{{.JSON | default ""}}'
