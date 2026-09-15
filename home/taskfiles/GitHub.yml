@@ -33,6 +33,8 @@ vars:
   # (`gh:sessions`) — o `gh:metrics` junta os dois na linha da issue.
   RUNS_FILE: $HOME/.local/state/gh-board/runs.jsonl
   SESSIONS_FILE: $HOME/.local/state/gh-board/sessions.jsonl
+  # Preço por modelo (USD/1M tokens) que o `gh:sessions` usa pra gravar o custo.
+  PRICES_FILE: $HOME/dotfiles/ai/taskfiles/model-prices.json
   DEFAULT_STATUS: Backlog
   DEFAULT_PRIORITY: P3
 
@@ -4050,19 +4052,43 @@ tasks:
         arq="{{.SESSIONS_FILE}}"; mkdir -p "$(dirname "$arq")"; touch "$arq"
         # Horário sem milissegundo: o `gh:metrics` compara com o `em` do
         # `RUNS_FILE`, que sai do `todate`.
-        JQS='[.[] | select(.timestamp)] as $l
+        # Custo em USD com o preço do dia do arquivamento (`PRICES_FILE`), por
+        # mensagem: o DeepSeek cobra metade fora do pico, e o pico depende da hora
+        # de cada resposta. `usd` é o que sai do bolso por token; `usd_assinatura`
+        # é o equivalente de API do que roda em plano fixo (Opus, Haiku, Token
+        # Plan do MiniMax, OpenCode Go). Modelo fora da tabela sai com os dois nulos.
+        # ponytail: a faixa de contexto longo (MiniMax acima de 512k) não é cobrada à parte.
+        JQS='def usd($p):
+            .message.usage as $u
+            | (if $p.pico == null then 1
+               else (.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdate | gmtime) as $g
+                 | if ($p.pico.dias | index($g[6])) and ($p.pico.horas | index($g[3])) then 1 else $p.fora_do_pico end
+               end) as $f
+            | (($u.input_tokens // 0) * $p.entrada + ($u.output_tokens // 0) * $p.saida
+               + ($u.cache_read_input_tokens // 0) * ($p.cache_leitura // $p.entrada)
+               + (if $u.cache_creation == null
+                  then ($u.cache_creation_input_tokens // 0) * ($p.cache_escrita_5m // $p.entrada)
+                  else ($u.cache_creation.ephemeral_5m_input_tokens // 0) * ($p.cache_escrita_5m // $p.entrada)
+                       + ($u.cache_creation.ephemeral_1h_input_tokens // 0) * ($p.cache_escrita_1h // $p.cache_escrita_5m // $p.entrada)
+                  end)) * $f / 1000000;
+          def arred: . * 1000000 | round / 1000000;
+          [.[] | select(.timestamp)] as $l
           | if ($l | length) == 0 then empty else
             ([$l[] | select(.message.usage and .message.model != "<synthetic>")]
              | group_by(.message.id) | map(.[-1])) as $m
             | { repo_nome: $nome, issue: ($n | tonumber), sessao: $s,
                 inicio: ($l | map(.timestamp) | min | sub("\\.[0-9]+Z$"; "Z")),
                 fim: ($l | map(.timestamp) | max | sub("\\.[0-9]+Z$"; "Z")),
-                modelos: ($m | group_by(.message.model) | map({key: .[0].message.model, value: {
+                modelos: ($m | group_by(.message.model)
+                  | map(.[0].message.model as $mod | $precos[0][$mod] as $p | {key: $mod, value: {
                   msgs: length,
                   entrada: (map(.message.usage.input_tokens // 0) | add),
                   saida: (map(.message.usage.output_tokens // 0) | add),
                   cache_leitura: (map(.message.usage.cache_read_input_tokens // 0) | add),
-                  cache_escrita: (map(.message.usage.cache_creation_input_tokens // 0) | add) }}) | from_entries) }
+                  cache_escrita: (map(.message.usage.cache_creation_input_tokens // 0) | add),
+                  usd: (if $p == null then null elif $p.cobranca == "api" then (map(usd($p)) | add | arred) else 0 end),
+                  usd_assinatura: (if $p == null then null elif $p.cobranca == "api" then 0 else (map(usd($p)) | add | arred) end) }})
+                  | from_entries) }
             end'
         for t in "$d"/*.jsonl; do
           [ -f "$t" ] || continue
@@ -4070,7 +4096,7 @@ tasks:
           if grep -qF "\"sessao\":\"$sid\"" "$arq"; then continue; fi
           # `fromjson?`: sessão morta no meio pode deixar a última linha cortada.
           linha=$(cat "$t" "$d/$sid"/subagents/*.jsonl 2>/dev/null | jq -cR 'fromjson?' \
-            | jq -cs --arg nome "$nome" --arg n "$num" --arg s "$sid" "$JQS") || exit 1
+            | jq -cs --arg nome "$nome" --arg n "$num" --arg s "$sid" --slurpfile precos "{{.PRICES_FILE}}" "$JQS") || exit 1
           if [ -n "$linha" ]; then printf '%s\n' "$linha" >> "$arq"; fi
         done
 
@@ -4088,6 +4114,9 @@ tasks:
       arquivada cai na última etapa lançada antes dela. Issue fechada antes
       desses arquivos existirem sai com `etapas: []`. `designacao` é o modelo
       que o `gh:models` designou pra cada etapa (`MODELS_FILE`), ou nulo.
+      `custo` soma o USD de todas as sessões arquivadas da issue: `usd` pago por
+      token e `usd_assinatura` equivalente de API do que roda em plano fixo —
+      calculados pelo `gh:sessions` com o `PRICES_FILE`.
 
       Idempotente: issue que já tem linha não é consultada de novo nem
       reescrita. Só entra issue que passou pelo board (mudança de Status no
@@ -4177,7 +4206,10 @@ tasks:
           | [$sess[] | select(.repo_nome == $nome and .issue == $i.issue)] as $s
           | ([$mods[] | select(.repo == $i.repo and .issue == $i.issue)] | last
              | if . == null then null else del(.repo, .issue, .em) end) as $d
-          | $i + { designacao: $d, etapas: [range(0; $e | length) as $k
+          | $i + { designacao: $d,
+                   custo: { usd: ([$s[].modelos[] | .usd // 0] | add // 0 | . * 1000000 | round / 1000000),
+                            usd_assinatura: ([$s[].modelos[] | .usd_assinatura // 0] | add // 0 | . * 1000000 | round / 1000000) },
+                   etapas: [range(0; $e | length) as $k
               | (($e[$k].em | fromdate) - 60) as $de
               | (if $k + 1 < ($e | length) then ($e[$k + 1].em | fromdate) - 60 else infinite end) as $ate
               | [$s[] | select((.inicio | fromdate) as $t | $t >= $de and $t < $ate)] as $ss
@@ -4226,16 +4258,18 @@ tasks:
                else ($r[(($r | length) - 1) / 2 | floor] + $r[($r | length) / 2 | floor]) / 2 end)",
             "  achados por severidade: \([$l[].achados // {} | to_entries[]] | group_by(.key)
                | map("\(.[0].key) \(map(.value) | add)") | join(", "))",
-            "  por etapa e modelo designado — issues, rodadas, voltas da revisão, achados bloqueante+importante (médias):",
+            "  custo: US$ \([$l[].custo.usd // 0] | add // 0 | . * 10000 | round / 10000) pago por token, US$ \([$l[].custo.usd_assinatura // 0] | add // 0 | . * 10000 | round / 10000) equivalente em assinatura",
+            "  por etapa e modelo designado — issues, rodadas, voltas da revisão, achados bloqueante+importante, US$ da issue (médias):",
             ([$l[] | select(.designacao != null) | . as $x | .designacao | to_entries[] | select(.value != null)
               | {e: .key, m: .value, r: ($x.rodadas // 0), v: $x.retrabalho.review_para_progress,
-                 a: (($x.achados.bloqueante // 0) + ($x.achados.importante // 0))}]
+                 a: (($x.achados.bloqueante // 0) + ($x.achados.importante // 0)),
+                 c: (($x.custo.usd // 0) + ($x.custo.usd_assinatura // 0))}]
              | group_by([.e, .m]) | .[]
-             | "    \(.[0].e) · \(.[0].m): \(length), \(map(.r) | add / length * 100 | round / 100), \(map(.v) | add / length * 100 | round / 100), \(map(.a) | add / length * 100 | round / 100)"),
-            "  tokens por etapa e modelo — sessões, saída, entrada (com cache):",
+             | "    \(.[0].e) · \(.[0].m): \(length), \(map(.r) | add / length * 100 | round / 100), \(map(.v) | add / length * 100 | round / 100), \(map(.a) | add / length * 100 | round / 100), \(map(.c) | add / length * 10000 | round / 10000)"),
+            "  tokens e custo por etapa e modelo — sessões, saída, entrada (com cache), US$ por token, US$ assinatura:",
             ([$l[].etapas // [] | .[] | . as $x | .modelos | to_entries[] | {e: $x.etapa, s: $x.sessoes, m: .key, v: .value}]
              | group_by([.e, .m]) | .[]
-             | "    \(.[0].e) · \(.[0].m): \(map(.s) | add), \(map(.v.saida) | add), \(map(.v.entrada + .v.cache_leitura + .v.cache_escrita) | add)"),
+             | "    \(.[0].e) · \(.[0].m): \(map(.s) | add), \(map(.v.saida) | add), \(map(.v.entrada + .v.cache_leitura + .v.cache_escrita) | add), \(map(.v.usd // 0) | add | . * 10000 | round / 10000), \(map(.v.usd_assinatura // 0) | add | . * 10000 | round / 10000)"),
             "  maior retrabalho (In Review → In Progress + Blocked):",
             ($l | map(select(.retrabalho.review_para_progress + .retrabalho.blocked > 0))
                 | sort_by(-(.retrabalho.review_para_progress + .retrabalho.blocked)) | .[:5][]
