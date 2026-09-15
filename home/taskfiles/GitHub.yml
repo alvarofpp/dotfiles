@@ -1308,6 +1308,13 @@ tasks:
       lock fica de pé, o `dispatch` não abre um segundo agente ao lado, e você
       retoma quando a cota voltar.
 
+      **O 429 do MiniMax se retoma sozinho.** Tela com `Token Plan usage limit`
+      dispara uma sonda HTTP de 1 token na API do MiniMax (em cache por 10 min);
+      respondendo 200, o terminal recebe `continue` e segue com o contexto
+      inteiro. No máximo `RESUME_MAX` vezes por terminal, pra falso positivo não
+      renovar o teto pra sempre. Parada no limite da Anthropic não tem sonda e
+      continua esperando você.
+
       Sai `0` quando a worktree não existe (o `orca` falha e a lista vem
       vazia), que é o que o `gh:reap` espera pra soltar o lock.
 
@@ -1338,6 +1345,15 @@ tasks:
       # `orca terminal send`; passada de longe a janela de 5h de cota, o que
       # sobra é falso positivo do STALL_RE segurando o lock pra sempre.
       STALL_MAX_MIN: '{{.STALL_MAX_MIN | default 720}}'
+      # Retomada automática: só o 429 do MiniMax, que tem sonda própria. Sessão
+      # parada no limite da Anthropic segue esperando você.
+      MINIMAX_STALL_RE: 'Token Plan usage limit'
+      # Teto de retomadas por terminal: falso positivo do STALL_RE retomado a
+      # cada tick renovaria o relógio do STALL_MAX_MIN pra sempre.
+      RESUME_MAX: '{{.RESUME_MAX | default 3}}'
+      STATE_DIR: '{{.STATE_DIR | default "$HOME/.local/state/gh-board"}}'
+      # Override pros testes (`true`/`false`); vazio = sonda real por HTTP.
+      MINIMAX_PROBE: '{{.MINIMAX_PROBE}}'
     cmds:
       - |
         # 30 min = dois ticks do timer. Um tick só deixaria o corte encostado
@@ -1387,6 +1403,27 @@ tasks:
                    | select((.lastOutputAt // 0) > 0 and (.lastOutputAt / 1000) < $c)
                    | .handle' 2>/dev/null || true; })
 
+        # Sonda da cota do MiniMax: uma chamada HTTP de 1 token, em cache por
+        # 10 min pra várias worktrees no mesmo tick não sondarem de novo. Não é
+        # `claude-mini -p`: com a cota fora, o Claude Code repete o 429 com
+        # backoff, e essa sonda pendurou 90 s na primeira tentativa. A chave vem
+        # do `~/.zshrc.local` porque a unit do tick não a tem no ambiente.
+        minimax_ok() {
+          f="{{.STATE_DIR}}/minimax-probe"
+          if [ -f "$f" ] && [ $(( $(date +%s) - $(stat -c %Y "$f") )) -lt 600 ]; then cat "$f"; return 0; fi
+          mkdir -p "{{.STATE_DIR}}"
+          {{if .MINIMAX_PROBE}}
+          if {{.MINIMAX_PROBE}}; then echo ok > "$f"; else echo falha > "$f"; fi
+          {{else}}
+          k="${MINIMAX_API_KEY:-$(sed -nE "s/^export MINIMAX_API_KEY=[\"']?([^\"']*)[\"']?.*/\1/p" "$HOME/.zshrc.local" 2>/dev/null | tail -1)}"
+          code=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://api.minimax.io/anthropic/v1/messages \
+            -H "Authorization: Bearer $k" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
+            -d '{"model":"MiniMax-M3","max_tokens":1,"messages":[{"role":"user","content":"ok"}]}' 2>/dev/null || true)
+          if [ "$code" = 200 ]; then echo ok > "$f"; else echo falha > "$f"; fi
+          {{end}}
+          cat "$f"
+        }
+
         # Parado ≠ morto: a tela decide. Só os candidatos são lidos (um por
         # tick, no máximo), então o custo é o do caso raro.
         mortos=0
@@ -1399,6 +1436,19 @@ tasks:
           elif printf '%s' "$tela" | grep -qiE '{{.STALL_RE}}'; then
             parados=$((parados + 1))
             echo "  · terminal $h parado no limite de uso — mantido vivo" >&2
+            # A cota do MiniMax volta sozinha, mas a sessão não sabe: sem alguém
+            # mandar continuar, ela esperava o teto com a issue presa no lock.
+            # O `continue` fica fora deste `if`: aninhado, o shell do Task
+            # executaria o resto do bloco antes de desviar.
+            if printf '%s' "$tela" | grep -qF '{{.MINIMAX_STALL_RE}}'; then
+              nret=$(cat "{{.STATE_DIR}}/retomadas/$h" 2>/dev/null || echo 0)
+              if [ "$nret" -lt "{{.RESUME_MAX}}" ] && [ "$(minimax_ok)" = ok ]; then
+                mkdir -p "{{.STATE_DIR}}/retomadas"
+                orca terminal send --terminal "$h" --text continue --enter >/dev/null 2>&1 || true
+                echo $((nret + 1)) > "{{.STATE_DIR}}/retomadas/$h"
+                echo "  · terminal $h: cota do MiniMax voltou — retomado ($((nret + 1))/{{.RESUME_MAX}})" >&2
+              fi
+            fi
             continue
           fi
           # `|| true`: o `orca terminal close` sai 1 mesmo quando fecha, e o
