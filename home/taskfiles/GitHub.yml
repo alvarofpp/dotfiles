@@ -942,7 +942,7 @@ tasks:
         PR não OPEN, draft, ou não MERGEABLE
         label agent:human ou agent:changes  já disseram que precisa de gente
         nenhuma revisão com corpo           `agent:approved` sem revisão atrás
-        mais de {{.MAX_ROUNDS_AUTO}} rodada(s)   precisou de segunda passada
+        mais de {{.MAX_ROUNDS_AUTO}} rodada(s)   não convergiu
         thread de revisão aberta            o revisor deixou coisa no ar
         commit (não-merge) depois da revisão   mescla o que ninguém revisou
         CI que não está inteiramente verde
@@ -965,7 +965,7 @@ tasks:
       Arguments:
         - REPO, PR: o PR a julgar.
         - MAX_LINES: teto de linhas alteradas (default 200).
-        - MAX_ROUNDS_AUTO: rodadas de revisão toleradas (default 1).
+        - MAX_ROUNDS_AUTO: rodadas de revisão toleradas (default 3).
         - ALLOW: o arquivo do interruptor.
         - RISCO: a ERE dos caminhos que forçam humano.
         - JSON: lê o PR deste arquivo em vez da API. É a costura que deixa o
@@ -981,7 +981,9 @@ tasks:
       # mas 100 tiraria do automerge mais da metade dos PRs que hoje mesclam
       # sozinhos. Ver ai/docs/decisions/2026-09-15-teto-de-pr-pela-densidade-de-achados.md.
       MAX_LINES: '{{.MAX_LINES | default 200}}'
-      MAX_ROUNDS_AUTO: '{{.MAX_ROUNDS_AUTO | default 1}}'
+      # 3: PR corrigido e conferido mescla sozinho (decisão do Álvaro,
+      # 2026-09-15). Com 1, só mesclava PR limpo de primeira.
+      MAX_ROUNDS_AUTO: '{{.MAX_ROUNDS_AUTO | default 3}}'
       ALLOW: '{{.ALLOW | default "$HOME/.local/state/gh-board/automerge"}}'
       JSON: '{{.JSON | default ""}}'
       RISCO: '{{.RISCO | default "(^|/)(migrations?|seeders?)/|\\.sql$|(^|/)\\.github/|Dockerfile|(^|/)(docker-)?(compose|stack)[^/]*\\.ya?ml$|(^|/)docker-stack[^/]*\\.ya?ml$|(^|/)(composer|package|pubspec)\\.(json|ya?ml)$|(^|/)(composer\\.lock|package-lock\\.json|pnpm-lock\\.yaml|yarn\\.lock|pubspec\\.lock|uv\\.lock|poetry\\.lock|Cargo\\.(toml|lock)|go\\.(mod|sum)|Gemfile(\\.lock)?|requirements[^/]*\\.txt)$|(^|/)\\.env|(^|/)Taskfile[^/]*\\.ya?ml$|(^|/)\\.claude/hooks/|(^|/)(routes|config)/|Policy\\.php$"}}'
@@ -1047,7 +1049,7 @@ tasks:
             pullRequest(number:$pr){
               state isDraft mergeable additions deletions changedFiles
               labels(first:30){ nodes{ name } }
-              reviews(first:50){ nodes{ body submittedAt } }
+              reviews(first:50){ nodes{ body submittedAt comments(first:1){ nodes{ body } } } }
               comments(last:50){ nodes{ body createdAt } }
               reviewThreads(first:100){ nodes{ isResolved } }
               files(first:100){ nodes{ path } }
@@ -1077,10 +1079,15 @@ tasks:
         #    motivo errado, e a rodada 2 nem contava (abacaxei-app#266..269).
         passadas='[(.reviews.nodes[] | select((.body // "") != "") | .submittedAt),
                    ((.comments.nodes // [])[] | select((.body // "") | test("<!-- agent:review -->")) | .createdAt)]'
+        # Pra "o que veio depois da revisão" vale também a conferência feita só
+        # em thread (#267, #268): review de corpo vazio cuja resposta é do
+        # revisor. A do autor (`agent:author`) é a mesma conta e NÃO vale.
+        vistas='[($passadas[]), (.reviews.nodes[] | select((.body // "") == "")
+                   | select((.comments.nodes[0].body // "") | test("<!-- agent:review -->")) | .submittedAt)]'
         rodadas=$(leia "$passadas | length")
         [ "${rodadas:-0}" -ge 1 ] || barra "nenhuma revisão com corpo — agent:approved sem revisão atrás"
         [ "${rodadas:-0}" -le {{.MAX_ROUNDS_AUTO}} ] \
-          || barra "$rodadas rodadas de revisão (teto {{.MAX_ROUNDS_AUTO}}) — precisou de segunda passada"
+          || barra "$rodadas rodadas de revisão (teto {{.MAX_ROUNDS_AUTO}}) — não convergiu"
 
         abertas=$(leia '[.reviewThreads.nodes[] | select(.isResolved == false)] | length')
         [ "${abertas:-1}" = "0" ] || barra "$abertas thread(s) de revisão aberta(s)"
@@ -1088,7 +1095,7 @@ tasks:
         # 4. Código depois da revisão. Merge commit não conta: é a própria
         #    atualização da main que o `gh:merge-approved` empurra, e contá-la
         #    reprovaria todo PR que ele mesmo põe em dia.
-        ultima=$(leia "$passadas | max // \"\"")
+        ultima=$(leia "$passadas as \$passadas | $vistas | max // \"\"")
         [ -n "$ultima" ] || barra "revisão sem data — não dá pra saber o que veio depois"
         depois=$(leia "[.commits.nodes[].commit | select(.parents.totalCount < 2) | select(.committedDate > \"$ultima\")] | length")
         [ "${depois:-1}" = "0" ] || barra "$depois commit(s) depois da revisão — ninguém olhou esse código"
@@ -2315,10 +2322,15 @@ tasks:
               # comentário de PR, não review: sem contá-lo, PR conferido sem
               # thread nenhuma reabria a cada tick e pagava uma sessão de
               # revisor por vez (abacaxei-app#266, 7 voltas em 70 min).
-              base=$(gh pr view "$cand" -R "$repo" --json reviews,comments \
-                       --jq '[(.reviews[].submittedAt),
-                              (.comments[] | select(.body | test("<!-- agent:review -->")) | .createdAt)]
-                             | max // ""' 2>/dev/null)
+              # Review de corpo vazio só vale pela resposta de thread marcada
+              # do revisor: o autor responde thread com a mesma conta, e a
+              # resposta dele contava como revisão do próprio commit.
+              base=$( { gh pr view "$cand" -R "$repo" --json reviews,comments \
+                          --jq '(.reviews[] | select((.body // "") != "") | .submittedAt),
+                                (.comments[] | select(.body | test("<!-- agent:review -->")) | .createdAt)'
+                        gh api "repos/$repo/pulls/$cand/comments?per_page=100" \
+                          --jq '.[] | select(.body | test("<!-- agent:review -->")) | .created_at'
+                      } 2>/dev/null | sort | tail -1)
               novos=$(gh api "repos/$repo/pulls/$cand/commits?per_page=100" \
                         --jq '[ .[] | select((.parents | length) < 2)
                                 | select(.commit.committer.date > "'"$base"'") ] | length' 2>/dev/null) || novos=0

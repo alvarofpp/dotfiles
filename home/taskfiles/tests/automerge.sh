@@ -61,7 +61,8 @@ caso "mergeable desconhecido"                human '.mergeable = "UNKNOWN"'
 caso "label agent:human"                     human '.labels.nodes += [{"name":"agent:human"}]'
 caso "label agent:changes"                   human '.labels.nodes += [{"name":"agent:changes"}]'
 caso "sem revisão com corpo"                 human '.reviews.nodes = [{"body":"","submittedAt":"2026-09-10T10:00:00Z"}]'
-caso "duas rodadas de revisão"               human '.reviews.nodes += [{"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"}]'
+caso "três rodadas de revisão passam"        auto  '.reviews.nodes += [{"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"},{"body":"faltou y","submittedAt":"2026-09-10T11:30:00Z"}]'
+caso "quatro rodadas de revisão"             human '.reviews.nodes += [{"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"},{"body":"faltou y","submittedAt":"2026-09-10T11:30:00Z"},{"body":"faltou z","submittedAt":"2026-09-10T11:45:00Z"}]'
 caso "thread aberta"                         human '.reviewThreads.nodes += [{"isResolved":false}]'
 
 # --- código que ninguém revisou. Merge commit NÃO conta: é a main que o
@@ -69,10 +70,14 @@ caso "thread aberta"                         human '.reviewThreads.nodes += [{"i
 caso "commit depois da revisão"              human '.commits.nodes += [{"commit":{"committedDate":"2026-09-10T12:00:00Z","parents":{"totalCount":1},"statusCheckRollup":{"state":"SUCCESS"}}}]'
 caso "merge da main depois não reprova"      auto  '.commits.nodes += [{"commit":{"committedDate":"2026-09-10T12:00:00Z","parents":{"totalCount":2},"statusCheckRollup":{"state":"SUCCESS"}}}]'
 
-# --- o veredito do `/review-pr --check` é comentário marcado, não review: conta
-#     como passada (e portanto como segunda rodada). Comentário sem marcador não.
-caso "conferência em comentário é 2ª rodada" human '.comments = {"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — pode aprovar","createdAt":"2026-09-10T13:00:00Z"}]}'
-caso "comentário sem marcador não é revisão" auto  '.comments = {"nodes":[{"body":"valeu","createdAt":"2026-09-10T13:00:00Z"}]}'
+# --- PR corrigido e conferido. O veredito do `/review-pr --check` sai como
+#     comentário marcado ou só como resposta de thread; os dois cobrem o commit
+#     da correção. Resposta de thread do AUTOR (mesma conta) não cobre.
+fix='.commits.nodes += [{"commit":{"committedDate":"2026-09-10T11:00:00Z","parents":{"totalCount":1},"statusCheckRollup":{"state":"SUCCESS"}}}]'
+caso "conferido em comentário marcado"       auto  "$fix"' | .comments = {"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — pode aprovar","createdAt":"2026-09-10T12:00:00Z"}]}'
+caso "comentário sem marcador não confere"   human "$fix"' | .comments = {"nodes":[{"body":"valeu","createdAt":"2026-09-10T12:00:00Z"}]}'
+caso "conferido só em thread"                auto  "$fix"' | .reviews.nodes += [{"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — resolvido"}]}}]'
+caso "thread do autor não confere"           human "$fix"' | .reviews.nodes += [{"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"body":"<!-- agent:author -->\n**Implementação** — aplicado"}]}}]'
 
 # --- CI. Ausência de sinal não é autorização.
 caso "CI vermelho"                           human '.commits.nodes[-1].commit.statusCheckRollup.state = "FAILURE"'
