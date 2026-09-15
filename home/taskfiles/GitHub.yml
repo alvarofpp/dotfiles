@@ -4277,8 +4277,16 @@ tasks:
                            | select(.author.login == $dono and ((.body // "") | test("<!-- agent:review -->")))] | length),
                 veredictos: [$prs[].timelineItems.nodes[].label.name
                              | select(. == "agent:changes" or . == "agent:approved") | ltrimstr("agent:")],
+                # Diff só de remoção não tem linha pra ancorar e o achado vai no
+                # corpo da review. O corpo repete o que as threads dizem, então
+                # só conta quando não há thread de achado nenhuma.
                 achados: ([$prs[].reviewThreads.nodes[].comments.nodes[0].body // empty
-                           | capture("\\*\\*Revisão\\*\\* — (?<s>nit|sugestão|importante|bloqueante):") | .s] | conta),
+                           | capture("\\*\\*Revisão\\*\\* — (?<s>nit|sugestão|importante|bloqueante):") | .s]
+                          | if length > 0 then . else
+                              [$prs[].reviews.nodes[] | select(.author.login == $dono) | (.body // "")
+                               | select(test("<!-- agent:review -->")) | "\n" + .
+                               | capture("\\n- \\*\\*(?<s>nit|sugestão|importante|bloqueante):\\*\\*"; "g") | .s]
+                            end | conta),
                 esforco: { commits: ([$prs[].commits.totalCount] | add), arquivos: ([$prs[].changedFiles] | add),
                            adicoes: ([$prs[].additions] | add), remocoes: ([$prs[].deletions] | add) } }
             end

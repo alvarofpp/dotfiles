@@ -78,5 +78,21 @@ confere "sessão na folga cai no plano"             "1 claude-opus-5" "$(jq -r '
 confere "execução soma as duas sessões"            "2 6" "$(jq -r '.etapas[1] | "\(.sessoes) \(.modelos["MiniMax-M3"].saida)"' <<< "$issue")"
 confere "issue sem etapa nem designação"           "[[],null]" "$(jq -cn '{repo: "o/x", issue: 1}' | jq -c --arg nome x --slurpfile runs "$runs" --slurpfile sess "$sess" --slurpfile mods "$mods" "$JQE" | jq -c '[.etapas, .designacao]')"
 
+# Achados: thread ancorada é a fonte; o corpo da review só vale sem thread
+# nenhuma (diff só de remoção, abacaxei-app#266) — senão contaria em dobro.
+JQ=$(extrai JQ)
+issue_gh='{"number":9,"title":"t","closedAt":"2026-09-15T02:00:00Z","stateReason":"COMPLETED","parent":null,"subIssues":{"totalCount":0},"comments":{"nodes":[]},
+  "timelineItems":{"nodes":[{"__typename":"ProjectV2ItemStatusChangedEvent","createdAt":"2026-09-15T00:00:00Z","previousStatus":"","status":"In Review","project":{"number":3}},
+                            {"__typename":"ProjectV2ItemStatusChangedEvent","createdAt":"2026-09-15T01:00:00Z","previousStatus":"In Review","status":"Done","project":{"number":3}}]}}'
+pr() { # $1 corpo da review  $2 1ª mensagem da thread (vazio = sem thread)
+  jq -cn --arg rb "$1" --arg tb "$2" '{number:1, additions:1, deletions:1, changedFiles:1, commits:{totalCount:1},
+    reviews:{nodes:[{body:$rb, author:{login:"dono"}}]}, comments:{nodes:[]}, timelineItems:{nodes:[]},
+    reviewThreads:{nodes:(if $tb == "" then [] else [{comments:{nodes:[{body:$tb}]}}] end)}}'
+}
+achados() { printf '%s\n[%s]\n' "$issue_gh" "$1" | jq -cs --arg repo o/app --arg dono dono --argjson proj 3 "$JQ" | jq -c .achados; }
+corpo=$'<!-- agent:review -->\n**Revisão** — pede mudança.\n\n- **bloqueante:** a linha ficou fora do commit.\n- **sugestão:** o doc aponta pro arquivo apagado.\n- Sugestões: outras.'
+confere "achado no corpo de PR sem thread"         '{"bloqueante":1,"sugestão":1}' "$(achados "$(pr "$corpo" "")")"
+confere "PR com thread não conta o corpo"          '{"importante":1}' "$(achados "$(pr "$corpo" $'<!-- agent:review -->\n**Revisão** — importante: x')")"
+
 echo "model-metrics: $([ "$falhas" = 0 ] && echo ok || echo "$falhas falha(s)")"
 exit "$falhas"
