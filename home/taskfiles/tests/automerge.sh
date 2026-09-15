@@ -69,6 +69,11 @@ caso "thread aberta"                         human '.reviewThreads.nodes += [{"i
 caso "commit depois da revisão"              human '.commits.nodes += [{"commit":{"committedDate":"2026-09-10T12:00:00Z","parents":{"totalCount":1},"statusCheckRollup":{"state":"SUCCESS"}}}]'
 caso "merge da main depois não reprova"      auto  '.commits.nodes += [{"commit":{"committedDate":"2026-09-10T12:00:00Z","parents":{"totalCount":2},"statusCheckRollup":{"state":"SUCCESS"}}}]'
 
+# --- o veredito do `/review-pr --check` é comentário marcado, não review: conta
+#     como passada (e portanto como segunda rodada). Comentário sem marcador não.
+caso "conferência em comentário é 2ª rodada" human '.comments = {"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — pode aprovar","createdAt":"2026-09-10T13:00:00Z"}]}'
+caso "comentário sem marcador não é revisão" auto  '.comments = {"nodes":[{"body":"valeu","createdAt":"2026-09-10T13:00:00Z"}]}'
+
 # --- CI. Ausência de sinal não é autorização.
 caso "CI vermelho"                           human '.commits.nodes[-1].commit.statusCheckRollup.state = "FAILURE"'
 caso "CI pendente"                           human '.commits.nodes[-1].commit.statusCheckRollup.state = "PENDING"'

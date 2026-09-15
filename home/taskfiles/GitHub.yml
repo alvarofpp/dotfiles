@@ -1048,6 +1048,7 @@ tasks:
               state isDraft mergeable additions deletions changedFiles
               labels(first:30){ nodes{ name } }
               reviews(first:50){ nodes{ body submittedAt } }
+              comments(last:50){ nodes{ body createdAt } }
               reviewThreads(first:100){ nodes{ isResolved } }
               files(first:100){ nodes{ path } }
               commits(last:30){ nodes{ commit{ committedDate parents{ totalCount }
@@ -1069,9 +1070,14 @@ tasks:
             || barra "label $l no PR"
         done
 
-        # 3. Revisão: rodadas contadas como no `gh:pr-tick` (review COM corpo é
-        #    passada de revisor; corpo vazio é comentário ancorado solto).
-        rodadas=$(leia '[.reviews.nodes[] | select((.body // "") != "")] | length')
+        # 3. Revisão. Passada de revisor é review COM corpo (corpo vazio é
+        #    comentário ancorado solto) ou o veredito do `/review-pr --check`,
+        #    que sai como comentário de PR marcado, não como review. Sem ele,
+        #    PR corrigido e conferido barrava por "commit depois da revisão" —
+        #    motivo errado, e a rodada 2 nem contava (abacaxei-app#266..269).
+        passadas='[(.reviews.nodes[] | select((.body // "") != "") | .submittedAt),
+                   ((.comments.nodes // [])[] | select((.body // "") | test("<!-- agent:review -->")) | .createdAt)]'
+        rodadas=$(leia "$passadas | length")
         [ "${rodadas:-0}" -ge 1 ] || barra "nenhuma revisão com corpo — agent:approved sem revisão atrás"
         [ "${rodadas:-0}" -le {{.MAX_ROUNDS_AUTO}} ] \
           || barra "$rodadas rodadas de revisão (teto {{.MAX_ROUNDS_AUTO}}) — precisou de segunda passada"
@@ -1082,7 +1088,7 @@ tasks:
         # 4. Código depois da revisão. Merge commit não conta: é a própria
         #    atualização da main que o `gh:merge-approved` empurra, e contá-la
         #    reprovaria todo PR que ele mesmo põe em dia.
-        ultima=$(leia '[.reviews.nodes[] | select((.body // "") != "") | .submittedAt] | max // ""')
+        ultima=$(leia "$passadas | max // \"\"")
         [ -n "$ultima" ] || barra "revisão sem data — não dá pra saber o que veio depois"
         depois=$(leia "[.commits.nodes[].commit | select(.parents.totalCount < 2) | select(.committedDate > \"$ultima\")] | length")
         [ "${depois:-1}" = "0" ] || barra "$depois commit(s) depois da revisão — ninguém olhou esse código"
@@ -2305,9 +2311,14 @@ tasks:
               # revisor ao aprovar e o `gh:unstick`, e contá-lo faria cada
               # avanço da main custar uma rodada até estourar o teto. Sem
               # review nenhuma o `max` sai vazio e todo commit conta — que é o
-              # lado seguro de errar.
-              base=$(gh pr view "$cand" -R "$repo" --json reviews \
-                       --jq '[.reviews[].submittedAt] | max // ""' 2>/dev/null)
+              # lado seguro de errar. O veredito do `/review-pr --check` é
+              # comentário de PR, não review: sem contá-lo, PR conferido sem
+              # thread nenhuma reabria a cada tick e pagava uma sessão de
+              # revisor por vez (abacaxei-app#266, 7 voltas em 70 min).
+              base=$(gh pr view "$cand" -R "$repo" --json reviews,comments \
+                       --jq '[(.reviews[].submittedAt),
+                              (.comments[] | select(.body | test("<!-- agent:review -->")) | .createdAt)]
+                             | max // ""' 2>/dev/null)
               novos=$(gh api "repos/$repo/pulls/$cand/commits?per_page=100" \
                         --jq '[ .[] | select((.parents | length) < 2)
                                 | select(.commit.committer.date > "'"$base"'") ] | length' 2>/dev/null) || novos=0
