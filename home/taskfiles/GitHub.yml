@@ -755,7 +755,9 @@ tasks:
       cada PR passa pelo `gh:automerge-check` antes, que falha fechado e só
       libera o que o interruptor autorizou; o que ele barrar fica na fila, com
       o motivo impresso. Merge automático deixa comentário no PR dizendo qual
-      regra o liberou.
+      regra o liberou; PR barrado por motivo que não se resolve sozinho (caminho
+      de risco, teto de linhas, rodadas, thread aberta, CI vermelho) ganha um
+      comentário com o motivo, uma vez por motivo.
 
       Examples:
         - task gh:merge-approved REPO=mvinnicius22/abacaxei-app DRY=1
@@ -832,6 +834,23 @@ tasks:
               echo "   · ${veredito}"
             else
               echo "   ⏸ ${veredito:-human: filtro não soube decidir} — fica pra você"
+              # Motivo que não se resolve sozinho vira comentário no PR, uma
+              # vez por motivo: sem isso o PR aprovado parece esquecido
+              # (abacaxei-app#264). Transitório (mergeable UNKNOWN, CI
+              # pendente), o que o fluxo já trata (commit depois da revisão,
+              # agent:changes) e o interruptor do repo ficam só no log.
+              motivo=$(printf '%s' "${veredito#human: }" | sed 's/ *$//')
+              case "$motivo" in
+                "caminho de risco"*|*"linhas alteradas"*|*"rodadas de revisão"*|*"de revisão aberta"*|CI=FAILURE|CI=ERROR|*"lista truncada"*)
+                  ja=$(gh pr view "$pr" -R {{.REPO}} --json comments 2>/dev/null \
+                        | jq --arg m "$motivo" '[.comments[].body | select(startswith("<!-- agent:automerge:hold -->") and contains($m))] | length' 2>/dev/null)
+                  if [ "{{.DRY}}" = "1" ]; then
+                    echo "   · [dry] comentaria o motivo (já comentado: ${ja:-?})"
+                  elif [ "${ja:-1}" = "0" ]; then
+                    gh pr comment "$pr" -R {{.REPO}} --body "$(printf '<!-- agent:automerge:hold -->\n**Fluxo** — Não mesclado automaticamente: %s. O merge fica com você.' "$motivo")" >/dev/null 2>&1 || true
+                  fi
+                  ;;
+              esac
               continue
             fi
           fi
