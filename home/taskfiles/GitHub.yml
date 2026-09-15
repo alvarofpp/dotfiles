@@ -913,9 +913,9 @@ tasks:
         human: <o que barrou>     rc=1   exige você
 
       **Falha fechado.** Qualquer sinal ausente, ilegível ou truncado devolve
-      `human`. Repo sem CI nenhum nunca mescla sozinho, e isso é de propósito:
-      "CI verde" é um dos sinais que autorizam, e ausência de sinal não é
-      autorização.
+      `human`. A exceção é o CI: PR em que nenhum job disparou (CI
+      inexistente, pausado ou desativado) mescla com o `agent:approved`; se
+      algum job disparou, todos têm que estar verdes.
 
       **O critério é calculado na hora, não guardado em label.** Label parece
       auditável, mas envelhece no instante em que um commit novo entra — é o
@@ -945,7 +945,7 @@ tasks:
         mais de {{.MAX_ROUNDS_AUTO}} rodada(s)   não convergiu
         thread de revisão aberta            o revisor deixou coisa no ar
         commit (não-merge) depois da revisão   mescla o que ninguém revisou
-        CI que não está inteiramente verde
+        job de CI que disparou e não está verde
         diff acima de {{.MAX_LINES}} linhas
         caminho de risco no diff            ver `RISCO`
 
@@ -1100,10 +1100,16 @@ tasks:
         depois=$(leia "[.commits.nodes[].commit | select(.parents.totalCount < 2) | select(.committedDate > \"$ultima\")] | length")
         [ "${depois:-1}" = "0" ] || barra "$depois commit(s) depois da revisão — ninguém olhou esse código"
 
-        # 5. CI. Rollup nulo = repo sem check nenhum: ausência de sinal não é
-        #    autorização.
+        # 5. CI. Rollup nulo = nenhum job disparou (CI inexistente, pausado ou
+        #    desativado): não há o que esperar, e o `agent:approved` basta —
+        #    decisão do Álvaro em 2026-09-15, com o CI pausado em vários repos.
+        #    Job que disparou tem que estar verde, todos; pendente espera o tick.
         ci=$(leia '.commits.nodes[-1].commit.statusCheckRollup.state // "SEM_CI"')
-        [ "$ci" = "SUCCESS" ] || barra "CI=$ci"
+        case "$ci" in
+          SUCCESS) ci_txt="CI verde" ;;
+          SEM_CI) ci_txt="sem CI" ;;
+          *) barra "CI=$ci" ;;
+        esac
 
         # 6. Tamanho e risco.
         linhas=$(( $(leia .additions) + $(leia .deletions) ))
@@ -1116,7 +1122,7 @@ tasks:
         risco=$(leia '.files.nodes[].path' | grep -iE '{{.RISCO}}' | head -3 | tr '\n' ' ')
         [ -z "$risco" ] || barra "caminho de risco no diff: $risco"
 
-        echo "auto: $linhas linha(s) em $arqs arquivo(s) de baixo risco, $rodadas rodada(s) de revisão, nenhuma thread aberta, CI verde"
+        echo "auto: $linhas linha(s) em $arqs arquivo(s) de baixo risco, $rodadas rodada(s) de revisão, nenhuma thread aberta, $ci_txt"
 
   automerge:
     desc: "Mescla sozinho o que o filtro liberar, em todo repo do board."

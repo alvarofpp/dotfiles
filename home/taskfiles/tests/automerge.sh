@@ -79,10 +79,11 @@ caso "comentário sem marcador não confere"   human "$fix"' | .comments = {"nod
 caso "conferido só em thread"                auto  "$fix"' | .reviews.nodes += [{"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — resolvido"}]}}]'
 caso "thread do autor não confere"           human "$fix"' | .reviews.nodes += [{"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"body":"<!-- agent:author -->\n**Implementação** — aplicado"}]}}]'
 
-# --- CI. Ausência de sinal não é autorização.
+# --- CI. Job que disparou tem que estar verde; nenhum job (CI inexistente,
+#     pausado, desativado) não impede.
 caso "CI vermelho"                           human '.commits.nodes[-1].commit.statusCheckRollup.state = "FAILURE"'
 caso "CI pendente"                           human '.commits.nodes[-1].commit.statusCheckRollup.state = "PENDING"'
-caso "repo sem CI nenhum"                    human '.commits.nodes[-1].commit.statusCheckRollup = null'
+caso "repo sem CI nenhum"                    auto  '.commits.nodes[-1].commit.statusCheckRollup = null'
 
 # --- tamanho
 caso "diff no teto passa"                    auto  '.additions = 150 | .deletions = 50'
