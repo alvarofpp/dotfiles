@@ -105,6 +105,9 @@ tasks:
 
           echo "  transcript $(basename "$d") — $cwd"
           if [ -n "{{.DRY}}" ]; then continue; fi
+          # O transcript é o único lugar com o consumo por modelo de cada
+          # sessão: sem arquivá-lo no `gh:sessions`, ele fica.
+          if ! task gh:sessions DIR="$d"; then echo "    ! consumo não arquivado — transcript fica"; continue; fi
           rm -rf "$d"
         done
 
