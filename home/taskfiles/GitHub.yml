@@ -1311,10 +1311,13 @@ tasks:
       lock fica de pé, o `dispatch` não abre um segundo agente ao lado, e você
       retoma quando a cota voltar.
 
-      **O 429 do MiniMax se retoma sozinho.** Tela com `Token Plan usage limit`
-      dispara uma sonda HTTP de 1 token na API do MiniMax (em cache por 10 min);
-      respondendo 200, o terminal recebe `continue` e segue com o contexto
-      inteiro. No máximo `RESUME_MAX` vezes por terminal, pra falso positivo não
+      **Cota de outro provedor se retoma sozinha.** Tela com o erro de cota do
+      Claude Code (`Request rejected (429)`, ou 402 de saldo — `QUOTA_RE`)
+      dispara uma sonda HTTP de 1 token no provedor da sessão
+      (`claude-model --probe`, em cache por modelo por 10 min); respondendo 200,
+      o terminal recebe `continue` e segue com o contexto inteiro. O modelo sai
+      do último lançamento da worktree no `RUNS_FILE` — uma sessão por vez, pelo
+      lock. No máximo `RESUME_MAX` vezes por terminal, pra falso positivo não
       renovar o teto pra sempre. Parada no limite da Anthropic não tem sonda e
       continua esperando você.
 
@@ -1343,20 +1346,24 @@ tasks:
       # abacaxei-app por dez horas e o `gh:unstick` pulou o PR #233 em todo
       # tick — a pior falha possível, porque `gh:issues` esconde issue com
       # esse label e ela sai do fluxo sem aparecer em lugar nenhum.
-      STALL_RE: '{{.STALL_RE | default "spend limit|rate limit exceeded|limit reached|approaching .* limit|/upgrade"}}'
+      # `request rejected (429)` é como o Claude Code mostra a cota de QUALQUER
+      # provedor de fora (`API Error: Request rejected (429) · <mensagem dele>`);
+      # a mensagem do provedor varia e nem sempre traz `limit reached`.
+      STALL_RE: '{{.STALL_RE | default "spend limit|rate limit exceeded|limit reached|approaching .* limit|/upgrade|request rejected [(](402|429)[)]"}}'
       # Teto do benefício da dúvida. Sessão parada de verdade volta com um
       # `orca terminal send`; passada de longe a janela de 5h de cota, o que
       # sobra é falso positivo do STALL_RE segurando o lock pra sempre.
       STALL_MAX_MIN: '{{.STALL_MAX_MIN | default 720}}'
-      # Retomada automática: só o 429 do MiniMax, que tem sonda própria. Sessão
-      # parada no limite da Anthropic segue esperando você.
-      MINIMAX_STALL_RE: 'Token Plan usage limit'
+      # Retomada automática: só cota de provedor com sonda (os do `claude-model`).
+      # 402 é o saldo do DeepSeek: volta quando você recarrega, e a sonda vê.
+      # Sessão parada no limite da Anthropic segue esperando você.
+      QUOTA_RE: 'request rejected [(](402|429)[)]|Token Plan usage limit'
       # Teto de retomadas por terminal: falso positivo do STALL_RE retomado a
       # cada tick renovaria o relógio do STALL_MAX_MIN pra sempre.
       RESUME_MAX: '{{.RESUME_MAX | default 3}}'
       STATE_DIR: '{{.STATE_DIR | default "$HOME/.local/state/gh-board"}}'
-      # Override pros testes (`true`/`false`); vazio = sonda real por HTTP.
-      MINIMAX_PROBE: '{{.MINIMAX_PROBE}}'
+      # Override pros testes: comando que recebe o modelo; vazio = `claude-model --probe`.
+      PROBE: '{{.PROBE}}'
     cmds:
       - |
         # 30 min = dois ticks do timer. Um tick só deixaria o corte encostado
@@ -1406,24 +1413,27 @@ tasks:
                    | select((.lastOutputAt // 0) > 0 and (.lastOutputAt / 1000) < $c)
                    | .handle' 2>/dev/null || true; })
 
-        # Sonda da cota do MiniMax: uma chamada HTTP de 1 token, em cache por
-        # 10 min pra várias worktrees no mesmo tick não sondarem de novo. Não é
-        # `claude-mini -p`: com a cota fora, o Claude Code repete o 429 com
-        # backoff, e essa sonda pendurou 90 s na primeira tentativa. A chave vem
-        # do `~/.zshrc.local` porque a unit do tick não a tem no ambiente.
-        minimax_ok() {
-          f="{{.STATE_DIR}}/minimax-probe"
+        # Modelo da sessão: o último lançamento desta worktree no RUNS_FILE (uma
+        # sessão por vez, pelo lock `agent:running`). `claude` puro é assinatura
+        # e fica sem modelo — sem sonda. Worktree fora de `issue-<n>` também.
+        # ponytail: repo casado pelo nome, sem dono — como no `gh:metrics`.
+        wtpath="{{.WT}}"; wtpath="${wtpath#path:}"; modelo=""
+        case "$wtpath" in
+          */orca/workspaces/*/issue-[0-9]*)
+            nome=$(basename "$(dirname "$wtpath")"); num="${wtpath##*/issue-}"
+            modelo=$(jq -rs --arg nome "$nome" --arg n "$num" \
+              '[.[] | select((.repo | split("/") | last) == $nome and .issue == ($n | tonumber))] | last
+               | (.runner // "") | capture("^claude-model (?<m>[^ ]+)").m // empty' "{{.RUNS_FILE}}" 2>/dev/null || true) ;;
+        esac
+
+        # Sonda da cota do provedor: 1 token por HTTP (`claude-model --probe`,
+        # que conhece endpoint e chave), em cache por modelo por 10 min pra
+        # várias worktrees no mesmo tick não sondarem de novo.
+        cota_ok() {
+          f="{{.STATE_DIR}}/sonda-$1"
           if [ -f "$f" ] && [ $(( $(date +%s) - $(stat -c %Y "$f") )) -lt 600 ]; then cat "$f"; return 0; fi
           mkdir -p "{{.STATE_DIR}}"
-          {{if .MINIMAX_PROBE}}
-          if {{.MINIMAX_PROBE}}; then echo ok > "$f"; else echo falha > "$f"; fi
-          {{else}}
-          k="${MINIMAX_API_KEY:-$(sed -nE "s/^export MINIMAX_API_KEY=[\"']?([^\"']*)[\"']?.*/\1/p" "$HOME/.zshrc.local" 2>/dev/null | tail -1)}"
-          code=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://api.minimax.io/anthropic/v1/messages \
-            -H "Authorization: Bearer $k" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
-            -d '{"model":"MiniMax-M3","max_tokens":1,"messages":[{"role":"user","content":"ok"}]}' 2>/dev/null || true)
-          if [ "$code" = 200 ]; then echo ok > "$f"; else echo falha > "$f"; fi
-          {{end}}
+          if {{if .PROBE}}{{.PROBE}}{{else}}claude-model --probe{{end}} "$1" >/dev/null 2>&1; then echo ok > "$f"; else echo falha > "$f"; fi
           cat "$f"
         }
 
@@ -1439,17 +1449,20 @@ tasks:
           elif printf '%s' "$tela" | grep -qiE '{{.STALL_RE}}'; then
             parados=$((parados + 1))
             echo "  · terminal $h parado no limite de uso — mantido vivo" >&2
-            # A cota do MiniMax volta sozinha, mas a sessão não sabe: sem alguém
+            # A cota do provedor volta sozinha, mas a sessão não sabe: sem alguém
             # mandar continuar, ela esperava o teto com a issue presa no lock.
+            # Sessão de antes do RUNS_FILE com o aviso do Token Plan é MiniMax.
             # O `continue` fica fora deste `if`: aninhado, o shell do Task
             # executaria o resto do bloco antes de desviar.
-            if printf '%s' "$tela" | grep -qF '{{.MINIMAX_STALL_RE}}'; then
+            m="$modelo"
+            if [ -z "$m" ] && printf '%s' "$tela" | grep -qF 'Token Plan usage limit'; then m=minimax-m3; fi
+            if [ -n "$m" ] && printf '%s' "$tela" | grep -qiE '{{.QUOTA_RE}}'; then
               nret=$(cat "{{.STATE_DIR}}/retomadas/$h" 2>/dev/null || echo 0)
-              if [ "$nret" -lt "{{.RESUME_MAX}}" ] && [ "$(minimax_ok)" = ok ]; then
+              if [ "$nret" -lt "{{.RESUME_MAX}}" ] && [ "$(cota_ok "$m")" = ok ]; then
                 mkdir -p "{{.STATE_DIR}}/retomadas"
                 orca terminal send --terminal "$h" --text continue --enter >/dev/null 2>&1 || true
                 echo $((nret + 1)) > "{{.STATE_DIR}}/retomadas/$h"
-                echo "  · terminal $h: cota do MiniMax voltou — retomado ($((nret + 1))/{{.RESUME_MAX}})" >&2
+                echo "  · terminal $h: cota de $m voltou — retomado ($((nret + 1))/{{.RESUME_MAX}})" >&2
               fi
             fi
             continue

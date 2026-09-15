@@ -34,6 +34,18 @@ esac
 STUB
 chmod +x "$tmp/bin/orca"
 
+# Sonda falsa: anota qual modelo foi sondado e responde conforme SONDA_OK.
+cat > "$tmp/bin/sonda" <<'STUB'
+#!/usr/bin/env bash
+echo "$1" >> "$ORCA_STUB/sondados"
+[ "${SONDA_OK:-true}" = true ]
+STUB
+chmod +x "$tmp/bin/sonda"
+
+# A worktree dos casos gerais roda MiniMax: é o que o RUNS_FILE diz.
+runs="$tmp/runs.jsonl"
+echo '{"repo":"o/x","issue":1,"etapa":"execucao","runner":"claude-model minimax-m3","em":"2026-09-15T00:00:00Z"}' > "$runs"
+
 agora=$(date +%s)
 limite_mm="API Error: Request rejected (429) · Token Plan usage limit reached: Upgrade your Token Plan"
 declare -A esperado nome retoma
@@ -69,8 +81,8 @@ confere() { # $1 descrição  $2 esperado  $3 obtido
   printf '%-7s %-40s esperado=%-6s obtido=%s\n' "$st" "$1" "$2" "$3"
 }
 roda() { # $1 WT  $2 resposta da sonda (true|false)  $3 STATE_DIR
-  PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" \
-    task gh:agents-busy WT="$1" MINIMAX_PROBE="$2" STATE_DIR="$3" 2>/dev/null
+  PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" SONDA_OK="$2" \
+    task gh:agents-busy WT="$1" PROBE="$tmp/bin/sonda" STATE_DIR="$3" RUNS_FILE="$runs" 2>/dev/null
 }
 
 ocupados=$(roda "path:$HOME/orca/workspaces/x/issue-1" true "$tmp/state")
@@ -97,6 +109,40 @@ confere "contagem de ocupados" "$((n - fechas))" "$ocupados"
 : > "$tmp/stub/enviados"; : > "$tmp/stub/fechados"; mkdir -p "$tmp/state2"
 roda "path:$HOME/orca/workspaces/x/issue-1" false "$tmp/state2" >/dev/null
 confere "sonda falhou: nenhuma retomada" 0 "$(wc -l < "$tmp/stub/enviados" | tr -d ' ')"
+
+# Um provedor por worktree: a tela de cota de cada um, o modelo que o
+# RUNS_FILE diz, e se a sonda certa foi chamada. As mensagens do DeepSeek e do
+# Z.ai são as da doc deles, no formato em que o Claude Code as mostra; a do
+# OpenCode Go não é documentada, então o caso usa só o 429.
+# $1 descrição  $2 issue  $3 runner no RUNS_FILE (- = nenhum)  $4 tela
+# $5 modelo sondado (- = nenhum)  $6 retomado (s|n)
+provedor() {
+  local st="$tmp/p$2" sond
+  mkdir -p "$st/retomadas"
+  : > "$tmp/stub/enviados"; : > "$tmp/stub/fechados"; : > "$tmp/stub/sondados"
+  echo p1 > "$tmp/stub/ociosos"
+  printf '%s' "$4" > "$tmp/stub/tela-p1"
+  jq -n --argjson o $(( (agora - 40 * 60) * 1000 )) '{ok:true, result:{terminals:[{handle:"p1", lastOutputAt:$o}]}}' > "$tmp/stub/list.json"
+  [ "$3" = - ] || jq -cn --arg r "$3" --argjson n "$2" \
+    '{repo:"o/prov", issue:$n, etapa:"execucao", runner:$r, em:"2026-09-15T00:00:00Z"}' >> "$runs"
+  PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" SONDA_OK=true \
+    task gh:agents-busy WT="path:$HOME/orca/workspaces/prov/issue-$2" PROBE="$tmp/bin/sonda" \
+    STATE_DIR="$st" RUNS_FILE="$runs" >/dev/null 2>&1
+  sond=$(tail -1 "$tmp/stub/sondados")
+  confere "$1: sonda" "$5" "${sond:--}"
+  confere "$1: retomado" "$6" "$(grep -qx p1 "$tmp/stub/enviados" && echo s || echo n)"
+  confere "$1: segue vivo" fica "$(grep -qx p1 "$tmp/stub/fechados" && echo fecha || echo fica)"
+}
+erro() { printf 'API Error: Request rejected (%s) · %s' "$1" "$2"; }
+
+provedor "DeepSeek, 429"            11 "claude-model deepseek-v4-flash" "$(erro 429 'Rate Limit Reached')"  deepseek-v4-flash s
+provedor "DeepSeek, 402 de saldo"   12 "claude-model deepseek-v4-pro"   "$(erro 402 'Insufficient Balance')" deepseek-v4-pro s
+provedor "Z.ai, limite de 5h"       13 "claude-model glm-5.3"           "$(erro 429 'Usage limit reached for 5 hour. Your limit will reset at 2026-09-15 18:00:00 (1308)')" glm-5.3 s
+provedor "Z.ai, sem saldo"          14 "claude-model glm-5.3-flash"     "$(erro 429 'Insufficient balance or no resource package. Please recharge. (1113)')" glm-5.3-flash s
+provedor "OpenCode Go (Kimi), 429"  15 "claude-model kimi-k3"           "$(erro 429 'Too Many Requests')"    kimi-k3 s
+provedor "MiniMax pelo RUNS_FILE"   16 "claude-model minimax-m3"        "$limite_mm"                         minimax-m3 s
+provedor "MiniMax de antes do log"  17 -                                "$limite_mm"                         minimax-m3 s
+provedor "Opus no limite: sem sonda" 18 claude                          "Claude usage limit reached"         - n
 
 # Worktree que não existe devolve 0 — é o que solta o lock no `gh:reap`.
 rm -f "$tmp/stub/list.json"
