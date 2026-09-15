@@ -964,7 +964,7 @@ tasks:
 
       Arguments:
         - REPO, PR: o PR a julgar.
-        - MAX_LINES: teto de linhas alteradas (default 200).
+        - MAX_LINES: teto de linhas alteradas (default 100).
         - MAX_ROUNDS_AUTO: rodadas de revisão toleradas (default 1).
         - ALLOW: o arquivo do interruptor.
         - RISCO: a ERE dos caminhos que forçam humano.
@@ -976,7 +976,11 @@ tasks:
     requires:
       vars: [REPO, PR]
     vars:
-      MAX_LINES: '{{.MAX_LINES | default 200}}'
+      # 100 (dotfiles-ai#118): sem ninguém olhando, só onde a revisão ainda acha
+      # ~4 achados a cada 100 linhas — de 101 a 200 cai pra ~2. Metade do teto de
+      # plano de propósito: o merge automático é o único passo sem humano. Ver
+      # ai/docs/decisions/2026-09-15-teto-de-pr-pela-densidade-de-achados.md.
+      MAX_LINES: '{{.MAX_LINES | default 100}}'
       MAX_ROUNDS_AUTO: '{{.MAX_ROUNDS_AUTO | default 1}}'
       ALLOW: '{{.ALLOW | default "$HOME/.local/state/gh-board/automerge"}}'
       JSON: '{{.JSON | default ""}}'
@@ -2161,7 +2165,11 @@ tasks:
           # PR pequeno é regra, e vale pra mãe e pra filha: uma issue pode
           # render N PRs em sequência. O único caso empilhado nasce aqui — o
           # resto de um PR que estourou parte da branch dele (`## Base`).
-          teto="TETO DE PR: ~400 linhas alteradas e ~15 arquivos (lockfile e artefato gerado não contam). Revisão longa é revisão que ninguém lê inteira, então uma issue pode render vários PRs em sequência. Estourou o teto no meio da implementação: pare de escrever código novo, deixe o que já está pronto verde e abra o PR dele; o resto vira sub-issue — (cd ~ && task gh:subissue PARENT=$repo#$num TITLE='<o que falta>' BODY=<arquivo>) — com o corpo no molde da triagem (objetivo, escopo, critério de aceite), a seção ## Caminhos e uma seção ## Base com o nome da branch do seu PR e o número dele, porque o resto parte de código que ainda não mesclou. Criada a filha, mova esta issue pra In Review e acabou. Repo de outro dono em que o gh:subissue recusa dividir: siga num PR só e diga no corpo, em uma linha, por que passou do teto."
+          # ~200 linhas e ~8 arquivos (dotfiles-ai#118): nos PRs do fluxo, os
+          # achados por linha caem pela metade a cada vez que o PR dobra, e acima
+          # disso a volta pra implementação passa de ~0,6 pra ~1 por PR. Ver
+          # ai/docs/decisions/2026-09-15-teto-de-pr-pela-densidade-de-achados.md.
+          teto="TETO DE PR: ~200 linhas alteradas e ~8 arquivos (lockfile e artefato gerado não contam). Revisão longa é revisão que ninguém lê inteira, então uma issue pode render vários PRs em sequência. Estourou o teto no meio da implementação: pare de escrever código novo, deixe o que já está pronto verde e abra o PR dele; o resto vira sub-issue — (cd ~ && task gh:subissue PARENT=$repo#$num TITLE='<o que falta>' BODY=<arquivo>) — com o corpo no molde da triagem (objetivo, escopo, critério de aceite), a seção ## Caminhos e uma seção ## Base com o nome da branch do seu PR e o número dele, porque o resto parte de código que ainda não mesclou. Criada a filha, mova esta issue pra In Review e acabou. Repo de outro dono em que o gh:subissue recusa dividir: siga num PR só e diga no corpo, em uma linha, por que passou do teto."
 
           # O que o agente precisa saber sobre parentesco e sobre dividir.
           if [ "${mae:--}" != "-" ]; then
