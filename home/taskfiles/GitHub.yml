@@ -759,6 +759,12 @@ tasks:
       de risco, teto de linhas, rodadas, thread aberta, CI vermelho) ganha um
       comentário com o motivo, uma vez por motivo.
 
+      **O método de merge sai do repo.** `METHOD` vazio consulta o que o
+      repositório libera e prefere squash — o `gh:merge-policy` deixa só ele
+      nos repos seus, e um default fixo em `--merge` devolve 405 "Merge commits
+      are not allowed" no fluxo inteiro, com o log dizendo só "o GitHub recusou
+      o merge". `METHOD=` explícito continua ganhando.
+
       Examples:
         - task gh:merge-approved REPO=mvinnicius22/abacaxei-app DRY=1
         - task gh:merge-approved REPO=mvinnicius22/abacaxei-app
@@ -767,7 +773,7 @@ tasks:
       vars: [REPO]
     vars:
       DIR: '{{.DIR | default ""}}'
-      METHOD: '{{.METHOD | default "merge"}}'
+      METHOD: '{{.METHOD | default ""}}'
       DRY: '{{.DRY | default "0"}}'
       FORCE: '{{.FORCE | default "0"}}'
       WAIT_CI: '{{.WAIT_CI | default "0"}}'
@@ -791,7 +797,21 @@ tasks:
         [ -n "$dir" ] || dir=$(task gh:repo-path REPO={{.REPO}}) || exit 1
         cd "$dir" || exit 1
         echo "checkout: $dir"
-        base=$(gh repo view {{.REPO}} --json defaultBranchRef --jq .defaultBranchRef.name)
+        repoinfo=$(gh repo view {{.REPO}} --json defaultBranchRef,squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed)
+        base=$(printf '%s' "$repoinfo" | jq -r .defaultBranchRef.name)
+
+        # O método sai do repo, não de um default fixo: o `gh:merge-policy`
+        # deixa só o squash nos repos seus, e o default antigo (`--merge`)
+        # devolvia 405 "Merge commits are not allowed on this repository" em
+        # todos eles — o log dizia só "o GitHub recusou o merge".
+        method="{{.METHOD}}"
+        [ -n "$method" ] || method=$(printf '%s' "$repoinfo" | jq -r '
+          if .squashMergeAllowed then "squash"
+          elif .mergeCommitAllowed then "merge"
+          elif .rebaseMergeAllowed then "rebase"
+          else "" end')
+        [ -n "$method" ] || { echo "{{.REPO}}: nenhum método de merge liberado no repo."; exit 0; }
+        echo "método: $method"
 
         prs=$(gh pr list -R {{.REPO}} --state open --label agent:approved \
                 --limit 50 --json number --jq '[.[].number] | sort | .[]')
@@ -889,7 +909,7 @@ tasks:
           fi
 
           if [ "{{.DRY}}" = "1" ]; then
-            echo "   · [dry] mesclaria com --{{.METHOD}}"
+            echo "   · [dry] mesclaria com --$method"
             continue
           fi
 
@@ -898,7 +918,7 @@ tasks:
           # o cache virar em vez de desistir na primeira.
           ok=0
           for _ in 1 2 3 4 5 6; do
-            if gh pr merge "$pr" -R {{.REPO}} --{{.METHOD}} --delete-branch >/dev/null 2>&1; then
+            if gh pr merge "$pr" -R {{.REPO}} --"$method" --delete-branch >/dev/null 2>&1; then
               ok=1; break
             fi
             sleep 10
