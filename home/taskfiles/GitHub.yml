@@ -3082,6 +3082,9 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/dispatch-changes.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/model-metrics.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/model-assignment.sh"
+      # A conta da página /ctl/modelos sai dos mesmos arquivos que as tasks
+      # acima escrevem: se ela roda só quando alguém lembra, ela quebra calada.
+      - "/usr/bin/python3 $HOME/dotfiles/ai/.local/bin/svc-ctl --self-check"
 
   pending-question:
     desc: "Diz se há pergunta sua sem resposta na issue ou nos PRs dela. REF=owner/repo#N"
