@@ -2112,8 +2112,12 @@ tasks:
         # tela, e o `gh:reap` solta o lock.
         pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
         printf '%s' "$prompt" > "$pf"
+        # `CLAUDE_CODE_PROMPT_CACHE_TTL=5m`: na assinatura o default é 1 h, e a
+        # escrita de cache de 1 h custa 2x a entrada contra 1,25x na de 5 min.
+        # A sessão do board dura 6 min com 3 mensagens/min — a de 5 min não
+        # expira, e a escrita era 45% da conta do Opus (medido em 2026-09-16).
         orca terminal create --worktree "$wtsel" --title "issue #$num" \
-          --command "{{.RUNNER}} \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
+          --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m {{.RUNNER}} \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
           && task gh:run-log REF="$ref" ETAPA="{{.ETAPA}}" RUNNER="{{.RUNNER}}"
         echo "terminal ({{.RUNNER}}) aberto na worktree issue-$num"
 
@@ -2504,7 +2508,7 @@ tasks:
           printf '%s' "$prompt" > "$pf"
           if ! orca terminal create --worktree "$wtsel" \
                  --title "review #$pr" \
-                 --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
+                 --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
             rm -f {{.BOARD_CACHE}}
