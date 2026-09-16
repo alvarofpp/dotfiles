@@ -759,11 +759,12 @@ tasks:
       de risco, teto de linhas, rodadas, thread aberta, CI vermelho) ganha um
       comentário com o motivo, uma vez por motivo.
 
-      **O método de merge sai do repo.** `METHOD` vazio consulta o que o
-      repositório libera e prefere squash — o `gh:merge-policy` deixa só ele
-      nos repos seus, e um default fixo em `--merge` devolve 405 "Merge commits
-      are not allowed" no fluxo inteiro, com o log dizendo só "o GitHub recusou
-      o merge". `METHOD=` explícito continua ganhando.
+      **`AUTO=1` mescla sempre com squash**, ignorando `METHOD=`: é o método
+      que o `gh:merge-policy` deixa de pé nos repos seus, e o default antigo
+      (`--merge`) devolvia 405 "Merge commits are not allowed" no fluxo inteiro,
+      com o log dizendo só "o GitHub recusou o merge". Repo que não libera
+      squash sai da fila do automerge. Chamada à mão sem `METHOD=` usa o que o
+      repositório libera, preferindo squash.
 
       Examples:
         - task gh:merge-approved REPO=mvinnicius22/abacaxei-app DRY=1
@@ -800,17 +801,28 @@ tasks:
         repoinfo=$(gh repo view {{.REPO}} --json defaultBranchRef,squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed)
         base=$(printf '%s' "$repoinfo" | jq -r .defaultBranchRef.name)
 
-        # O método sai do repo, não de um default fixo: o `gh:merge-policy`
-        # deixa só o squash nos repos seus, e o default antigo (`--merge`)
-        # devolvia 405 "Merge commits are not allowed on this repository" em
-        # todos eles — o log dizia só "o GitHub recusou o merge".
+        # O automerge é sempre squash, e não negocia: é o método que o
+        # `gh:merge-policy` deixa de pé nos repos seus, e o default antigo
+        # (`--merge`) devolvia 405 "Merge commits are not allowed on this
+        # repository" no fluxo inteiro — o log dizia só "o GitHub recusou o
+        # merge". Repo que não libera squash fica pra você, como o resto do
+        # `AUTO=1`: falha fechado.
         method="{{.METHOD}}"
-        [ -n "$method" ] || method=$(printf '%s' "$repoinfo" | jq -r '
-          if .squashMergeAllowed then "squash"
-          elif .mergeCommitAllowed then "merge"
-          elif .rebaseMergeAllowed then "rebase"
-          else "" end')
-        [ -n "$method" ] || { echo "{{.REPO}}: nenhum método de merge liberado no repo."; exit 0; }
+        if [ "{{.AUTO}}" = "1" ]; then
+          method=squash
+          [ "$(printf '%s' "$repoinfo" | jq -r .squashMergeAllowed)" = "true" ] || {
+            echo "{{.REPO}}: squash desligado no repo — automerge não mescla aqui."
+            exit 0
+          }
+        elif [ -z "$method" ]; then
+          # Chamada à mão sem `METHOD=`: usa o que o repo libera.
+          method=$(printf '%s' "$repoinfo" | jq -r '
+            if .squashMergeAllowed then "squash"
+            elif .mergeCommitAllowed then "merge"
+            elif .rebaseMergeAllowed then "rebase"
+            else "" end')
+          [ -n "$method" ] || { echo "{{.REPO}}: nenhum método de merge liberado no repo."; exit 0; }
+        fi
         echo "método: $method"
 
         prs=$(gh pr list -R {{.REPO}} --state open --label agent:approved \
