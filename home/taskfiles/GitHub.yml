@@ -995,6 +995,8 @@ tasks:
         nenhuma revisão com corpo           `agent:approved` sem revisão atrás
         mais de {{.MAX_ROUNDS_AUTO}} rodada(s)   não convergiu
         thread de revisão aberta            o revisor deixou coisa no ar
+        achado bloqueante/importante sem resposta do autor, mesmo com a thread
+          resolvida — `isResolved` mede quem clicou, não quem consertou
         commit (não-merge) depois da revisão   mescla o que ninguém revisou
         job de CI que disparou e não está verde
         diff acima de {{.MAX_LINES}} linhas
@@ -1103,7 +1105,7 @@ tasks:
               labels(first:30){ nodes{ name } }
               reviews(first:50){ nodes{ body submittedAt comments(first:1){ nodes{ body } } } }
               comments(last:50){ nodes{ body createdAt } }
-              reviewThreads(first:100){ nodes{ isResolved } }
+              reviewThreads(first:100){ nodes{ isResolved comments(first:10){ nodes{ body } } } }
               files(first:100){ nodes{ path } }
               commits(last:30){ nodes{ commit{ committedDate parents{ totalCount }
                 statusCheckRollup{ state } } } } } } }' \
@@ -1144,6 +1146,16 @@ tasks:
         abertas=$(leia '[.reviewThreads.nodes[] | select(.isResolved == false)] | length')
         [ "${abertas:-1}" = "0" ] || barra "$abertas thread(s) de revisão aberta(s)"
 
+        # Thread resolvida não é thread atendida. Em `ai-agency#54` o próprio
+        # revisor fechou NOVE achados `importante` sem uma linha do autor e o PR
+        # passou por aqui: `isResolved` mede quem clicou, não quem consertou. O
+        # portão é a resposta do autor no achado que segura merge.
+        mudas=$(leia '[.reviewThreads.nodes[]
+          | select((.comments.nodes[0].body // "") | test("\\*\\*Revisão\\*\\* — (bloqueante|importante):"))
+          | select([(.comments.nodes // [])[].body | select(test("<!-- agent:author -->"))] | length == 0)] | length')
+        [ "${mudas:-1}" = "0" ] \
+          || barra "$mudas achado(s) bloqueante/importante sem resposta do autor"
+
         # 4. Código depois da revisão. Merge commit não conta: é a própria
         #    atualização da main que o `gh:merge-approved` empurra, e contá-la
         #    reprovaria todo PR que ele mesmo põe em dia.
@@ -1174,7 +1186,7 @@ tasks:
         risco=$(leia '.files.nodes[].path' | grep -iE '{{.RISCO}}' | head -3 | tr '\n' ' ')
         [ -z "$risco" ] || barra "caminho de risco no diff: $risco"
 
-        echo "auto: $linhas linha(s) em $arqs arquivo(s) de baixo risco, $rodadas rodada(s) de revisão, nenhuma thread aberta, $ci_txt"
+        echo "auto: $linhas linha(s) em $arqs arquivo(s) de baixo risco, $rodadas rodada(s) de revisão, nenhuma thread aberta nem achado sem resposta, $ci_txt"
 
   automerge:
     desc: "Mescla sozinho o que o filtro liberar, em todo repo do board."
@@ -2035,7 +2047,7 @@ tasks:
 
           echo "→ triando $ref"
           task gh:run-log REF="$ref" ETAPA=triagem RUNNER=claude
-          ( cd "$path" && timeout {{.PREP_TIMEOUT}} claude -p "/issue-prep $ref" ) \
+          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.PREP_TIMEOUT}} claude -p "/issue-prep $ref" ) \
             || echo "  $ref: a triagem falhou ou estourou o tempo — fica em Ready"
         done
 
@@ -2292,7 +2304,7 @@ tasks:
 
           if [ -n "$pr" ]; then
             runner="claude-model $x"; etapa=correcao; acao="aplicando review do #$pr ($x)"
-            prompt="A issue $repo#$num voltou pra implementação: o PR #$pr já está aberto e a revisão apontou coisas. Leia com: gh pr view $pr -R $repo --comments e gh api repos/$repo/pulls/$pr/comments. Aplique todas as sugestões pertinentes — correção que cai em mais de uma área sai pro subagente especialista de cada uma (ferramenta Task, com os agentes de .claude/agents/ mapeados no AGENTS.md), juntas numa mesma mensagem quando independentes, e você integra, roda o QA e commita; das que não fizerem sentido, discorde por escrito na própria thread em vez de ignorar em silêncio. Achado que você NÃO vai consertar aqui só vira issue nova se for COMPLEXO — muda o escopo do PR, puxa refatoração ampla, ou depende de decisão ou recurso que ainda não existe. Pequeno e médio conserta NESTE PR: abrir issue pra cada nit enche o board de tarefa que custa mais pra triar e despachar do que pra fazer. Na dúvida entre os dois, conserte aqui — reverter um commit é mais barato que despachar uma issue. NÃO feche thread nenhuma: fechar é ato do revisor, na rodada de conferência — se você fechar a sua própria, ninguém conferiu e a thread vira 'eu disse que fiz'. Toda resposta sua no PR carrega o marcador <!-- agent:author --> e o prefixo **Implementação** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:author -->\n**Implementação** — o texto Isto porque: autor e revisor são a mesma conta do GitHub, e sem isso ninguém distingue quem apontou de quem corrigiu. Rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só siga com tudo verde. Antes de commitar, rode /session-end: ele atualiza a doc que a mudança invalidou — docs/ do repo, um arquivo novo em docs/decisions/, ADR, CHANGELOG onde o repo tem um — e a doc entra NO MESMO PR, porque doc atrasada é doc que mente. NUNCA crie TODO.md: pendência que sobrar vira issue (gh issue create -R $repo). Repo sem esses arquivos não ganha estrutura nova por sua conta: onde o /session-end mandar propor ao usuário (criar docs/, rodar /init, scaffold), a proposta vira uma linha no corpo do PR e nada é criado. Commit e push. Se o corpo do PR ainda não tem a seção '## Como observar' (comando pra rodar + saída esperada), acrescente com gh pr edit $pr -R $repo --body-file — é o que o /issue-status confere ao dar Done. Antes de dar por pronto, confira o CI: gh pr checks $pr -R $repo (sem PR ainda, gh run list -R $repo --limit 3). Job vermelho é bloqueio, não detalhe: leia o log com gh run view <run-id> -R $repo --log-failed e conserte o CÓDIGO. Em hipótese alguma altere o workflow do CI pra fazer passar — é ele que atesta a qualidade, e mexer nele pra virar verde é fraudar o teste. Se o job estiver de fato errado, isso é achado pra escrever no PR, não pra você consertar por conta. Depois rode /issue-status $repo#$num In Review e gh pr edit $pr -R $repo --remove-label agent:changes. Se o diff mudar tela (widget, componente, página, estilo), anexe captura da tela afetada num comentário do PR — a receita e as armadilhas (rota em vez de clique, innerText vazio em CanvasKit, portão de forwardAuth) estão na regra global rules/ui-quality.md, e o anexo sai por ~/dotfiles/ai/scripts/gh-attach.sh. Não deu pra capturar: diga por quê, em uma linha. Se esbarrar em decisão que não é sua, use /issue-status $repo#$num Blocked com a pergunta. $parentesco Hook que recusa um comando (PreToolUse e afins) NÃO é o fim da sua tarefa: é o critério de pronto do repo falando. Leia o que ele exige, conserte, e siga — a mensagem dele diz o arquivo e o número. Não conseguindo, escreva no PR o que o hook pediu e o que faltou e use /issue-status $repo#$num Blocked com a pergunta: parar calado deixa a issue presa no lock agent:running e o PR sem uma linha, e o tick só redescobre isso meia hora depois. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+            prompt="A issue $repo#$num voltou pra implementação: o PR #$pr já está aberto e a revisão apontou coisas. Leia com: gh pr view $pr -R $repo --comments e gh api repos/$repo/pulls/$pr/comments. Aplique todas as sugestões pertinentes — correção que cai em mais de uma área sai pro subagente especialista de cada uma (ferramenta Task, com os agentes de .claude/agents/ mapeados no AGENTS.md), juntas numa mesma mensagem quando independentes, e você integra, roda o QA e commita; das que não fizerem sentido, discorde por escrito na própria thread em vez de ignorar em silêncio. Achado que você NÃO vai consertar aqui só vira issue nova se for COMPLEXO — muda o escopo do PR, puxa refatoração ampla, ou depende de decisão ou recurso que ainda não existe. Pequeno e médio conserta NESTE PR: abrir issue pra cada nit enche o board de tarefa que custa mais pra triar e despachar do que pra fazer. Na dúvida entre os dois, conserte aqui — reverter um commit é mais barato que despachar uma issue. NÃO feche thread nenhuma: fechar é ato do revisor, na rodada de conferência — se você fechar a sua própria, ninguém conferiu e a thread vira 'eu disse que fiz'. Responder em thread ancorada é gh api repos/$repo/pulls/comments/<id-do-1o-comentario-da-thread>/replies -F body=@/tmp/resposta.md: com -F o gh LÊ o arquivo que vem depois do @, com -f (ou --body \"@arquivo\") ele posta o caminho como texto e a thread sai com '@/tmp/resposta.md' escrito nela — aconteceu em ai-agency#55, três vezes. Confira o que entrou antes de seguir. Toda resposta sua no PR carrega o marcador <!-- agent:author --> e o prefixo **Implementação** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:author -->\n**Implementação** — o texto Isto porque: autor e revisor são a mesma conta do GitHub, e sem isso ninguém distingue quem apontou de quem corrigiu. Rode o QA local do projeto (testes, lint, build — o que o runner expuser) e só siga com tudo verde. Antes de commitar, rode /session-end: ele atualiza a doc que a mudança invalidou — docs/ do repo, um arquivo novo em docs/decisions/, ADR, CHANGELOG onde o repo tem um — e a doc entra NO MESMO PR, porque doc atrasada é doc que mente. NUNCA crie TODO.md: pendência que sobrar vira issue (gh issue create -R $repo). Repo sem esses arquivos não ganha estrutura nova por sua conta: onde o /session-end mandar propor ao usuário (criar docs/, rodar /init, scaffold), a proposta vira uma linha no corpo do PR e nada é criado. Commit e push. Se o corpo do PR ainda não tem a seção '## Como observar' (comando pra rodar + saída esperada), acrescente com gh pr edit $pr -R $repo --body-file — é o que o /issue-status confere ao dar Done. Antes de dar por pronto, confira o CI: gh pr checks $pr -R $repo (sem PR ainda, gh run list -R $repo --limit 3). Job vermelho é bloqueio, não detalhe: leia o log com gh run view <run-id> -R $repo --log-failed e conserte o CÓDIGO. Em hipótese alguma altere o workflow do CI pra fazer passar — é ele que atesta a qualidade, e mexer nele pra virar verde é fraudar o teste. Se o job estiver de fato errado, isso é achado pra escrever no PR, não pra você consertar por conta. Depois rode /issue-status $repo#$num In Review e gh pr edit $pr -R $repo --remove-label agent:changes. Se o diff mudar tela (widget, componente, página, estilo), anexe captura da tela afetada num comentário do PR — a receita e as armadilhas (rota em vez de clique, innerText vazio em CanvasKit, portão de forwardAuth) estão na regra global rules/ui-quality.md, e o anexo sai por ~/dotfiles/ai/scripts/gh-attach.sh. Não deu pra capturar: diga por quê, em uma linha. Se esbarrar em decisão que não é sua, use /issue-status $repo#$num Blocked com a pergunta. $parentesco Hook que recusa um comando (PreToolUse e afins) NÃO é o fim da sua tarefa: é o critério de pronto do repo falando. Leia o que ele exige, conserte, e siga — a mensagem dele diz o arquivo e o número. Não conseguindo, escreva no PR o que o hook pediu e o que faltou e use /issue-status $repo#$num Blocked com a pergunta: parar calado deixa a issue presa no lock agent:running e o PR sem uma linha, e o tick só redescobre isso meia hora depois. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
           elif [ "$planos" = "0" ]; then
             p=$(printf '%s' "$des" | jq -r .plano); critica=$(printf '%s' "$des" | jq -r .critica)
             # Designação feita com plano já na issue e o plano apagado depois.
@@ -2738,7 +2750,7 @@ tasks:
                 pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
                 printf '%s' "$prompt" > "$pf"
                 orca terminal create --worktree "path:$wt" --title "review $repo#$pr" \
-                  --command "claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
+                  --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
                   || echo "  falhou ao abrir o terminal"
               else
                 orca worktree create --project "github:$repo" --host local \
@@ -2924,7 +2936,7 @@ tasks:
           path=$(task gh:repo-path REPO="$repo" 2>/dev/null) || continue
           echo "→ $ref: $mesclados PR(s) mesclado(s), $evidencias evidência(s) sem PR — conferindo os critérios"
           task gh:run-log REF="$ref" ETAPA=settle RUNNER=claude
-          ( cd "$path" && timeout {{.SETTLE_TIMEOUT}} claude -p "/issue-status $ref Done" ) \
+          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.SETTLE_TIMEOUT}} claude -p "/issue-status $ref Done" ) \
             || echo "  $ref: a conferência falhou — fica em In Review"
         done
 
@@ -4262,6 +4274,11 @@ tasks:
         rodadas    reviews do dono com `<!-- agent:review -->`, como o `gh:pr-tick`
         veredito   label `agent:changes`/`agent:approved` posta a cada rodada
         achados    1º comentário da thread: `**Revisão** — <severidade>:`
+        faixa      2º marcador do mesmo comentário: `<!-- faixa: julgamento|conferencia|ambas -->`.
+                   `achados` segue inteiro, por issue; `achados_faixa` é ele quebrado por
+                   faixa, e é o único jeito de comparar julgamento com conferência — o
+                   número da issue é o mesmo pros dois. Null em issue revisada antes de
+                   2026-09-16: o marcador não existia e não há como preencher depois.
 
       Arguments:
         - REPO: owner/name (default: todos do `gh:repos`).
@@ -4317,7 +4334,8 @@ tasks:
                                   | select(. != "") | marca] | conta) },
               sub_issue: ($i.parent != null), filhas: $i.subIssues.totalCount,
               prs: [$prs[].number] }
-            + if ($prs | length) == 0 then {rodadas: null, veredictos: null, achados: null, esforco: null} else
+            + if ($prs | length) == 0 then
+                {rodadas: null, veredictos: null, achados: null, achados_faixa: null, esforco: null} else
               { rodadas: ([$prs[].reviews.nodes[]
                            | select(.author.login == $dono and ((.body // "") | test("<!-- agent:review -->")))] | length),
                 veredictos: [$prs[].timelineItems.nodes[].label.name
@@ -4332,6 +4350,18 @@ tasks:
                                | select(test("<!-- agent:review -->")) | "\n" + .
                                | capture("\\n- \\*\\*(?<s>nit|sugestão|importante|bloqueante):\\*\\*"; "g") | .s]
                             end | conta),
+                # O mesmo `achados` cai nos dois modelos de revisão da issue, então
+                # sozinho ele não compara julgamento com conferência — compara quais
+                # issues cada um sorteou. O 2º marcador da thread (`<!-- faixa: ... -->`,
+                # posto pelo `/review-pr`) é quem separa. Null = thread sem marcador:
+                # issue revisada antes de 2026-09-16, e não há como preencher depois.
+                achados_faixa: ([$prs[].reviewThreads.nodes[].comments.nodes[0].body // empty
+                                 | capture("<!-- faixa: (?<f>[a-z]+) -->") as $fx
+                                 | capture("\\*\\*Revisão\\*\\* — (?<s>nit|sugestão|importante|bloqueante):")
+                                 | {f: $fx.f, s: .s}]
+                                | if length == 0 then null
+                                  else (group_by(.f) | map({key: .[0].f, value: (map(.s) | conta)}) | from_entries)
+                                  end),
                 esforco: { commits: ([$prs[].commits.totalCount] | add), arquivos: ([$prs[].changedFiles] | add),
                            adicoes: ([$prs[].additions] | add), remocoes: ([$prs[].deletions] | add) } }
             end
