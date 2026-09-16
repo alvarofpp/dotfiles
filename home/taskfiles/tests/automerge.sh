@@ -19,7 +19,9 @@ base=$(cat <<'JSON'
  "additions":40,"deletions":12,"changedFiles":2,
  "labels":{"nodes":[{"name":"agent"},{"name":"agent:approved"}]},
  "reviews":{"nodes":[{"body":"revisado, sem achado bloqueante","submittedAt":"2026-09-10T10:00:00Z"}]},
- "reviewThreads":{"nodes":[{"isResolved":true}]},
+ "reviewThreads":{"nodes":[{"isResolved":true,"comments":{"nodes":[
+   {"body":"<!-- agent:review -->\n**Revisão** — importante: o problema"},
+   {"body":"<!-- agent:author -->\n**Implementação** — corrigido em x.dart:12"}]}}]},
  "files":{"nodes":[{"path":"app/lib/src/widgets/snackbars.dart"},{"path":"docs/decisions/2026-09-10-x.md"}]},
  "commits":{"nodes":[{"commit":{"committedDate":"2026-09-10T09:00:00Z","parents":{"totalCount":1},
                                "statusCheckRollup":{"state":"SUCCESS"}}}]}}
@@ -56,6 +58,16 @@ caso "PR fechado"                            human '.state = "MERGED"'
 caso "draft"                                 human '.isDraft = true'
 caso "conflitando"                           human '.mergeable = "CONFLICTING"'
 caso "mergeable desconhecido"                human '.mergeable = "UNKNOWN"'
+
+# --- thread resolvida × thread atendida. `isResolved` mede quem clicou; o que
+# segura merge é a resposta do autor. Em ai-agency#54 o revisor fechou 9 achados
+# `importante` sem uma linha do autor e o PR mesclou sozinho.
+caso "importante resolvido SEM resposta do autor" human \
+  '.reviewThreads.nodes[0].comments.nodes = [.reviewThreads.nodes[0].comments.nodes[0]]'
+caso "nit resolvido sem resposta do autor"        auto  \
+  '.reviewThreads.nodes[0].comments.nodes = [{"body":"<!-- agent:review -->\n**Revisão** — nit: vírgula"}]'
+caso "thread sem comentário nenhum"               auto  \
+  '.reviewThreads.nodes[0].comments.nodes = []'
 
 # --- o que a revisão disse
 caso "label agent:human"                     human '.labels.nodes += [{"name":"agent:human"}]'
