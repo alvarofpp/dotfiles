@@ -4075,6 +4075,11 @@ tasks:
       do primeiro `-`):
         - quem critica o plano não é da família de quem planejou;
         - julgamento e conferência não são da família de quem implementa.
+      Empate é o caso comum — o rodízio mantém as contagens coladas — e sai por
+      hash de (etapa, issue, modelo), não pela ordem do pool: com a ordem, as três
+      etapas de pool 3 (plano, execução, conferência) andavam em lockstep e caíam
+      sempre na mesma partição de issues, o que impede atribuir resultado a uma
+      etapa (medido nas 10 primeiras designadas, 2026-09-16).
       Issue que já tinha plano (filha, ou planejada antes disto) sai com `plano`
       e `critica` nulos. Sem modelo possível, a crítica cai pra `minimax-m3`, a
       execução pra `opus` e a conferência pra `haiku`.
@@ -4099,12 +4104,15 @@ tasks:
         disp=$(for m in opus haiku minimax-m3 deepseek-v4-pro deepseek-v4-flash glm-5.3 glm-5.3-flash kimi-k3; do
                  if claude-model --check "$m"; then printf '%s\n' "$m"; fi
                done | jq -Rsc 'split("\n") | map(select(. != ""))')
-        # Pools na ordem de desempate. Modelo novo entra aqui e no `claude-model`.
+        # Pools de cada etapa. Modelo novo entra aqui e no `claude-model`. A ordem
+        # não vale como preferência: o desempate é o hash de (etapa, issue, modelo).
         JQM='def fam: sub("-.*"; "");
+          def h: explode | reduce .[] as $c (17; (. * 131 + $c) % 1000003);
           def escolhe($etapa; $pool; $proibida):
-            [$pool | to_entries[] | select((.value as $m | $disp | index($m)) and (.value | fam) != $proibida)
-             | .value as $m | {m: $m, i: .key, n: ([$hist[] | select(.[$etapa] == $m)] | length)}]
-            | if length == 0 then null else (min_by([.n, .i]) | .m) end;
+            [$pool[] as $m | select(($disp | index($m)) and ($m | fam) != $proibida)
+             | {m: $m, n: ([$hist[] | select(.[$etapa] == $m)] | length),
+                t: (($etapa + ($num | tostring) + $m) | h)}]
+            | if length == 0 then null else (min_by([.n, .t]) | .m) end;
           (if $planejado then null else escolhe("plano"; ["opus", "deepseek-v4-pro", "glm-5.3"]; "") end) as $p
           | (if $planejado then null
              else (escolhe("critica"; ["opus", "deepseek-v4-pro", "glm-5.3", "kimi-k3"]; ($p | fam)) // "minimax-m3") end) as $c
@@ -4112,7 +4120,8 @@ tasks:
           | { plano: $p, critica: $c, execucao: $x,
               julgamento: escolhe("julgamento"; ["opus", "kimi-k3", "glm-5.3", "deepseek-v4-pro"]; ($x | fam)),
               conferencia: (escolhe("conferencia"; ["minimax-m3", "deepseek-v4-flash", "glm-5.3-flash"]; ($x | fam)) // "haiku") }'
-        des=$(jq -nc --argjson disp "$disp" --slurpfile hist "$arq" --argjson planejado "$planejado" "$JQM") || exit 1
+        des=$(jq -nc --argjson disp "$disp" --slurpfile hist "$arq" --argjson planejado "$planejado" \
+                --argjson num "$num" "$JQM") || exit 1
 
         # O JSON vai escondido no fim do comentário: é dele que as próximas etapas leem.
         corpo=$(printf '%s' "$des" | jq -r '
@@ -4387,13 +4396,14 @@ tasks:
             "  achados por severidade: \([$l[].achados // {} | to_entries[]] | group_by(.key)
                | map("\(.[0].key) \(map(.value) | add)") | join(", "))",
             "  custo: US$ \([$l[].custo.usd // 0] | add // 0 | . * 10000 | round / 10000) pago por token, US$ \([$l[].custo.usd_assinatura // 0] | add // 0 | . * 10000 | round / 10000) equivalente em assinatura",
-            "  por etapa e modelo designado — issues, rodadas, voltas da revisão, achados bloqueante+importante, US$ da issue (médias):",
+            "  por etapa e modelo designado — issues, rodadas, voltas da revisão, achados bloqueante+importante, achados b+i por 100 linhas, US$ da issue (médias, menos a densidade, que é soma/soma):",
             ([$l[] | select(.designacao != null) | . as $x | .designacao | to_entries[] | select(.value != null)
               | {e: .key, m: .value, r: ($x.rodadas // 0), v: $x.retrabalho.review_para_progress,
                  a: (($x.achados.bloqueante // 0) + ($x.achados.importante // 0)),
+                 n: (($x.esforco.adicoes // 0) + ($x.esforco.remocoes // 0)),
                  c: (($x.custo.usd // 0) + ($x.custo.usd_assinatura // 0))}]
              | group_by([.e, .m]) | .[]
-             | "    \(.[0].e) · \(.[0].m): \(length), \(map(.r) | add / length * 100 | round / 100), \(map(.v) | add / length * 100 | round / 100), \(map(.a) | add / length * 100 | round / 100), \(map(.c) | add / length * 10000 | round / 10000)"),
+             | "    \(.[0].e) · \(.[0].m): \(length), \(map(.r) | add / length * 100 | round / 100), \(map(.v) | add / length * 100 | round / 100), \(map(.a) | add / length * 100 | round / 100), \(((map(.a) | add) as $ac | (map(.n) | add) as $ln | if $ln == 0 then "-" else ($ac / $ln * 10000 | round / 100) end)), \(map(.c) | add / length * 10000 | round / 10000)"),
             "  tokens e custo por etapa e modelo — sessões, saída, entrada (com cache), US$ por token, US$ assinatura:",
             ([$l[].etapas // [] | .[] | . as $x | .modelos | to_entries[] | {e: $x.etapa, s: $x.sessoes, m: .key, v: .value}]
              | group_by([.e, .m]) | .[]
