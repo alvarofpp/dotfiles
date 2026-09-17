@@ -26,6 +26,10 @@ caso "limite de uso"            parada "Claude usage limit reached. Your limit w
 caso "limite de taxa"           parada "API rate limit exceeded, retrying"
 caso "aviso de aproximação"     parada "You are approaching your usage limit"
 caso "sugestão de upgrade"      parada "Run /upgrade to increase your limit"
+# Forma crua do erro do provedor, sem o embrulho `Request rejected`. O 402 do
+# DeepSeek fez a olhadinha#20 abrir uma sessão a cada 10 min por meio dia.
+caso "402 do DeepSeek"          parada "API Error: 402 Insufficient Balance"
+caso "429 do GLM"               parada "API Error: 429 Too Many Requests"
 
 # --- telas de sessão que de fato acabou ou travou
 caso "prompt ocioso"            viva "> "
@@ -37,6 +41,8 @@ caso "diff no meio"             viva "+  const limite = 10; // teto de itens"
 # #228 do abacaxei-app por dez horas em 2026-09-12.
 caso "revisão citando rate limit" viva 'docs/references/API.md:123: a tabela-resumo "Rate limits" ficou com 5/min'
 caso "revisão citando usage"      viva "o gráfico de usage limit da tela de billing não bate com a doc"
+# O prefixo `api error:` é o que separa o erro da prosa que só cita o número.
+caso "revisão citando 402"        viva "o handler devolve 402 quando o saldo acaba — falta teste"
 
 [ "$falhas" -eq 0 ] && echo "stall: ok" || echo "stall: $falhas falha(s)"
 exit "$falhas"
