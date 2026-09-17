@@ -21,7 +21,8 @@ confere() { # nome, esperado, obtido
 cat > "$tmp/sonda" <<'STUB'
 #!/usr/bin/env bash
 echo "$1" >> "$SONDA_DIR/chamadas"
-[ "$(cat "$SONDA_DIR/resposta")" = ok ]
+r=$(cat "$SONDA_DIR/resposta")
+case "$r" in ok) exit 0 ;; assinatura) exit 3 ;; *) exit 1 ;; esac
 STUB
 chmod +x "$tmp/sonda"
 export SONDA_DIR="$tmp"
@@ -43,10 +44,15 @@ confere "cache não sonda de novo" 2 "$(wc -l < "$tmp/chamadas" | tr -d ' ')"
 # TTL zerado força sonda nova.
 confere "TTL=0 revalida" ok "$(task gh:model-probe MODEL=modelo-b TTL=0 STATE_DIR="$tmp/state" PROBE="$tmp/sonda" 2>/dev/null)"
 
-# `claude` é assinatura: nunca sonda.
+# rc=3 é o `roda na assinatura, sem sonda`: sem provedor externo não há cota
+# fora do ar. Tratar como falha barrava todo despacho em Opus e Haiku.
+echo assinatura > "$tmp/resposta"
+confere "assinatura (rc=3) conta como ok" ok "$(roda modelo-c)"
+
+# `claude` é assinatura pelo nome: nem chega a sondar.
 echo falha > "$tmp/resposta"
 confere "claude não é sondado" ok "$(roda claude)"
-confere "claude não gastou sonda" 3 "$(wc -l < "$tmp/chamadas" | tr -d ' ')"
+confere "claude não gastou sonda" 4 "$(wc -l < "$tmp/chamadas" | tr -d ' ')"
 
 [ "$falhas" -eq 0 ] && echo "model-probe: ok" || echo "model-probe: $falhas falha(s)"
 exit "$falhas"

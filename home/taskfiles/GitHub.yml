@@ -1386,10 +1386,14 @@ tasks:
         if [ -f "$f" ] && [ $(( $(date +%s) - $(stat -c %Y "$f") )) -lt {{.TTL}} ]; then cat "$f"; exit 0; fi
         mkdir -p "{{.STATE_DIR}}"
         if {{if .PROBE}}{{.PROBE}}{{else}}claude-model --probe{{end}} "{{.MODEL}}" >/dev/null 2>&1; then
-          echo ok > "$f"
+          rc=0
         else
-          echo falha > "$f"
+          rc=$?
         fi
+        # 3 é o "roda na assinatura, sem sonda" do `claude-model` — o caso do
+        # opus e do haiku. Sem provedor externo não há cota fora do ar, então
+        # isto é `ok`: tratar como falha barraria todo despacho em Opus.
+        if [ "$rc" = 0 ] || [ "$rc" = 3 ]; then echo ok > "$f"; else echo falha > "$f"; fi
         cat "$f"
 
   agents-busy:
@@ -4186,12 +4190,30 @@ tasks:
         coms=$(gh issue view "$num" -R "$repo" --json comments --jq '[.comments[].body]') || exit 1
         atual=$(printf '%s' "$coms" | jq -r '[.[] | select(startswith("<!-- agent:models -->"))
           | capture("<!-- modelos: (?<j>\\{.*\\}) -->").j] | last // empty')
-        if [ -n "$atual" ]; then printf '%s\n' "$atual"; exit 0; fi
+        # A designação é sticky de propósito (a issue vai e volta entre etapas),
+        # mas modelo cujo provedor caiu depois dela a torna indespachável pra
+        # sempre: o `gh:dispatch` recusa provedor fora do ar e a issue fica em
+        # In Progress sem nunca abrir sessão. Caindo um, redesigna com o pool de
+        # agora — uma vez só, porque a designação nova vira o último comentário.
+        if [ -n "$atual" ]; then
+          fora=$(printf '%s' "$atual" | jq -r '[.[] | select(. != null)] | unique[]' | while read -r m; do
+                   [ "$(task gh:model-probe MODEL="$m" 2>/dev/null)" = ok ] || printf '%s ' "$m"
+                 done)
+          if [ -z "$fora" ]; then printf '%s\n' "$atual"; exit 0; fi
+          echo "  ~ $ref: redesignando — sem provedor de pé: $fora" >&2
+        fi
 
         arq="{{.MODELS_FILE}}"; mkdir -p "$(dirname "$arq")"; touch "$arq"
         planejado=$(printf '%s' "$coms" | jq '[.[] | select(test("<!-- agent:plan -->"))] | length > 0')
+        # Chave configurada E provedor respondendo: chave sem saldo (o 402 do
+        # DeepSeek, o 429 do GLM, o 401 do Kimi) designava um modelo que não
+        # roda, e a issue nascia presa. Sobrando só os de assinatura, os
+        # fallbacks do JQM levam pra Opus/MiniMax/Haiku sozinhos — e o pool
+        # volta ao normal quando o saldo volta, sem ninguém editar nada.
         disp=$(for m in opus haiku minimax-m3 deepseek-v4-pro deepseek-v4-flash glm-5.3 glm-5.3-flash kimi-k3; do
-                 if claude-model --check "$m"; then printf '%s\n' "$m"; fi
+                 if claude-model --check "$m" && [ "$(task gh:model-probe MODEL="$m" 2>/dev/null)" = ok ]; then
+                   printf '%s\n' "$m"
+                 fi
                done | jq -Rsc 'split("\n") | map(select(. != ""))')
         # Pools de cada etapa. Modelo novo entra aqui e no `claude-model`. A ordem
         # não vale como preferência: o desempate é o hash de (etapa, issue, modelo).
