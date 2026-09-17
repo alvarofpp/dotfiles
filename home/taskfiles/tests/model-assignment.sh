@@ -19,8 +19,9 @@ JQM=$(awk -v q="'" '
   }' "$yml")
 [ -n "$JQM" ] || { echo "não consegui extrair o JQM do GitHub.yml"; exit 1; }
 
-todos='["opus","haiku","minimax-m3","deepseek-v4-pro","deepseek-v4-flash","glm-5.3","glm-5.3-flash","kimi-k3"]'
-sem_zai='["opus","haiku","minimax-m3","deepseek-v4-pro","deepseek-v4-flash","kimi-k3"]'
+todos='["opus","haiku","minimax-m3","glm-5.3","glm-5.3-flash"]'
+sem_zai='["opus","haiku","minimax-m3","deepseek-v4-pro","kimi-k3"]'
+sem_minimax='["opus","haiku","glm-5.3","glm-5.3-flash"]'
 falhas=0
 # O desempate é hash de (etapa, issue, modelo), então o número da issue entra na
 # conta: `NUM` fixo aqui pra o caso ser reproduzível. Sem ele o JQM extraído nem
@@ -32,43 +33,59 @@ caso() {
   obtido=$(jq -nc --argjson disp "$2" --argjson hist "$3" --argjson planejado "$4" \
       --argjson num "${NUM:-7}" "$JQM" \
     | jq -r '"\(.braco) \(.plano) \(.critica) \(.execucao) \(.julgamento) \(.conferencia)"')
-  if [ "$obtido" = "$5" ]; then printf 'ok\t%-44s %s\n' "$1" "$obtido"
-  else printf 'FALHA\t%-44s esperado=%s obtido=%s\n' "$1" "$5" "$obtido"; falhas=$((falhas + 1)); fi
+  if [ "$obtido" = "$5" ]; then printf 'ok\t%-46s %s\n' "$1" "$obtido"
+  else printf 'FALHA\t%-46s esperado=%s obtido=%s\n' "$1" "$5" "$obtido"; falhas=$((falhas + 1)); fi
 }
 
-DUO="duo opus opus minimax-m3 opus minimax-m3"
+CM="claude-minimax opus opus minimax-m3 opus minimax-m3"
 
-# O braço alterna: é o que faz os dois lados juntarem amostra no mesmo ritmo.
-caso "depois de um duo vem o trio" "$todos" '[{"braco":"duo"}]' false \
-  "trio glm-5.3 glm-5.3 glm-5.3-flash opus glm-5.3-flash"
-caso "depois de um trio vem o duo" "$todos" '[{"braco":"trio"}]' false "$DUO"
+# Cada braço só usa modelo dos fornecedores que dão nome a ele. Um modelo de fora
+# vazando pra dentro de um braço é o defeito que mata a comparação inteira, e
+# passa calado: a issue anda, o número sai, e mede outra coisa.
+caso "só Claude e MiniMax no braço deles" "$todos" \
+  '[{"braco":"claude-glm-minimax"},{"braco":"claude-glm"},{"braco":"glm-minimax"}]' false "$CM"
+caso "só GLM no braço GLM+MiniMax" "$todos" \
+  '[{"braco":"claude-glm-minimax"},{"braco":"claude-glm"},{"braco":"claude-minimax"}]' false \
+  "glm-minimax glm-5.3 glm-5.3 glm-5.3-flash glm-5.3 glm-5.3-flash"
+caso "Claude+GLM não usa MiniMax" "$todos" \
+  '[{"braco":"claude-glm-minimax"},{"braco":"claude-minimax"},{"braco":"glm-minimax"}]' false \
+  "claude-glm glm-5.3 glm-5.3 glm-5.3-flash opus glm-5.3-flash"
+
+# O braço alterna: é o que faz os quatro juntarem amostra no mesmo ritmo. Aqui só
+# o BRAÇO está sendo verificado — o histórico não tem etapa nenhuma, então dentro
+# dele tudo empata e quem escolhe é o hash.
+caso "braço menos usado ganha" "$todos" \
+  '[{"braco":"claude-glm"},{"braco":"claude-glm"},{"braco":"claude-minimax"},{"braco":"glm-minimax"},{"braco":"glm-minimax"}]' \
+  false "claude-glm-minimax glm-5.3 glm-5.3 glm-5.3-flash opus glm-5.3-flash"
 
 # Braço incompleto sai do rodízio INTEIRO, não só da etapa que perdeu o modelo:
-# meio braço é uma terceira configuração que ninguém pediu.
-caso "sem Z.ai o trio some do rodízio" "$sem_zai" '[{"braco":"trio"}]' false "$DUO"
-caso "sem Z.ai, histórico vazio" "$sem_zai" '[]' false "$DUO"
+# meio braço é uma quinta configuração que ninguém pediu.
+caso "sem Z.ai sobra só Claude+MiniMax" "$sem_zai" \
+  '[{"braco":"claude-minimax"},{"braco":"claude-minimax"}]' false "$CM"
+caso "sem MiniMax sobra só Claude+GLM" "$sem_minimax" '[{"braco":"claude-glm"}]' false \
+  "claude-glm glm-5.3 glm-5.3 glm-5.3-flash opus glm-5.3-flash"
 
-# O `duo` é controle: mesma designação em qualquer issue, sem sorteio. Se um dia
-# ele variar, os dois lados viram sorteio e não há mais linha de base.
-NUM=99 caso "duo não depende do número da issue" "$sem_zai" '[]' false "$DUO"
-NUM=1234 caso "duo não depende do histórico" "$sem_zai" \
-  '[{"braco":"duo","plano":"opus","critica":"opus"}]' false "$DUO"
+# Claude+MiniMax é controle: mesma designação em qualquer issue, sem sorteio. Se
+# um dia ele variar, todos os braços viram sorteio e não há mais linha de base.
+NUM=99 caso "controle não depende do nº da issue" "$sem_zai" '[]' false "$CM"
+NUM=1234 caso "controle não depende do histórico" "$sem_zai" \
+  '[{"braco":"claude-minimax","plano":"opus","critica":"opus"}]' false "$CM"
 
 # Revisor da mesma família de quem produziu é PERMITIDO desde 2026-09-17, e no
-# duo é o caso normal: Opus critica plano do Opus, M3 confere o que o M3 fez.
+# controle é o caso normal: Opus critica plano do Opus, M3 confere o que o M3 fez.
 # Era proibido até 2026-09-16, e a proibição é o que este caso impede de voltar.
-caso "duo: mesma família nas duas pontas" "$sem_zai" '[]' false "$DUO"
+caso "mesma família nas duas pontas" "$sem_zai" '[]' false "$CM"
 
-# Dentro do braço vale o rodízio: GLM já designado em tudo, então sai o outro
-# lado de cada pool. O braço é o que distingue esta linha do `$DUO`.
-caso "rodízio dentro do trio" "$todos" \
-  '[{"braco":"duo"},{"braco":"duo"},{"braco":"trio","plano":"glm-5.3","critica":"glm-5.3","execucao":"glm-5.3-flash","julgamento":"glm-5.3","conferencia":"glm-5.3-flash"}]' \
-  false "trio opus opus minimax-m3 opus minimax-m3"
+# Dentro do braço vale o rodízio: GLM já designado em tudo, então sai o Opus onde
+# o pool tem os dois. O braço é o que distingue esta linha do controle.
+caso "rodízio dentro do braço" "$todos" \
+  '[{"braco":"claude-glm"},{"braco":"claude-glm"},{"braco":"claude-minimax"},{"braco":"claude-minimax"},{"braco":"glm-minimax"},{"braco":"glm-minimax"},{"braco":"claude-glm-minimax","plano":"glm-5.3","critica":"glm-5.3","execucao":"glm-5.3-flash","julgamento":"glm-5.3","conferencia":"glm-5.3-flash"}]' \
+  false "claude-glm-minimax opus opus minimax-m3 opus minimax-m3"
 
 # Issue que já tem plano (filha, ou planejada antes disto) não reescreve o plano
 # nem a crítica — mas segue com braço e com as etapas que faltam.
-caso "issue já planejada" "$todos" '[{"braco":"duo"}]' true \
-  "trio null null glm-5.3-flash opus glm-5.3-flash"
+caso "issue já planejada" "$sem_zai" '[]' true \
+  "claude-minimax null null minimax-m3 opus minimax-m3"
 
 echo "model-assignment: $([ "$falhas" = 0 ] && echo ok || echo "$falhas falha(s)")"
 exit "$falhas"
