@@ -4427,10 +4427,14 @@ tasks:
                             pr: ([$prs[] | (.comments.nodes[].body, .reviews.nodes[].body,
                                             .reviewThreads.nodes[].comments.nodes[].body)
                                   | select(. != "") | marca] | conta) },
-              # Achado da crítica do plano: linha '- **Crítica** — <sev>:' dentro do
-              # comentário do plano. É a única saída contável dela — o crítico roda
-              # como processo `-p` e o veredito é dobrado no `<!-- agent:plan -->`.
-              # Null = issue planejada antes de 2026-09-16, sem como preencher depois.
+              # Achado da crítica do plano: a linha de severidade que o crítico
+              # escreve na seção Crítica do comentário do plano. É a única saída
+              # contável dela — o crítico roda como processo -p e o veredito é
+              # dobrado no marcador agent:plan.
+              # Null = issue planejada antes de 2026-09-16, sem como preencher.
+              # NADA DE ASPA SIMPLES NESTE COMENTÁRIO: ele vive dentro da string
+              # do shell que carrega este programa jq, e uma aspa fecha a string —
+              # o sintoma foi o shell tentando abrir um arquivo chamado sev.
               criticas: ([$i.comments.nodes[].body | select(test("<!-- agent:plan -->")) | "\n" + .
                           | capture("\n[-*] \\*\\*Crítica\\*\\* — (?<s>nit|sugestão|importante|bloqueante):"; "g")
                           | .s] | if length == 0 then null else conta end),
