@@ -76,8 +76,9 @@ NUM=1234 caso "controle não depende do histórico" "$sem_zai" \
 # Era proibido até 2026-09-16, e a proibição é o que este caso impede de voltar.
 caso "mesma família nas duas pontas" "$sem_zai" '[]' false "$CM"
 
-# Dentro do braço vale o rodízio: GLM já designado em tudo, então sai o Opus onde
-# o pool tem os dois. O braço é o que distingue esta linha do controle.
+# Dentro do braço vale o rodízio, e a contagem é POR BRAÇO: GLM já designado em
+# tudo naquele braço, então sai o Opus onde o pool tem os dois. O braço é o que
+# distingue esta linha do controle.
 caso "rodízio dentro do braço" "$todos" \
   '[{"braco":"claude-glm"},{"braco":"claude-glm"},{"braco":"claude-minimax"},{"braco":"claude-minimax"},{"braco":"glm-minimax"},{"braco":"glm-minimax"},{"braco":"claude-glm-minimax","plano":"glm-5.3","critica":"glm-5.3","execucao":"glm-5.3-flash","julgamento":"glm-5.3","conferencia":"glm-5.3-flash"}]' \
   false "claude-glm-minimax opus opus minimax-m3 opus minimax-m3"
@@ -86,6 +87,15 @@ caso "rodízio dentro do braço" "$todos" \
 # nem a crítica — mas segue com braço e com as etapas que faltam.
 caso "issue já planejada" "$sem_zai" '[]' true \
   "claude-minimax null null minimax-m3 opus minimax-m3"
+
+# A contagem é por braço, não global: histórico de OUTRO braço não pode torcer o
+# rodízio deste. Sem o escopo, as 17 execuções em M3 do experimento antigo
+# empurrariam todo braço novo pro GLM-Flash por nove issues seguidas.
+caso "histórico de outro braço não conta" "$todos" \
+  '[{"braco":"claude-minimax"},{"braco":"claude-glm"},{"braco":"glm-minimax"},
+    {"braco":"claude-glm","execucao":"glm-5.3-flash"},{"braco":"claude-glm","execucao":"glm-5.3-flash"},
+    {"braco":"glm-minimax","execucao":"glm-5.3-flash"},{"braco":"glm-minimax","execucao":"glm-5.3-flash"}]' \
+  false "claude-glm-minimax glm-5.3 glm-5.3 glm-5.3-flash opus glm-5.3-flash"
 
 echo "model-assignment: $([ "$falhas" = 0 ] && echo ok || echo "$falhas falha(s)")"
 exit "$falhas"

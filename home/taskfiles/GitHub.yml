@@ -4176,8 +4176,9 @@ tasks:
       Braço incompleto sai do rodízio inteiro — meio braço seria uma quinta
       configuração que ninguém pediu. Sem budget na Z.ai sobra só o
       `claude-minimax`, que é a configuração que resta de qualquer jeito. Dentro
-      do braço, cada etapa pega o modelo menos designado até agora no
-      `MODELS_FILE`;
+      do braço, cada etapa pega o modelo menos designado **naquele braço** até
+      agora no `MODELS_FILE` — contagem global misturaria o histórico de antes
+      dos braços e um braço novo nasceria com o rodízio já torto;
       empate — o caso comum, porque o rodízio mantém as contagens coladas — sai
       por hash de (etapa, issue, modelo), não pela ordem do pool. Com a ordem, as
       etapas de pool do mesmo tamanho andavam em lockstep e caíam sempre na mesma
@@ -4252,7 +4253,8 @@ tasks:
           | $bracos[$braco] as $P
           | def escolhe($etapa):
               [$P[$faixa[$etapa]][] as $m | select($disp | index($m))
-               | {m: $m, n: ([$hist[] | select(.[$etapa] == $m)] | length),
+               | {m: $m,
+                  n: ([$hist[] | select(.braco == $braco and .[$etapa] == $m)] | length),
                   t: (($etapa + ($num | tostring) + $m) | h)}]
               | if length == 0 then null else (min_by([.n, .t]) | .m) end;
             (if $planejado then null else escolhe("plano") end) as $p
