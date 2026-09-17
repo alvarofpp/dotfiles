@@ -55,6 +55,12 @@ ExecStart=%h/.local/bin/gh-tick-step gh:close
 ExecStart=%h/.local/bin/gh-tick-step gh:pr-board
 # Higiene: item fechado fora do fluxo sai do Status antigo.
 ExecStart=%h/.local/bin/gh-tick-step gh:done
+# Métricas do que fechou, pra a página /ctl/modelos não depender de eu rodar à
+# mão. Depois do `close` e do `done`, que são quem fecha issue — antes deles a
+# issue que fechou neste tick ainda não estaria na conta. É idempotente: issue
+# que já tem linha não é consultada de novo, então o custo de rotina é um
+# `gh issue list` por repo.
+ExecStart=%h/.local/bin/gh-tick-step gh:metrics
 
 # Higiene de settings: repõe o squash-only que alguém tenha desfeito pela UI.
 # Autolimitado a uma passada por dia (`EVERY` no gh:merge-policy) — rodar a
