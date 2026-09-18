@@ -2095,8 +2095,9 @@ tasks:
           # destravar uma issue que espera decisão.
 
           echo "→ triando $ref"
-          task gh:run-log REF="$ref" ETAPA=triagem RUNNER=claude
-          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.PREP_TIMEOUT}} claude -p "/issue-prep $ref" ) \
+          sid=$(cat /proc/sys/kernel/random/uuid)
+          task gh:run-log REF="$ref" ETAPA=triagem RUNNER=claude SESSAO="$sid"
+          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.PREP_TIMEOUT}} claude --session-id "$sid" -p "/issue-prep $ref" ) \
             || echo "  $ref: a triagem falhou ou estourou o tempo — fica em Ready"
         done
 
@@ -2177,9 +2178,12 @@ tasks:
         # escrita de cache de 1 h custa 2x a entrada contra 1,25x na de 5 min.
         # A sessão do board dura 6 min com 3 mensagens/min — a de 5 min não
         # expira, e a escrita era 45% da conta do Opus (medido em 2026-09-16).
+        # `--session-id` fixado aqui é o que casa a sessão com a etapa no
+        # `gh:metrics` (dotfiles-ai#130).
+        sid=$(cat /proc/sys/kernel/random/uuid)
         orca terminal create --worktree "$wtsel" --title "issue #$num" \
-          --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m {{.RUNNER}} \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
-          && task gh:run-log REF="$ref" ETAPA="{{.ETAPA}}" RUNNER="{{.RUNNER}}"
+          --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m {{.RUNNER}} --session-id $sid \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
+          && task gh:run-log REF="$ref" ETAPA="{{.ETAPA}}" RUNNER="{{.RUNNER}}" SESSAO="$sid"
         echo "terminal ({{.RUNNER}}) aberto na worktree issue-$num"
 
   dispatch:
@@ -2591,14 +2595,15 @@ tasks:
           wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
           pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
           printf '%s' "$prompt" > "$pf"
+          sid=$(cat /proc/sys/kernel/random/uuid)
           if ! orca terminal create --worktree "$wtsel" \
                  --title "review #$pr" \
-                 --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
+                 --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude --session-id $sid \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
             rm -f {{.BOARD_CACHE}}
           else
-            task gh:run-log REF="$ref" ETAPA=revisao RUNNER=claude
+            task gh:run-log REF="$ref" ETAPA=revisao RUNNER=claude SESSAO="$sid"
           fi
         done
 
@@ -3017,8 +3022,9 @@ tasks:
 
           path=$(task gh:repo-path REPO="$repo" 2>/dev/null) || continue
           echo "→ $ref: $mesclados PR(s) mesclado(s), $evidencias evidência(s) sem PR — conferindo os critérios"
-          task gh:run-log REF="$ref" ETAPA=settle RUNNER=claude
-          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.SETTLE_TIMEOUT}} claude -p "/issue-status $ref Done" ) \
+          sid=$(cat /proc/sys/kernel/random/uuid)
+          task gh:run-log REF="$ref" ETAPA=settle RUNNER=claude SESSAO="$sid"
+          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.SETTLE_TIMEOUT}} claude --session-id "$sid" -p "/issue-status $ref Done" ) \
             || echo "  $ref: a conferência falhou — fica em In Review"
         done
 
@@ -4299,13 +4305,15 @@ tasks:
         - ETAPA: triagem, plano, execucao, correcao, revisao, destravar,
           resposta-<time>, settle.
         - RUNNER: o comando que abriu a sessão (`claude`, `claude-model <modelo>`).
+        - SESSAO: o `--session-id` passado ao `claude` — é por ele que o
+          `gh:metrics` casa a sessão com a etapa.
     requires:
-      vars: [REF, ETAPA, RUNNER]
+      vars: [REF, ETAPA, RUNNER, SESSAO]
     cmds:
       - |
         ref="{{.REF}}"; mkdir -p "$(dirname "{{.RUNS_FILE}}")"
-        jq -cn --arg repo "${ref%\#*}" --arg n "${ref##*\#}" --arg e "{{.ETAPA}}" --arg r "{{.RUNNER}}" \
-          '{repo: $repo, issue: ($n | tonumber), etapa: $e, runner: $r, em: (now | todate)}' >> "{{.RUNS_FILE}}"
+        jq -cn --arg repo "${ref%\#*}" --arg n "${ref##*\#}" --arg e "{{.ETAPA}}" --arg r "{{.RUNNER}}" --arg s "{{.SESSAO}}" \
+          '{repo: $repo, issue: ($n | tonumber), etapa: $e, runner: $r, sessao: $s, em: (now | todate)}' >> "{{.RUNS_FILE}}"
 
   sessions:
     desc: "Arquiva o consumo por modelo das sessões de uma worktree de issue, antes do transcript sumir."
@@ -4392,7 +4400,8 @@ tasks:
 
       `etapas` diz qual runner rodou cada sessão lançada pelo tick
       (`RUNS_FILE`) e quanto cada modelo gastou nela (`SESSIONS_FILE`): sessão
-      arquivada cai na última etapa lançada antes dela. Issue fechada antes
+      arquivada casa com a etapa pelo id de sessão que o lançador fixou; sessão
+      sem etapa (aberta à mão) só entra no `custo`. Issue fechada antes
       desses arquivos existirem sai com `etapas: []`. `designacao` é o modelo
       que o `gh:models` designou pra cada etapa (`MODELS_FILE`), ou nulo.
       `custo` soma o USD de todas as sessões arquivadas da issue: `usd` pago por
@@ -4518,14 +4527,17 @@ tasks:
             end
           end'
 
-        # Entrada: a linha da issue. Folga de 60s porque o `em` é gravado
-        # depois do `orca terminal create` voltar, e a sessão pode escrever a
-        # primeira linha antes disso.
-        # ponytail: sessão aberta à mão numa worktree cai na etapa anterior a
-        # ela; o join por nome do repo sem dono confunde dois repos homônimos.
+        # Entrada: a linha da issue. Sessão casa com a etapa pelo id que o
+        # lançador passou em `--session-id` (dotfiles-ai#130): sessão aberta à
+        # mão numa worktree não tem etapa e fica fora de `etapas`, mas entra no
+        # custo. Linha de `RUNS_FILE` sem `sessao` é de antes de 2026-09-18 e
+        # cai pelo horário, com folga de 60s porque o `em` é gravado depois do
+        # `orca terminal create` voltar.
+        # ponytail: o join por nome do repo sem dono confunde dois repos homônimos.
         JQE='. as $i
           | ([$runs[] | select(.repo == $i.repo and .issue == $i.issue)] | sort_by(.em)) as $e
           | [$sess[] | select(.repo_nome == $nome and .issue == $i.issue)] as $s
+          | [$e[].sessao // empty] as $ids
           | ([$mods[] | select(.repo == $i.repo and .issue == $i.issue)] | last) as $d0
           | ($d0 | if . == null then null else del(.repo, .issue, .em, .braco) end) as $d
           | $i + { designacao: $d, braco: ($d0.braco),
@@ -4534,7 +4546,9 @@ tasks:
                    etapas: [range(0; $e | length) as $k
               | (($e[$k].em | fromdate) - 60) as $de
               | (if $k + 1 < ($e | length) then ($e[$k + 1].em | fromdate) - 60 else infinite end) as $ate
-              | [$s[] | select((.inicio | fromdate) as $t | $t >= $de and $t < $ate)] as $ss
+              | (if $e[$k].sessao then [$s[] | select(.sessao == $e[$k].sessao)]
+                 else [$s[] | select(.sessao as $x | ($ids | index($x) | not)
+                                     and ((.inicio | fromdate) as $t | $t >= $de and $t < $ate))] end) as $ss
               | { etapa: $e[$k].etapa, runner: $e[$k].runner, em: $e[$k].em, sessoes: ($ss | length),
                   modelos: ([$ss[].modelos | to_entries[]] | group_by(.key)
                     | map({key: .[0].key,

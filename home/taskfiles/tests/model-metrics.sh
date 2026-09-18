@@ -76,6 +76,22 @@ confere "designação sem repo/issue/em"             "glm-5.3 deepseek-v4-flash 
 confere "etapas na ordem, repo alheio fora"        "plano:claude execucao:claude-mini" "$(jq -r '[.etapas[] | "\(.etapa):\(.runner)"] | join(" ")' <<< "$issue")"
 confere "sessão na folga cai no plano"             "1 claude-opus-5" "$(jq -r '.etapas[0] | "\(.sessoes) \(.modelos | keys | join(","))"' <<< "$issue")"
 confere "execução soma as duas sessões"            "2 6" "$(jq -r '.etapas[1] | "\(.sessoes) \(.modelos["MiniMax-M3"].saida)"' <<< "$issue")"
+# Com `sessao` no RUNS_FILE (dotfiles-ai#130): sessão aberta à mão dentro da
+# janela da execução não pode virar execução — era o `glm-5.3` com 379 tokens
+# de saída na linha de execução.
+printf '%s\n' \
+  '{"repo":"o/app","issue":8,"etapa":"execucao","runner":"claude-model minimax-m3","sessao":"x1","em":"2026-09-15T01:00:00Z"}' \
+  '{"repo":"o/app","issue":8,"etapa":"revisao","runner":"claude","sessao":"r8","em":"2026-09-15T03:00:00Z"}' >> "$runs"
+sed 's/"issue":7/"issue":8/' > "$sess.8" <<EOF
+$(s app x1 2026-09-15T00:59:30Z MiniMax-M3 2
+  s app m1 2026-09-15T01:00:10Z glm-5.3 379
+  s app r8 2026-09-15T03:00:20Z claude-opus-5 5)
+EOF
+cat "$sess.8" >> "$sess"; rm -f "$sess.8"
+issue8=$(jq -cn '{repo: "o/app", issue: 8}' | jq -c --arg nome app --slurpfile runs "$runs" --slurpfile sess "$sess" --slurpfile mods "$mods" "$JQE")
+confere "por id: sessão à mão fica fora da etapa"  "execucao:MiniMax-M3 revisao:claude-opus-5" "$(jq -r '[.etapas[] | "\(.etapa):\(.modelos | keys | join(","))"] | join(" ")' <<< "$issue8")"
+confere "por id: vale mesmo antes do em - 60s"     "1 2" "$(jq -r '.etapas[0] | "\(.sessoes) \(.modelos["MiniMax-M3"].saida)"' <<< "$issue8")"
+
 confere "issue sem etapa nem designação"           "[[],null]" "$(jq -cn '{repo: "o/x", issue: 1}' | jq -c --arg nome x --slurpfile runs "$runs" --slurpfile sess "$sess" --slurpfile mods "$mods" "$JQE" | jq -c '[.etapas, .designacao]')"
 
 # Achados: thread ancorada é a fonte; o corpo da review só vale sem thread
