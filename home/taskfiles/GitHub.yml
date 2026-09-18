@@ -2515,7 +2515,12 @@ tasks:
               break
             fi
           done
-          [ -n "$pr" ] || continue
+          # Pular calado aqui travou olhadinha#28 por um dia: o autor reescreveu
+          # o corpo do PR #35 e o `Refs #28` sumiu junto.
+          if [ -z "$pr" ]; then
+            echo "  · $ref: In Review sem PR aberto com label agent citando 'Refs #$num' no corpo — destrave na mão"
+            continue
+          fi
 
           # Conta rodada, não submissão: review com corpo é uma passada de
           # revisor; review de corpo vazio é comentário ancorado postado
