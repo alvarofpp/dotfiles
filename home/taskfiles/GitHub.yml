@@ -2819,19 +2819,28 @@ tasks:
               [ -n "$item" ] && task gh:status ITEM="$item" VALUE="In Progress" >/dev/null 2>&1
 
               echo "→ $repo#$pr: revisão pedida a você — despachando revisor"
-              if [ -n "$wt" ]; then
-                pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
-                printf '%s' "$prompt" > "$pf"
-                orca terminal create --worktree "path:$wt" --title "review $repo#$pr" \
-                  --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
-                  || echo "  falhou ao abrir o terminal"
-              else
+              # Worktree nova nasce SEM `--agent`, como no `gh:orca`: o
+              # `--agent claude` não aceita env, e a sessão ficaria no cache de
+              # 1 h (dotfiles-ai#131). Criada, cai no mesmo `terminal create`.
+              # `continue` num `if` raso: aninhado, o shell do Task roda o resto
+              # do bloco antes de desviar.
+              if [ -z "$wt" ]; then
                 orca worktree create --project "github:$repo" --host local \
                   --name "pr-$pr" --base-branch "$head" \
-                  --comment "Revisão pedida no PR #$pr" \
-                  --agent claude --prompt "$prompt" >/dev/null \
-                  || echo "  falhou ao criar a worktree pr-$pr"
+                  --comment "Revisão pedida no PR #$pr" >/dev/null || true
+                wt=$(orca worktree list --json 2>/dev/null \
+                       | jq -r --arg s "/pr-$pr" '(.result.worktrees // .result)[]
+                                | select(.path | endswith($s)) | .path' 2>/dev/null | head -1)
               fi
+              if [ -z "$wt" ]; then
+                echo "  falhou ao criar a worktree pr-$pr"
+                continue
+              fi
+              pf=$(mktemp "${TMPDIR:-/tmp}/gh-orca-prompt.XXXXXX")
+              printf '%s' "$prompt" > "$pf"
+              orca terminal create --worktree "path:$wt" --title "review $repo#$pr" \
+                --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null \
+                || echo "  falhou ao abrir o terminal"
             done
         done
 
