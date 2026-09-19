@@ -201,6 +201,13 @@ prompt_caso "primeira vez"  0  conta   n
 prompt_caso "há 5 min"      5  conta   n
 prompt_caso "há 30 min"     30 travado s
 
+# Aviso do próprio Claude Code (cobrança, versão): para a sessão do mesmo
+# jeito que um pedido de permissão, e redesenha, então nenhum corte de
+# ociosidade o pega.
+modal='We are changing auto mode billing.
+Enter to continue · Esc to cancel'
+prompt_caso "aviso do Claude Code" 31 travado s
+
 # Tela sem modal com saída fresca é agente trabalhando: nada a fazer, e a
 # marca do modal anterior tem que sumir (senão a próxima volta conta o relógio
 # de um modal que já foi respondido).

@@ -1522,7 +1522,11 @@ tasks:
       # saída de segundos atrás às 16:45). Por isso a tela do terminal VIVO
       # também é lida — é o único sinal que distingue "trabalhando" de
       # "esperando tecla que ninguém vai apertar".
-      PROMPT_RE: '{{.PROMPT_RE | default "do you want to (proceed|make this edit|create|run)|do you trust the files"}}'
+      # `enter to continue`: o aviso que o próprio Claude Code abre (mudança de
+      # cobrança, novidade de versão) para a sessão igual a um pedido de
+      # permissão e redesenha do mesmo jeito. A `olhadinha#88` ficou 9h assim
+      # em 2026-09-19, com saída de segundos atrás o tempo todo.
+      PROMPT_RE: '{{.PROMPT_RE | default "do you want to (proceed|make this edit|create|run)|do you trust the files|enter to continue"}}'
       # Quanto tempo o modal fica de pé antes de a sessão contar como parada.
       # Um tick do timer é 10 min; o dobro evita declarar parada uma sessão que
       # o tick pegou no instante em que o modal abriu.
