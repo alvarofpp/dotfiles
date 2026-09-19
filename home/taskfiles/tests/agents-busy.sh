@@ -145,6 +145,11 @@ provedor "Z.ai, sem saldo"          14 "claude-model glm-5.3-flash"     "$(erro 
 provedor "OpenCode Go (Kimi), 429"  15 "claude-model kimi-k3"           "$(erro 429 'Too Many Requests')"    kimi-k3 s
 provedor "MiniMax pelo RUNS_FILE"   16 "claude-model minimax-m3"        "$limite_mm"                         minimax-m3 s
 provedor "MiniMax de antes do log"  17 -                                "$limite_mm"                         minimax-m3 s
+# O 9router embrulha a cota do provedor num 503: o código de fora não é 4xx, e
+# o que identifica a cota é o `[429]` entre colchetes.
+provedor "MiniMax pelo 9router (503)" 19 "claude-model minimax-m3" \
+  'API Error: 503 [minimax/MiniMax-M3] [429]: {"error":{"type":"rate_limit_error","message":"Token Plan usage limit reached"}}' \
+  minimax-m3 s
 provedor "Opus no limite: sem sonda" 18 claude                          "Claude usage limit reached"         - n
 
 # Revisor em processo (`claude -p`) rodando na worktree segura a sessão no

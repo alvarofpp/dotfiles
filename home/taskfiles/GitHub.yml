@@ -1511,7 +1511,12 @@ tasks:
       # Retomada automática: só cota de provedor com sonda (os do `claude-model`).
       # 402 é o saldo do DeepSeek: volta quando você recarrega, e a sonda vê.
       # Sessão parada no limite da Anthropic segue esperando você.
-      QUOTA_RE: 'request rejected [(](402|429)[)]|api error: 4(02|29)|Token Plan usage limit'
+      # O `[429]` entre colchetes é o 9router repassando a cota do provedor: ele
+      # devolve `API Error: 503 [minimax/MiniMax-M3] [429]: …`, e o código de
+      # fora é 503, não 429 — sem esta alternativa as três sessões do
+      # `abacaxei-app` de 2026-09-19 casavam o `STALL_RE` (ficavam vivas) e não
+      # casavam aqui, então ninguém tentava retomá-las.
+      QUOTA_RE: 'request rejected [(](402|429)[)]|api error: 4(02|29)|[[](402|429)[]]|Token Plan usage limit'
       # Teto de retomadas por terminal: falso positivo do STALL_RE retomado a
       # cada tick renovaria o relógio do STALL_MAX_MIN pra sempre.
       RESUME_MAX: '{{.RESUME_MAX | default 3}}'
