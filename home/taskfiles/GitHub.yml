@@ -2670,6 +2670,30 @@ tasks:
               break
             fi
           done
+          # PR do fluxo que nasceu SEM o label `agent` é invisível pro filtro
+          # acima, e a revisão nunca acontece. O `gh pr create --label agent`
+          # está no prompt da implementação, mas modelo mais barato esquece —
+          # abacaxei-app#278 e lucida-monorepo#126..#129 em 2026-09-19, todos
+          # rendendo só "destrave na mão" a cada dez minutos. Adota quando a
+          # evidência é inequívoca: aberto pela conta do fluxo, `Refs #<num>`
+          # no corpo E branch com `issue-<num>`. PR de terceiro não casa a
+          # autoria; PR solto seu não casa a branch. Adota o MENOR número —
+          # fase 1 antes da fase 2, quando a issue rendeu vários.
+          if [ -z "$pr" ]; then
+            eu=$(gh api user --jq .login 2>/dev/null)
+            orfao=$(gh pr list -R "$repo" --state open --limit 50 \
+                      --json number,body,author,headRefName,labels \
+                      --jq '[.[] | select([.labels[].name] | index("agent") | not)
+                             | select(.author.login == "'"$eu"'")
+                             | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))
+                             | select(.headRefName | test("issue-'"$num"'(\\D|$)"))
+                             | .number] | sort | first // empty' 2>/dev/null)
+            if [ -n "$orfao" ]; then
+              echo "$ref: #$orfao é do fluxo mas nasceu sem o label agent — adotando"
+              gh pr edit "$orfao" -R "$repo" --add-label agent >/dev/null && pr="$orfao"
+            fi
+          fi
+
           # Pular calado aqui travou olhadinha#28 por um dia: o autor reescreveu
           # o corpo do PR #35 e o `Refs #28` sumiu junto.
           if [ -z "$pr" ]; then
