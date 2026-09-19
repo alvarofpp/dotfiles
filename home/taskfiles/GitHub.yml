@@ -1504,7 +1504,22 @@ tasks:
       # Teto de retomadas por terminal: falso positivo do STALL_RE retomado a
       # cada tick renovaria o relógio do STALL_MAX_MIN pra sempre.
       RESUME_MAX: '{{.RESUME_MAX | default 3}}'
+      # Modal de permissão do Claude Code. Ele REDESENHA sozinho a cada ~5s, e
+      # com isso o `lastOutputAt` nunca envelhece: nenhum dos cortes acima
+      # dispara, o `STALL_MAX_MIN` também não, e a issue fica presa no lock pra
+      # sempre (dotfiles-ai#127, olhadinha#1 e #2 paradas desde 12:42 com
+      # saída de segundos atrás às 16:45). Por isso a tela do terminal VIVO
+      # também é lida — é o único sinal que distingue "trabalhando" de
+      # "esperando tecla que ninguém vai apertar".
+      PROMPT_RE: '{{.PROMPT_RE | default "do you want to (proceed|make this edit|create|run)|do you trust the files"}}'
+      # Quanto tempo o modal fica de pé antes de a sessão contar como parada.
+      # Um tick do timer é 10 min; o dobro evita declarar parada uma sessão que
+      # o tick pegou no instante em que o modal abriu.
+      PROMPT_MIN: '{{.PROMPT_MIN | default 20}}'
       STATE_DIR: '{{.STATE_DIR | default "$HOME/.local/state/gh-board"}}'
+      # Override pros testes: comando que recebe `<repo> <issue>` e marca o
+      # pedido de humano; vazio = `gh issue edit/comment`.
+      HUMAN_CMD: '{{.HUMAN_CMD}}'
       # Override pros testes: comando que recebe o modelo; vazio = `claude-model --probe`.
       PROBE: '{{.PROBE}}'
     cmds:
@@ -1569,6 +1584,53 @@ tasks:
                | (.runner // "") | capture("^claude-model (?<m>[^ ]+)").m // empty' "{{.RUNS_FILE}}" 2>/dev/null || true) ;;
         esac
 
+        # Terminal VIVO parado num modal de permissão. Não entra em
+        # `candidatos` (o modal redesenha, então a saída é sempre recente) e
+        # não é fechado: fechar e redespachar cai no mesmo modal no tick
+        # seguinte. O que resolve é tirar a issue do limbo — `agent:human` mais
+        # comentário, que o `gh:notify` transforma em aviso — e descontar da
+        # contagem, pra o `gh:reap` soltar o lock.
+        travados=0
+        for par in $(printf '%s' "$lst" \
+            | { jq -r '(.result.terminals // [])[]
+                     | select((.lastOutputAt // 0) > 0)
+                     | "\(.handle)=\(.lastOutputAt / 1000 | floor)"' 2>/dev/null || true; }); do
+          h=${par%%=*}; saida=${par#*=}
+          if [ "$saida" -lt "$corte_prompt" ]; then continue; fi
+          marca="{{.STATE_DIR}}/prompts/$h"
+          if ! orca terminal read --terminal "$h" --screen 2>/dev/null | grep -qiE '{{.PROMPT_RE}}'; then
+            rm -f "$marca"
+            continue
+          fi
+          # Primeira vez que este modal aparece: anota a hora e espera.
+          if [ ! -f "$marca" ]; then
+            mkdir -p "$(dirname "$marca")"; echo "$agora" > "$marca"
+            continue
+          fi
+          desde=$(cat "$marca" 2>/dev/null || echo "$agora")
+          if [ $(( agora - desde )) -lt $(( {{.PROMPT_MIN}} * 60 )) ]; then continue; fi
+          travados=$((travados + 1))
+          echo "  · terminal $h parado num prompt de permissão há mais de {{.PROMPT_MIN}} min — pedindo humano" >&2
+          # Um aviso por modal. O `wtpath` só dá o NOME do repo; o dono vem do
+          # `gh:repos`, e repo que não casa pelo nome fica sem aviso — a
+          # contagem já soltou o lock de qualquer forma.
+          if [ -n "${nome:-}" ] && [ -n "${num:-}" ] && [ ! -f "$marca.avisado" ]; then
+            if [ -n "{{.HUMAN_CMD}}" ]; then
+              {{.HUMAN_CMD}} "$nome" "$num" || true
+              : > "$marca.avisado"
+            else
+              repo=$(task gh:repos 2>/dev/null | grep -m1 -x ".*/$nome" || true)
+              if [ -n "$repo" ]; then
+                gh issue edit "$num" -R "$repo" --add-label agent:human >/dev/null 2>&1 || true
+                gh issue comment "$num" -R "$repo" --body "$(printf '%s\n%s' '<!-- agent -->' \
+                  '**Fluxo** — a sessão parou num prompt de permissão do Claude Code e ninguém responde por ela. O terminal segue aberto na worktree: responda ali, ou tire o `agent:human` depois de resolver.')" >/dev/null 2>&1 || true
+                : > "$marca.avisado"
+                rm -f {{.BOARD_CACHE}}
+              fi
+            fi
+          fi
+        done
+
         # Sonda da cota do provedor, com o cache por modelo — quem sonda é o
         # `gh:model-probe`, o mesmo que o `gh:dispatch` consulta antes de abrir
         # sessão. Dois donos da sonda dariam dois caches e duas respostas.
@@ -1632,8 +1694,10 @@ tasks:
         done
 
         total=$(printf '%s' "$lst" | jq -r '(.result.terminals // []) | length' 2>/dev/null || true)
-        # O parado entra na contagem de ocupados: é ele que segura o lock.
-        echo $(( ${total:-0} - mortos ))
+        # O parado NO LIMITE DE USO entra na contagem: ele retoma sozinho e
+        # segura o lock de propósito. O parado num prompt de permissão não —
+        # quem destrava é humano, e o lock só atrapalha.
+        echo $(( ${total:-0} - mortos - travados ))
 
   labels:
     desc: "Cria (idempotente) os labels de estado do fluxo num repo. REPO=owner/name"

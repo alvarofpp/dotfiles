@@ -166,6 +166,51 @@ filho "no prompt com claude -p na worktree" fica --model x -p --agent revisor
 filho "no prompt, -p só no texto do prompt"  fecha "rode claude-model x -p"
 filho "no prompt, sem processo"              fecha
 
+# Modal de permissão: a sessão fica esperando tecla e o modal REDESENHA, então
+# `lastOutputAt` é sempre fresco e nenhum corte de ociosidade dispara. O erro
+# que isto impede é a issue sumir do fluxo — lock preso, `gh:issues` a esconde,
+# e ninguém mais olha (dotfiles-ai#127).
+cat > "$tmp/bin/humano" <<'STUB'
+#!/usr/bin/env bash
+echo "$1#$2" >> "$ORCA_STUB/humanos"
+STUB
+chmod +x "$tmp/bin/humano"
+modal='Do you want to proceed?
+❯ 1. Yes
+  2. No'
+prompt_caso() { # $1 descrição  $2 min desde que o modal apareceu  $3 esperado (conta|travado)  $4 avisado (s|n)
+  local st="$tmp/pm$2"
+  : > "$tmp/stub/fechados"; : > "$tmp/stub/humanos"; : > "$tmp/stub/ociosos"
+  mkdir -p "$st/prompts"
+  printf '%s' "$modal" > "$tmp/stub/tela-m1"
+  # Saída de 10s atrás: o modal acabou de se redesenhar.
+  jq -n --argjson o $(( (agora - 10) * 1000 )) '{ok:true, result:{terminals:[{handle:"m1", lastOutputAt:$o}]}}' > "$tmp/stub/list.json"
+  [ "$2" = 0 ] || echo $(( agora - $2 * 60 )) > "$st/prompts/m1"
+  local n_ocupados
+  n_ocupados=$(PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" SONDA_OK=true \
+    task gh:agents-busy WT="path:$HOME/orca/workspaces/x/issue-1" PROBE="$tmp/bin/sonda" \
+    HUMAN_CMD="$tmp/bin/humano" STATE_DIR="$st" RUNS_FILE="$runs" 2>/dev/null)
+  confere "modal há $2 min: contagem" "$3" "$([ "$n_ocupados" = 0 ] && echo travado || echo conta)"
+  confere "modal há $2 min: pediu humano" "$4" "$([ -s "$tmp/stub/humanos" ] && echo s || echo n)"
+  confere "modal há $2 min: não fecha" fica "$(grep -qx m1 "$tmp/stub/fechados" && echo fecha || echo fica)"
+}
+prompt_caso "primeira vez"  0  conta   n
+prompt_caso "há 5 min"      5  conta   n
+prompt_caso "há 30 min"     30 travado s
+
+# Tela sem modal com saída fresca é agente trabalhando: nada a fazer, e a
+# marca do modal anterior tem que sumir (senão a próxima volta conta o relógio
+# de um modal que já foi respondido).
+: > "$tmp/stub/humanos"; mkdir -p "$tmp/pm-limpa/prompts"
+echo $(( agora - 3600 )) > "$tmp/pm-limpa/prompts/m1"
+printf 'rodando testes...' > "$tmp/stub/tela-m1"
+jq -n --argjson o $(( (agora - 10) * 1000 )) '{ok:true, result:{terminals:[{handle:"m1", lastOutputAt:$o}]}}' > "$tmp/stub/list.json"
+PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" SONDA_OK=true \
+  task gh:agents-busy WT="path:$HOME/orca/workspaces/x/issue-1" PROBE="$tmp/bin/sonda" \
+  HUMAN_CMD="$tmp/bin/humano" STATE_DIR="$tmp/pm-limpa" RUNS_FILE="$runs" >/dev/null 2>&1
+confere "modal respondido: marca apagada" nao "$([ -f "$tmp/pm-limpa/prompts/m1" ] && echo sim || echo nao)"
+confere "modal respondido: sem pedido de humano" n "$([ -s "$tmp/stub/humanos" ] && echo s || echo n)"
+
 # Worktree que não existe devolve 0 — é o que solta o lock no `gh:reap`.
 rm -f "$tmp/stub/list.json"
 confere "worktree que não existe" 0 "$(roda "path:/nao/existe" true "$tmp/state")"
