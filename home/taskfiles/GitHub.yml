@@ -3083,9 +3083,34 @@ tasks:
                   vermelhos=$(gh pr view "$pr" -R "$repo" --json statusCheckRollup \
                     --jq '[.statusCheckRollup[] | select((.conclusion // .state) == "FAILURE"
                             or (.conclusion // .state) == "TIMED_OUT"
-                            or (.conclusion // .state) == "CANCELLED")] | length' 2>/dev/null)
-                  if [ "${vermelhos:-0}" = "0" ]; then
+                            or (.conclusion // .state) == "CANCELLED")
+                           | .detailsUrl // ""] | .[]' 2>/dev/null)
+                  if [ -z "$vermelhos" ]; then
                     echo "  · $repo#$pr: $estado sem check vermelho — é gate de processo, não despacho"
+                    continue
+                  fi
+
+                  # Job que NUNCA COMEÇOU não é defeito de código, e nenhum
+                  # agente conserta: é billing/spending limit da conta, Actions
+                  # desligado ou cancelamento antes do primeiro passo. O sinal
+                  # é `steps` vazio no job (a anotação diz "The job was not
+                  # started because recent account payments have failed").
+                  # Sem esta guarda o tick despachava a cada 10 min, o agente
+                  # perguntava "pode resolver o billing?", você respondia que
+                  # não, o gh:unblock devolvia a issue e o ciclo recomeçava —
+                  # olhadinha#88, 2026-09-19. Check de app externo (GitGuardian
+                  # e afins) não tem job: conta como vermelho de verdade.
+                  reais=0
+                  for url in $vermelhos; do
+                    jid="${url##*/job/}"
+                    case "$jid" in
+                      ''|*[!0-9]*) reais=$((reais + 1)); continue ;;
+                    esac
+                    passos=$(gh api "repos/$repo/actions/jobs/$jid" --jq '.steps | length' 2>/dev/null || echo 1)
+                    [ "${passos:-1}" = 0 ] || reais=$((reais + 1))
+                  done
+                  if [ "$reais" = 0 ]; then
+                    echo "  · $repo#$pr: vermelho só de job que não chegou a rodar (billing/Actions da conta) — não é código, não despacho"
                     continue
                   fi
                   prompt="O PR #$pr do $repo já passou pela revisão (tem a label agent:approved), mas não mescla: o CI está vermelho. Veja quais jobs com gh pr checks $pr -R $repo e leia o log de cada um com gh run view <run-id> -R $repo --log-failed. Conserte o CÓDIGO. Em hipótese alguma altere o workflow do CI pra fazer passar — é ele que atesta a qualidade, e mexer nele pra virar verde é fraudar o teste; se o job estiver de fato errado, isso é achado pra escrever no PR, não pra você consertar por conta. Rode o QA local do projeto antes de empurrar (testes, lint, build — o que o runner expuser) e dê push. $fim" ;;
