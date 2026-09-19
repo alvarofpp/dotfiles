@@ -420,6 +420,12 @@ tasks:
       vars: [ITEM, VALUE]
     cmds:
       - |
+        # Par trocado falha alto: sem isto, `ITEM` com a ref e `VALUE` com o
+        # `PVTI_…` viram uma mutação que o GraphQL recusa longe daqui, e o que
+        # sobra no journal é a recusa do agente (dotfiles-ai#124).
+        case "{{.ITEM}}" in PVTI_*) ;; *) echo "gh:status: ITEM não é id de item do board: {{.ITEM}}"; exit 1 ;; esac
+        case "{{.VALUE}}" in PVTI_*|*\#*) echo "gh:status: VALUE não é Status: {{.VALUE}}"; exit 1 ;; esac
+
         ids=$(gh api graphql -f query='
           query($o:String!,$n:Int!){ user(login:$o){ projectV2(number:$n){ id
             status:field(name:"Status"){ ... on ProjectV2SingleSelectField{ id options{ id name } } } } } }' \
@@ -2010,6 +2016,7 @@ tasks:
     cmds:
       - |
         ref="{{.REF}}"; repo="${ref%\#*}"; num="${ref##*\#}"
+        case "$ref" in */*\#[0-9]*) ;; *) echo "gh:issue-status: REF não é owner/repo#N: $ref"; exit 1 ;; esac
         item=$(gh api graphql --paginate -f query='
           query($o:String!,$n:Int!,$endCursor:String){ user(login:$o){ projectV2(number:$n){
             items(first:100,after:$endCursor){ pageInfo{ hasNextPage endCursor }
