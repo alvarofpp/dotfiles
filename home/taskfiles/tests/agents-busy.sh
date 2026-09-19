@@ -11,7 +11,7 @@ set -uo pipefail
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/stub" "$tmp/state/retomadas"
-: > "$tmp/stub/ociosos"; : > "$tmp/stub/fechados"; : > "$tmp/stub/enviados"
+: > "$tmp/stub/ociosos"; : > "$tmp/stub/fechados"; : > "$tmp/stub/enviados"; : > "$tmp/stub/textos"
 
 cat > "$tmp/bin/orca" <<'STUB'
 #!/usr/bin/env bash
@@ -28,7 +28,10 @@ case "$1 $2" in
   "terminal read") cat "$d/tela-$h" 2>/dev/null ;;
   # O `orca terminal close` de verdade sai 1 mesmo quando fecha.
   "terminal close") echo "$h" >> "$d/fechados"; exit 1 ;;
-  "terminal send") echo "$h" >> "$d/enviados" ;;
+  "terminal send")
+    txt=""; ant=""
+    for a in "$@"; do [ "$ant" = --text ] && txt=$a; ant=$a; done
+    echo "$h" >> "$d/enviados"; echo "$txt" >> "$d/textos" ;;
   *) exit 2 ;;
 esac
 STUB
@@ -210,6 +213,47 @@ PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" SONDA_OK=true \
   HUMAN_CMD="$tmp/bin/humano" STATE_DIR="$tmp/pm-limpa" RUNS_FILE="$runs" >/dev/null 2>&1
 confere "modal respondido: marca apagada" nao "$([ -f "$tmp/pm-limpa/prompts/m1" ] && echo sim || echo nao)"
 confere "modal respondido: sem pedido de humano" n "$([ -s "$tmp/stub/humanos" ] && echo s || echo n)"
+
+# Cota que NÃO volta: a sessão migra pro fallback do mesmo endpoint em vez de
+# esperar o teto com a issue presa no lock. A sonda falsa aqui reprova só o
+# modelo da sessão; o endpoint falso põe MiniMax e GLM no mesmo gateway e o
+# Opus fora dele.
+cat > "$tmp/bin/sonda2" <<'STUB'
+#!/usr/bin/env bash
+echo "$1" >> "$ORCA_STUB/sondados"
+[ "$1" != "${SONDA_FORA:-}" ]
+STUB
+cat > "$tmp/bin/endp" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  minimax-m3)    echo "http://127.0.0.1:8093 minimax/MiniMax-M3" ;;
+  glm-5.3-flash) echo "http://127.0.0.1:8093 glm/glm-5.3-flash" ;;
+  opus)          exit 3 ;;
+  *) exit 2 ;;
+esac
+STUB
+chmod +x "$tmp/bin/sonda2" "$tmp/bin/endp"
+
+troca() { # $1 descrição  $2 FALLBACKS  $3 enviou /model (s|n)  $4 retomou (s|n)
+  local st="$tmp/tr$RANDOM" runs2="$tmp/runs-troca.jsonl"
+  mkdir -p "$st/retomadas"
+  : > "$tmp/stub/enviados"; : > "$tmp/stub/textos"; : > "$tmp/stub/fechados"
+  echo f1 > "$tmp/stub/ociosos"
+  printf '%s' "$limite_mm" > "$tmp/stub/tela-f1"
+  jq -n --argjson o $(( (agora - 40 * 60) * 1000 )) '{ok:true, result:{terminals:[{handle:"f1", lastOutputAt:$o}]}}' > "$tmp/stub/list.json"
+  echo '{"repo":"o/y","issue":9,"etapa":"execucao","runner":"claude-model minimax-m3","em":"2026-09-19T00:00:00Z"}' > "$runs2"
+  PATH="$tmp/bin:$PATH" ORCA_STUB="$tmp/stub" SONDA_FORA=minimax-m3 \
+    task gh:agents-busy WT="path:$HOME/orca/workspaces/y/issue-9" PROBE="$tmp/bin/sonda2" \
+    ENDPOINT="$tmp/bin/endp" FALLBACKS="$2" STATE_DIR="$st" RUNS_FILE="$runs2" >/dev/null 2>&1
+  confere "$1: /model" "$3" "$(grep -qx -- '/model glm/glm-5.3-flash' "$tmp/stub/textos" && echo s || echo n)"
+  confere "$1: continue" "$4" "$(grep -qx -- continue "$tmp/stub/textos" && echo s || echo n)"
+  confere "$1: segue vivo" fica "$(grep -qx f1 "$tmp/stub/fechados" && echo fecha || echo fica)"
+  [ "$3" = s ] && confere "$1: troca no RUNS_FILE" glm-5.3-flash \
+    "$(jq -r 'select(.etapa == "troca") | .runner | sub("^claude-model "; "")' "$runs2" | tail -1)"
+}
+troca "cota fora, fallback no mesmo gateway" "minimax-m3=glm-5.3-flash" s s
+troca "fallback em outro endpoint (Opus)"    "minimax-m3=opus"          n n
+troca "sem fallback configurado"             "glm-5.3=minimax-m3"       n n
 
 # Worktree que não existe devolve 0 — é o que solta o lock no `gh:reap`.
 rm -f "$tmp/stub/list.json"

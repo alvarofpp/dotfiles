@@ -1457,6 +1457,17 @@ tasks:
       renovar o teto pra sempre. Parada no limite da Anthropic não tem sonda e
       continua esperando você.
 
+      **Cota que não volta vira troca de modelo, não espera.** Sonda ainda
+      falhando, o `FALLBACKS` diz pra quem a sessão migra — hoje
+      `minimax-m3=glm-5.3-flash`. O terminal recebe `/model <id>` e depois
+      `continue`: o `/model` da TUI preserva a conversa, então o contexto
+      inteiro vai junto. Só vale fallback no **mesmo endpoint** (os dois pelo
+      9router): base URL e chave são do processo, e trocar de provedor exigiria
+      relançar. A troca é registrada no `RUNS_FILE` (`etapa: troca`), senão o
+      tick seguinte sondaria o provedor velho. Sem fallback de pé, vale o teto
+      de `STALL_MAX_MIN`: a sessão é fechada, o lock cai e o `gh:models`
+      redesigna sem o provedor morto no redespacho — é por aí que entra o Opus.
+
       Sai `0` quando a worktree não existe (o `orca` falha e a lista vem
       vazia), que é o que o `gh:reap` espera pra soltar o lock.
 
@@ -1522,6 +1533,16 @@ tasks:
       HUMAN_CMD: '{{.HUMAN_CMD}}'
       # Override pros testes: comando que recebe o modelo; vazio = `claude-model --probe`.
       PROBE: '{{.PROBE}}'
+      # Fallback por modelo quando a cota NÃO volta: `<modelo>=<fallback>`,
+      # separados por espaço. Só entra fallback no MESMO endpoint: a sessão já
+      # está aberta com aquele `ANTHROPIC_BASE_URL` e aquela chave, e o `/model`
+      # da TUI troca o id, não o processo. MiniMax e GLM saem os dois pelo
+      # 9router, então um cobre o outro; Opus é assinatura, endpoint diferente,
+      # e só entra por redespacho (o `gh:models` redesigna sozinho quando a
+      # sonda do MiniMax falha).
+      FALLBACKS: '{{.FALLBACKS | default "minimax-m3=glm-5.3-flash"}}'
+      # Override pros testes: comando que recebe o modelo e imprime `<url> <id>`.
+      ENDPOINT: '{{.ENDPOINT}}'
     cmds:
       - |
         # 30 min = dois ticks do timer. Um tick só deixaria o corte encostado
@@ -1638,6 +1659,30 @@ tasks:
           task gh:model-probe MODEL="$1" STATE_DIR="{{.STATE_DIR}}" PROBE="{{.PROBE}}" 2>/dev/null
         }
 
+        # `<url> <id>` do modelo. Assinatura sai vazio (exit 3) e nunca casa
+        # endpoint com ninguém — que é o certo: trocar pra Opus exigiria
+        # relançar o processo com outra base URL, e isso é redespacho.
+        endp() {
+          {{if .ENDPOINT}}{{.ENDPOINT}}{{else}}claude-model --endpoint{{end}} "$1" 2>/dev/null || true
+        }
+
+        # O fallback do modelo, se a cota dele estiver de pé E ele rodar no
+        # mesmo endpoint. Imprime `<modelo> <id>`; vazio = não há pra onde ir.
+        fallback_de() {
+          local atual="$1" par fb url_atual
+          url_atual=$(endp "$atual" | cut -d' ' -f1)
+          [ -n "$url_atual" ] || return 0
+          for par in {{.FALLBACKS}}; do
+            [ "${par%%=*}" = "$atual" ] || continue
+            fb="${par#*=}"
+            [ "$(cota_ok "$fb")" = ok ] || continue
+            set -- $(endp "$fb")
+            [ "${1:-}" = "$url_atual" ] || continue
+            printf '%s %s\n' "$fb" "${2:-}"
+            return 0
+          done
+        }
+
         # Revisor ou crítico que a sessão lançou em background (`claude-model
         # … -p`) segue rodando com ela no prompt: o `/review-pr` espera 10–15
         # min por eles, e o Bash do Claude Code devolve em 2. Fechar aí matava
@@ -1677,11 +1722,35 @@ tasks:
             if [ -z "$m" ] && printf '%s' "$tela" | grep -qF 'Token Plan usage limit'; then m=minimax-m3; fi
             if [ -n "$m" ] && printf '%s' "$tela" | grep -qiE '{{.QUOTA_RE}}'; then
               nret=$(cat "{{.STATE_DIR}}/retomadas/$h" 2>/dev/null || echo 0)
-              if [ "$nret" -lt "{{.RESUME_MAX}}" ] && [ "$(cota_ok "$m")" = ok ]; then
+              # Cota que não volta não é caso raro: plano estourado só volta
+              # com recarga sua, e até 2026-09-19 a sessão esperava o teto de
+              # {{.STALL_MAX_MIN}} min com a issue presa no lock (três do
+              # `abacaxei-app` ficaram 12h assim numa noite). O fallback troca o
+              # modelo NA SESSÃO ABERTA, com o contexto inteiro — o `/model` da
+              # TUI preserva a conversa e o gateway é o mesmo.
+              alvo=""; id=""
+              if [ "$(cota_ok "$m")" = ok ]; then
+                alvo="$m"
+              else
+                set -- $(fallback_de "$m")
+                alvo="${1:-}"; id="${2:-}"
+              fi
+              if [ "$nret" -lt "{{.RESUME_MAX}}" ] && [ -n "$alvo" ]; then
                 mkdir -p "{{.STATE_DIR}}/retomadas"
+                if [ -n "$id" ]; then
+                  orca terminal send --terminal "$h" --text "/model $id" --enter >/dev/null 2>&1 || true
+                  # O modelo da sessão sai do RUNS_FILE: sem registrar a troca,
+                  # o tick seguinte sondaria o provedor velho de novo.
+                  if [ -n "${nome:-}" ] && [ -n "${num:-}" ]; then
+                    jq -cn --arg repo "$nome" --argjson n "$num" --arg r "claude-model $alvo" \
+                      '{repo: $repo, issue: $n, etapa: "troca", runner: $r, em: (now | todate)}' \
+                      >> "{{.RUNS_FILE}}" 2>/dev/null || true
+                  fi
+                  echo "  · terminal $h: cota de $m fora — trocado pra $alvo no mesmo endpoint" >&2
+                fi
                 orca terminal send --terminal "$h" --text continue --enter >/dev/null 2>&1 || true
                 echo $((nret + 1)) > "{{.STATE_DIR}}/retomadas/$h"
-                echo "  · terminal $h: cota de $m voltou — retomado ($((nret + 1))/{{.RESUME_MAX}})" >&2
+                echo "  · terminal $h: retomado em $alvo ($((nret + 1))/{{.RESUME_MAX}})" >&2
               fi
             fi
             continue
