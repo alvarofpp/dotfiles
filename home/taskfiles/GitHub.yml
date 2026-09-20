@@ -1532,6 +1532,17 @@ tasks:
       # permissão e redesenha do mesmo jeito. A `olhadinha#88` ficou 9h assim
       # em 2026-09-19, com saída de segundos atrás o tempo todo.
       PROMPT_RE: '{{.PROMPT_RE | default "do you want to (proceed|make this edit|create|run)|do you trust the files|enter to continue"}}'
+      # Aviso INFORMATIVO não é decisão: ninguém escolhe nada, só confirma que
+      # leu ("mudamos a cobrança do classifier", "nova versão disponível"). Ele
+      # para a sessão do mesmo jeito, mas chamar um humano pra apertar Enter é
+      # desperdiçar a pessoa — e o tick faz isso melhor. O `NOTICE_RE` casa o
+      # rodapé do aviso; o `DECISION_RE` é o veto, pra nenhuma tecla ser
+      # apertada em nome do Álvaro num pedido de permissão de verdade.
+      # A sessão do lucida-monorepo#125 ficou 3h nesse aviso em 2026-09-20,
+      # porque as sessões do board saem pelo gateway 127.0.0.1:8093 e o Claude
+      # Code avisa que elas não entram na cobrança nova do auto mode.
+      NOTICE_RE: '{{.NOTICE_RE | default "enter to continue"}}'
+      DECISION_RE: '{{.DECISION_RE | default "do you want to|do you trust the files"}}'
       # Quanto tempo o modal fica de pé antes de a sessão contar como parada.
       # Um tick do timer é 10 min; o dobro evita declarar parada uma sessão que
       # o tick pegou no instante em que o modal abriu.
@@ -1628,8 +1639,20 @@ tasks:
           h=${par%%=*}; saida=${par#*=}
           if [ "$saida" -lt "$corte_prompt" ]; then continue; fi
           marca="{{.STATE_DIR}}/prompts/$h"
-          if ! orca terminal read --terminal "$h" --screen 2>/dev/null | grep -qiE '{{.PROMPT_RE}}'; then
+          tela=$(orca terminal read --terminal "$h" --screen 2>/dev/null || true)
+          if ! printf '%s' "$tela" | grep -qiE '{{.PROMPT_RE}}'; then
             rm -f "$marca"
+            continue
+          fi
+
+          # Aviso informativo: Enter e segue, sem esperar o PROMPT_MIN nem
+          # chamar humano. O veto do DECISION_RE garante que só o aviso passa —
+          # pedido de permissão de verdade continua sendo decisão do Álvaro.
+          if printf '%s' "$tela" | grep -qiE '{{.NOTICE_RE}}' \
+             && ! printf '%s' "$tela" | grep -qiE '{{.DECISION_RE}}'; then
+            orca terminal send --terminal "$h" --text "" --enter >/dev/null 2>&1 || true
+            rm -f "$marca" "$marca.avisado"
+            echo "  · terminal $h parado num aviso informativo — Enter enviado, sessão segue" >&2
             continue
           fi
           # Primeira vez que este modal aparece: anota a hora e espera.

@@ -208,10 +208,28 @@ prompt_caso "há 30 min"     30 travado s
 
 # Aviso do próprio Claude Code (cobrança, versão): para a sessão do mesmo
 # jeito que um pedido de permissão, e redesenha, então nenhum corte de
-# ociosidade o pega.
+# ociosidade o pega. Mas não é decisão de ninguém — o tick aperta Enter na
+# primeira passada e a sessão segue, sem contar como travada e sem acordar
+# humano pra apertar tecla (lucida-monorepo#125, 3h parada em 2026-09-20).
+: > "$tmp/stub/enviados"
 modal='We are changing auto mode billing.
 Enter to continue · Esc to cancel'
-prompt_caso "aviso do Claude Code" 31 travado s
+prompt_caso "aviso do Claude Code" 31 conta n
+confere "aviso do Claude Code: Enter enviado" s \
+  "$(grep -qx m1 "$tmp/stub/enviados" && echo s || echo n)"
+confere "aviso do Claude Code: marca apagada" nao \
+  "$([ -f "$tmp/pm31/prompts/m1" ] && echo sim || echo nao)"
+
+# O veto: modal de permissão que POR ACASO traga a palavra do aviso continua
+# sendo decisão do Álvaro — nenhuma tecla é apertada em nome dele.
+: > "$tmp/stub/enviados"
+modal='Do you want to proceed?
+❯ 1. Yes
+  2. No
+Enter to continue'
+prompt_caso "permissão com a palavra do aviso" 31 travado s
+confere "permissão com a palavra do aviso: nada enviado" n \
+  "$(grep -qx m1 "$tmp/stub/enviados" && echo s || echo n)"
 
 # Tela sem modal com saída fresca é agente trabalhando: nada a fazer, e a
 # marca do modal anterior tem que sumir (senão a próxima volta conta o relógio
