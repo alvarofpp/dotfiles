@@ -2630,9 +2630,15 @@ tasks:
           # do matria. Por isso a decisão vira a flag `usar` e o desvio fica
           # num `if` de um nível só.
           pr=""
+          # Ordem CRESCENTE, e isso importa: o `gh pr list` devolve do mais
+          # novo pro mais velho, e a issue que rende uma PILHA (cada PR baseado
+          # na branch do anterior) precisa ser revisada da BASE pro topo — é a
+          # ordem em que eles conseguem mesclar. Com a ordem do gh, o
+          # lucida-monorepo#125 passou a noite revisando o topo da pilha (#129)
+          # enquanto #126, #127 e #128 estavam verdes e sem revisor nenhum.
           for cand in $(gh pr list -R "$repo" --state open --label agent --limit 50 \
                           --json number,body \
-                          --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null); do
+                          --jq '[.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number] | sort | .[]' 2>/dev/null); do
             usar=1
             aprovado=$(gh pr view "$cand" -R "$repo" --json labels \
                          --jq '[.labels[].name] | index("agent:approved") != null' 2>/dev/null)
