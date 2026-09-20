@@ -2465,7 +2465,14 @@ tasks:
           # PR aberto da issue: "<número> <sim|nao>", o segundo dizendo se ele
           # ainda tem `agent:changes`. Numa linha só e em variável porque o
           # `tests/dispatch-changes.sh` a extrai daqui.
-          prq='.[] | select(.body // "" | test("(?i)(refs|closes) #" + $n + "\\b")) | "\(.number) \(if ([.labels[].name] | index("agent:changes")) != null then "sim" else "nao" end)"'
+          # Quem manda é o PR que AINDA pede mudança, não o mais novo. Issue que
+          # rendeu uma pilha (lucida-monorepo#125, sete PRs) tinha o `#134` no
+          # topo, limpo, e o `#126` na base com 16 achados: lendo o topo, o
+          # dispatch concluía "nada a fazer" e devolvia pra In Review, enquanto
+          # o pr-tick devolvia pra In Progress — card indo e voltando de dez em
+          # dez minutos, sessão nenhuma, correção nenhuma. Empate entre PRs no
+          # mesmo estado vai pro MENOR número: é a ordem em que eles mesclam.
+          prq='[.[] | select(.body // "" | test("(?i)(refs|closes) #" + $n + "\\b")) | {n: .number, muda: (([.labels[].name] | index("agent:changes")) != null)}] | sort_by(.n) | ((map(select(.muda)) | first) // first) | select(. != null) | "\(.n) \(if .muda then "sim" else "nao" end)"'
           read -r pr pede_mudanca <<< "$(gh pr list -R "$repo" --state open --label agent --limit 50 \
                  --json number,body,labels 2>/dev/null | jq -r --arg n "$num" "$prq" 2>/dev/null | head -1)"
 

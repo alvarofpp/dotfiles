@@ -30,6 +30,10 @@ caso "PR já sem agent:changes"     '[{"number":247,"body":"Refs #154","labels":
 caso "agent:changes na posição 0"  '[{"number":9,"body":"refs #1","labels":[{"name":"agent:changes"}]}]'                        1   "9 sim"
 caso "PR de outra issue (#1540)"   '[{"number":8,"body":"Refs #1540","labels":[]}]'                                              154 ""
 caso "sem PR"                      '[]'                                                                                          154 ""
+# Pilha: o `gh pr list` devolve do mais novo pro mais velho, e é o de baixo que
+# pede mudança. Ler o topo fazia o dispatch achar que não havia o que corrigir.
+caso "pilha: manda quem pede mudança" '[{"number":134,"body":"Refs #125","labels":[{"name":"agent"}]},{"number":126,"body":"Refs #125","labels":[{"name":"agent"},{"name":"agent:changes"}]}]' 125 "126 sim"
+caso "pilha limpa: o menor número"    '[{"number":134,"body":"Refs #125","labels":[{"name":"agent"}]},{"number":126,"body":"Refs #125","labels":[{"name":"agent"}]}]'                          125 "126 nao"
 
 echo "dispatch-changes: $([ "$falhas" = 0 ] && echo ok || echo "$falhas falha(s)")"
 exit "$falhas"
