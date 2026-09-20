@@ -2707,6 +2707,24 @@ tasks:
             continue
           fi
 
+          # PR com `agent:changes` já tem veredito: a bola é da implementação,
+          # não do revisor. Quem devolve a issue pra In Progress deveria ser o
+          # próprio revisor no fim da sessão, mas o modelo barato pula esse
+          # passo — e aí o tick refaz o `--check` de dez em dez minutos, com o
+          # mesmo "não pode aprovar" toda vez, e a issue nunca chega no
+          # gh:dispatch que consertaria. Foi o que segurou o
+          # lucida-monorepo#126 (16 achados) a noite inteira, e com ele a
+          # pilha toda atrás: o tick revisa um PR por issue.
+          # A transição é idempotente — o agente de implementação tira o
+          # `agent:changes` ao empurrar a correção, e aí a rodada seguinte
+          # volta a ser `--check`.
+          if [ "$(gh pr view "$pr" -R "$repo" --json labels \
+                    --jq '[.labels[].name] | index("agent:changes") != null' 2>/dev/null)" = "true" ]; then
+            echo "$ref: #$pr já está agent:changes — devolvendo pra implementação em vez de re-revisar"
+            task gh:issue-status REF="$ref" VALUE="In Progress"
+            continue
+          fi
+
           # Conta rodada, não submissão: review com corpo é uma passada de
           # revisor; review de corpo vazio é comentário ancorado postado
           # solto. No PR 115 isso deu 7 "rodadas" em 8 segundos e o fluxo se
