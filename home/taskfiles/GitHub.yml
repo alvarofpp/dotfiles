@@ -2075,10 +2075,11 @@ tasks:
       passou pela sua mão. Filha bloqueada fica em In Progress mas o
       `gh:issues` não a lista até a irmã fechar.
 
-      **Repo de terceiro só divide se você já foi atribuído à mãe por outra
-      pessoa** — o evento `assigned` do GitHub com `assigner` diferente de
-      você. A auto-atribuição da triagem não conta: criar issue no repo alheio
-      sem ter sido chamado é ruído no trabalho de outra pessoa.
+      **Repo de terceiro divide se você tem escrita nele** (colaborador: abrir
+      issue lá é trabalho, não ruído) **ou se outra pessoa te atribuiu à mãe** —
+      o evento `assigned` com `assigner` diferente de você; a auto-atribuição da
+      triagem nunca conta. Sem nenhum dos dois, recusa: repo de estranho não
+      ganha issue do fluxo.
 
       O corpo (`BODY`, arquivo) segue o molde da triagem — objetivo, escopo,
       critério de aceite — mais uma seção `## Caminhos` com os arquivos que a
@@ -2100,11 +2101,25 @@ tasks:
         case "$repo" in
           {{.PROJECT_OWNER}}/*) ;;
           *)
-            chamado=$(gh api "repos/$repo/issues/$num/events" --paginate \
-              --jq '[.[] | select(.event == "assigned" and .assignee.login == "'"$eu"'" and .assigner.login != "'"$eu"'")] | length' 2>/dev/null || echo 0)
-            if [ "${chamado:-0}" = "0" ]; then
-              echo "$ref é de outro dono e ninguém te atribuiu a ela — não divido" >&2
-              exit 1
+            # Repo de terceiro divide em dois casos: você é colaborador com
+            # escrita (é do time, abrir issue lá é trabalho, não ruído) ou
+            # alguém te chamou pra mãe — `assigned` com `assigner` diferente
+            # de você; a auto-atribuição da triagem nunca conta.
+            #
+            # A regra era só a segunda, e barrava trabalho real: o
+            # lucida-monorepo#125 (sete fases no enunciado) não pôde virar
+            # sub-issue por isso, e o agente respondeu empilhando sete PRs —
+            # que é pior pra revisar e pra mesclar. Afrouxado em 2026-09-20,
+            # a pedido do Álvaro. Sem escrita, o portão do convite segue de pé:
+            # repo de estranho continua fora.
+            escreve=$(gh api "repos/$repo" --jq '.permissions.push' 2>/dev/null || echo false)
+            if [ "$escreve" != "true" ]; then
+              chamado=$(gh api "repos/$repo/issues/$num/events" --paginate \
+                --jq '[.[] | select(.event == "assigned" and .assignee.login == "'"$eu"'" and .assigner.login != "'"$eu"'")] | length' 2>/dev/null || echo 0)
+              if [ "${chamado:-0}" = "0" ]; then
+                echo "$ref é de outro dono, você não tem escrita nele e ninguém te atribuiu a ela — não divido" >&2
+                exit 1
+              fi
             fi ;;
         esac
 
