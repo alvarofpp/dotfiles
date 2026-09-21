@@ -1593,13 +1593,36 @@ tasks:
                      | select((.lastOutputAt // 0) > 0)
                      | "\(.handle)=\(.lastOutputAt / 1000 | floor)"' 2>/dev/null || true; }); do
           h=${par%%=*}; saida=${par#*=}
+          # A pergunta vai pro Orca SEM olhar quanto tempo faz que o terminal
+          # falou. O filtro anterior era "calado há DONE_IDLE_MIN", e ele nunca
+          # deixava perguntar: a TUI do Claude Code redesenha o rodapé sozinha
+          # (medidor de contexto, aviso de update), então `lastOutputAt` é
+          # sempre de segundos atrás mesmo com o agente parado no prompt. Em
+          # 2026-09-21 a worktree do lucida-monorepo#125 tinha 15 TUIs no
+          # prompt, todas contadas como ocupadas, nenhuma fechada, e o
+          # `gh:reap` nunca chegava na contagem 0 que solta o lock. O custo é
+          # um `wait` de 1,5s por terminal vivo; quem está trabalhando dá
+          # timeout e continua contando.
           if [ "$saida" -lt "$corte" ]; then
             candidatos="$candidatos $h"
-          elif [ "$saida" -lt "$corte_prompt" ]; then
+          else
             espera=$(orca terminal wait --terminal "$h" --for tui-idle --timeout-ms 1500 --json 2>/dev/null || true)
             if printf '%s' "$espera" | jq -e '.result.wait.satisfied == true' >/dev/null 2>&1; then
-              echo "  · terminal $h com o agente no prompt — corte de {{.DONE_IDLE_MIN}} min" >&2
-              candidatos="$candidatos $h"
+              # A folga do DONE_IDLE_MIN continua, só que medida pela evidência
+              # mais ANTIGA de ociosidade: o `lastOutputAt`, quando ele de fato
+              # envelheceu, ou a primeira vez que este tick viu a TUI no prompt.
+              # Com o rodapé redesenhando, só a segunda envelhece.
+              mi="{{.STATE_DIR}}/idle/$h"
+              [ -f "$mi" ] || { mkdir -p "$(dirname "$mi")"; echo "$agora" > "$mi"; }
+              desde_idle=$(cat "$mi" 2>/dev/null || echo "$agora")
+              [ "$saida" -lt "$desde_idle" ] && desde_idle="$saida"
+              if [ $(( agora - desde_idle )) -ge $(( {{.DONE_IDLE_MIN}} * 60 )) ]; then
+                echo "  · terminal $h com o agente no prompt (tui-idle) — fechando" >&2
+                candidatos="$candidatos $h"
+                rm -f "$mi"
+              fi
+            else
+              rm -f "{{.STATE_DIR}}/idle/$h"
             fi
           fi
         done
