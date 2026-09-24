@@ -8,6 +8,7 @@
 # Git modules
 .gitmodules
 ^/ai$
+^/rendeira$
 
 # Repository
 ^/README.*

@@ -39,6 +39,7 @@ O submódulo `ai/` é o repositório **privado** — o critério de admissão é
 ## Architecture Notes
 
 - **`ai/` is a git submodule** pointing to `alvarofpp/dotfiles-ai`. Changes there require separate commits/pushes. The main repo tracks a submodule pointer.
+- **`rendeira/` é submódulo privado** (`alvarofpp/rendeira`), mesmo regime do `ai/`, mas **não é pacote stow** — o `stow.sh` não o linka.
 - **`.stow-local-ignore`** excludes non-dotfile assets (README, setup.sh, iterm/, etc.) from stow operations. Edit this when adding new top-level files that shouldn't be symlinked. The `ai/` submodule has its **own** `.stow-local-ignore` that filters Claude Code runtime dirs (`backups/`, `cache/`, `file-history/`, `sessions/`, `history.jsonl`, etc.) so `stow ai` only links stable config (`commands/`, `agents/`, `rules/`, `hooks/`, `skills/`, `CLAUDE.md`, `RTK.md`, `settings.json`). Desde 2026-09-08, `commands/`, `agents/`, `rules/` e `hooks/` são **symlinks de diretório** — arquivo novo aparece sem re-stow. `skills/` continua desdobrado de propósito: ele mistura o repo com `~/.agents/skills/`, e foldá-lo esconderia as skills de lá. `plugins/` é runtime e nunca foi linkado.
 
   **Um conflito aborta o pacote inteiro**, e o `./stow.sh` termina em `✅` do mesmo jeito — confira com `./stow.sh --dry-run | grep -i 'conflict\|aborted'`.
