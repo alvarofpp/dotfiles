@@ -2317,6 +2317,42 @@ tasks:
             || echo "  $ref: a triagem falhou ou estourou o tempo — fica em Ready"
         done
 
+  worktree:
+    desc: "Garante a worktree Orca de uma issue e imprime o caminho. ISSUE=owner/repo#N"
+    summary: |
+      A worktree de uma issue, criada pelo Orca (`--issue` a linka à issue, e o
+      `setup:` do `orca.yaml` sobe a instância). Reaproveitada se já existe.
+      Separada do `gh:orca` porque a rendeira (dotfiles-ai#92) cria a worktree
+      pelo mesmo caminho e roda o agente ela mesma: worktree feita por `git
+      worktree` o Orca não enxerga, e o `gh:pr-tick`/`gh:close` dependem dele.
+
+      Examples:
+        - task gh:worktree ISSUE=alvarofpp/matria#12
+    requires:
+      vars: [ISSUE]
+    cmds:
+      - |
+        ref=$(printf '%s' "{{.ISSUE}}" | sed -E 's#^https://github\.com/##; s#/issues/#\##')
+        repo="${ref%\#*}"; num="${ref##*\#}"
+        # Seletor da worktree ESCOPADO POR REPO. O `issue:<n>` do Orca casa
+        # pelo número da issue e ignora o repositório: com vários repos no
+        # board, todo número existe em mais de um. Em 2026-09-07 o `gh:close`
+        # processou `lucida-monorepo#14` (Done) e o `orca worktree rm
+        # --worktree issue:14` apagou a worktree do `abacaxei-app#14`, que o
+        # `gh:dispatch` tinha criado 87s antes — a issue ficou em In Progress
+        # com `agent:running` e sem worktree, e todo tick repetia a remoção.
+        wt="$HOME/orca/workspaces/${repo##*/}/issue-$num"
+        # Worktree nova nasce SEM `--agent`: o `--agent` do Orca só lança agente
+        # conhecido e não aceita função de shell nem env, então o `claude-mini`
+        # (dotfiles-ai#100) não passaria por ali. Quem lança é o chamador.
+        if ! orca worktree show --worktree "path:$wt" >/dev/null 2>&1; then
+          title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
+          orca worktree create \
+            --project "github:$repo" --host local \
+            --name "issue-$num" --issue "$num" --comment "$title" >/dev/null || exit 1
+          echo "worktree issue-$num criada e linkada à issue #$num" >&2
+        fi
+        echo "$wt"
   orca:
     desc: "Abre (ou reabre) a worktree Orca de uma issue com um agente. ISSUE=owner/repo#N"
     summary: |
@@ -2357,20 +2393,11 @@ tasks:
         # --worktree issue:14` apagou a worktree do `abacaxei-app#14`, que o
         # `gh:dispatch` tinha criado 87s antes — a issue ficou em In Progress
         # com `agent:running` e sem worktree, e todo tick repetia a remoção.
-        wtsel="path:$HOME/orca/workspaces/${repo##*/}/issue-$num"
-        title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
+        wtsel="path:$(task gh:worktree ISSUE="$ref")" || exit 1
         prompt="$PROMPT"
-        [ -n "$prompt" ] || prompt="Implemente a issue $repo#$num — $title. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments."
-
-        # Worktree nova nasce SEM `--agent`: o `--agent` do Orca só lança agente
-        # conhecido e não aceita função de shell nem env, então o `claude-mini`
-        # (dotfiles-ai#100) não passaria por ali. Criada, ela cai no mesmo
-        # `terminal create` da worktree reaproveitada — um caminho só pros dois.
-        if ! orca worktree show --worktree "$wtsel" >/dev/null 2>&1; then
-          orca worktree create \
-            --project "github:$repo" --host local \
-            --name "issue-$num" --issue "$num" --comment "$title" >/dev/null
-          echo "worktree issue-$num criada e linkada à issue #$num"
+        if [ -z "$prompt" ]; then
+          title=$(gh issue view "$num" -R "$repo" --json title --jq .title)
+          prompt="Implemente a issue $repo#$num — $title. Leia o enunciado e os comentários com: gh issue view $num -R $repo --comments."
         fi
 
         # O prompt vai por ARQUIVO, não na linha de comando. O `--command` é
