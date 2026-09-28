@@ -2790,179 +2790,17 @@ tasks:
         task gh:agents-ready || exit 0
 
         task gh:issues STATUS="In Review" | while read -r ref item; do
+          # Decidir o que revisar é do `gh:pr-tick-prep`, que a rendeira também
+          # chama. Vazio = nada a revisar (ele já disse por quê).
+          prep=$(task gh:pr-tick-prep REF="$ref") || prep=""
+          if [ -z "$prep" ]; then
+            continue
+          fi
+          pr=$(printf '%s' "$prep" | jq -r .pr); prompt=$(printf '%s' "$prep" | jq -r .prompt)
+          runner=$(printf '%s' "$prep" | jq -r .runner); rodada=$(printf '%s' "$prep" | jq -r .rodada)
           repo="${ref%\#*}"; num="${ref##*\#}"
 
-          # `agent:approved` deixou de ser filtro de lista: aprovação
-          # envelhece. Commit que entra depois da revisão — o `gh:answer`
-          # atendendo pergunta sua, o `gh:unstick` consertando CI — não passou
-          # por revisor nenhum, e com o label intacto o PR ia pro merge com a
-          # aprovação da versão ANTERIOR dele (matria#150, commit `6c94fc8c`).
-          #
-          # `continue`/`break` NÃO pode morar dentro de `if` aninhado em `if`
-          # aqui: o shell do Task (mvdan/sh) sai só do `if` de dentro, executa
-          # o resto do `if` de fora e só então aplica o desvio. A primeira
-          # versão disto tinha o `continue` dois níveis fundo e reabria PR com
-          # "0 commit(s) depois da revisão" — o log dizia 0 e ele reabria
-          # assim mesmo, num vai-e-vem de 15 em 15 minutos nos PRs #152 e #153
-          # do matria. Por isso a decisão vira a flag `usar` e o desvio fica
-          # num `if` de um nível só.
-          pr=""
-          # Ordem CRESCENTE, e isso importa: o `gh pr list` devolve do mais
-          # novo pro mais velho, e a issue que rende uma PILHA (cada PR baseado
-          # na branch do anterior) precisa ser revisada da BASE pro topo — é a
-          # ordem em que eles conseguem mesclar. Com a ordem do gh, o
-          # lucida-monorepo#125 passou a noite revisando o topo da pilha (#129)
-          # enquanto #126, #127 e #128 estavam verdes e sem revisor nenhum.
-          for cand in $(gh pr list -R "$repo" --state open --label agent --limit 50 \
-                          --json number,body \
-                          --jq '[.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number] | sort | .[]' 2>/dev/null); do
-            usar=1
-            aprovado=$(gh pr view "$cand" -R "$repo" --json labels \
-                         --jq '[.labels[].name] | index("agent:approved") != null' 2>/dev/null)
-            if [ "$aprovado" = "true" ]; then
-              # Commit NÃO-merge (um pai só) mais novo que a última review.
-              # Merge de `origin/main` fica de fora: quem o empurra é o
-              # revisor ao aprovar e o `gh:unstick`, e contá-lo faria cada
-              # avanço da main custar uma rodada até estourar o teto. Sem
-              # review nenhuma o `max` sai vazio e todo commit conta — que é o
-              # lado seguro de errar. O veredito do `/review-pr --check` é
-              # comentário de PR, não review: sem contá-lo, PR conferido sem
-              # thread nenhuma reabria a cada tick e pagava uma sessão de
-              # revisor por vez (abacaxei-app#266, 7 voltas em 70 min).
-              # Review de corpo vazio só vale pela resposta de thread marcada
-              # do revisor: o autor responde thread com a mesma conta, e a
-              # resposta dele contava como revisão do próprio commit.
-              base=$( { gh pr view "$cand" -R "$repo" --json reviews,comments \
-                          --jq '(.reviews[] | select((.body // "") != "") | .submittedAt),
-                                (.comments[] | select(.body | test("<!-- agent:review -->")) | .createdAt)'
-                        gh api "repos/$repo/pulls/$cand/comments?per_page=100" \
-                          --jq '.[] | select(.body | test("<!-- agent:review -->")) | .created_at'
-                      } 2>/dev/null | sort | tail -1)
-              novos=$(gh api "repos/$repo/pulls/$cand/commits?per_page=100" \
-                        --jq '[ .[] | select((.parents | length) < 2)
-                                | select(.commit.committer.date > "'"$base"'") ] | length' 2>/dev/null) || novos=0
-              if [ "${novos:-0}" -gt 0 ]; then
-                echo "$ref: #$cand aprovado mas com $novos commit(s) depois da revisão — reabrindo"
-                gh pr edit "$cand" -R "$repo" --remove-label agent:approved >/dev/null
-              else
-                usar=0
-              fi
-            fi
-            if [ "$usar" = "1" ]; then
-              pr="$cand"
-              break
-            fi
-          done
-          # PR do fluxo que nasceu SEM o label `agent` é invisível pro filtro
-          # acima, e a revisão nunca acontece. O `gh pr create --label agent`
-          # está no prompt da implementação, mas modelo mais barato esquece —
-          # abacaxei-app#278 e lucida-monorepo#126..#129 em 2026-09-19, todos
-          # rendendo só "destrave na mão" a cada dez minutos. Adota quando a
-          # evidência é inequívoca: aberto pela conta do fluxo, `Refs #<num>`
-          # no corpo E branch com `issue-<num>`. PR de terceiro não casa a
-          # autoria; PR solto seu não casa a branch. Adota o MENOR número —
-          # fase 1 antes da fase 2, quando a issue rendeu vários.
-          if [ -z "$pr" ]; then
-            eu=$(gh api user --jq .login 2>/dev/null)
-            orfao=$(gh pr list -R "$repo" --state open --limit 50 \
-                      --json number,body,author,headRefName,labels \
-                      --jq '[.[] | select([.labels[].name] | index("agent") | not)
-                             | select(.author.login == "'"$eu"'")
-                             | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))
-                             | select(.headRefName | test("issue-'"$num"'(\\D|$)"))
-                             | .number] | sort | first // empty' 2>/dev/null)
-            if [ -n "$orfao" ]; then
-              echo "$ref: #$orfao é do fluxo mas nasceu sem o label agent — adotando"
-              gh pr edit "$orfao" -R "$repo" --add-label agent >/dev/null && pr="$orfao"
-            fi
-          fi
-
-          # Pular calado aqui travou olhadinha#28 por um dia: o autor reescreveu
-          # o corpo do PR #35 e o `Refs #28` sumiu junto.
-          if [ -z "$pr" ]; then
-            echo "  · $ref: In Review sem PR aberto com label agent citando 'Refs #$num' no corpo — destrave na mão"
-            continue
-          fi
-
-          # PR com `agent:changes` já tem veredito: a bola é da implementação,
-          # não do revisor. Quem devolve a issue pra In Progress deveria ser o
-          # próprio revisor no fim da sessão, mas o modelo barato pula esse
-          # passo — e aí o tick refaz o `--check` de dez em dez minutos, com o
-          # mesmo "não pode aprovar" toda vez, e a issue nunca chega no
-          # gh:dispatch que consertaria. Foi o que segurou o
-          # lucida-monorepo#126 (16 achados) a noite inteira, e com ele a
-          # pilha toda atrás: o tick revisa um PR por issue.
-          # A transição é idempotente — o agente de implementação tira o
-          # `agent:changes` ao empurrar a correção, e aí a rodada seguinte
-          # volta a ser `--check`.
-          if [ "$(gh pr view "$pr" -R "$repo" --json labels \
-                    --jq '[.labels[].name] | index("agent:changes") != null' 2>/dev/null)" = "true" ]; then
-            echo "$ref: #$pr já está agent:changes — devolvendo pra implementação em vez de re-revisar"
-            task gh:issue-status REF="$ref" VALUE="In Progress"
-            continue
-          fi
-
-          # Conta rodada, não submissão: review com corpo é uma passada de
-          # revisor; review de corpo vazio é comentário ancorado postado
-          # solto. No PR 115 isso deu 7 "rodadas" em 8 segundos e o fluxo se
-          # auto-matou no teto — o guarda contra ping-pong virou o ping-pong.
-          rounds=$(gh pr view "$pr" -R "$repo" --json reviews \
-            --jq '[.reviews[] | select((.body // "") != "")] | length')
-
-          # O teto não é fixo: cada resposta sua a uma pergunta de rodadas
-          # concede mais N — o número que você escreveu, ou 1 se você
-          # respondeu sem número nenhum ("pode seguir", "vai"). O estado é a
-          # própria issue, pra não existir arquivo capaz de discordar do
-          # GitHub. De cada pergunta conta só o primeiro comentário humano
-          # depois dela, e desse comentário só o primeiro número.
-          #
-          # A leitura só acontece ao bater no teto base: abaixo dele o
-          # orçamento não muda decisão nenhuma, e o normal é o PR fechar em
-          # uma ou duas rodadas — sem isto, todo tick pagaria uma chamada de
-          # API por issue em revisão pra descobrir um número que não usaria.
-          limite={{.MAX_ROUNDS}}
-          if [ "$rounds" -ge "$limite" ]; then
-            extra=$(gh issue view "$num" -R "$repo" --json comments \
-              --jq '[.comments[].body] as $b
-                    | [$b | to_entries[] | select(.value | test("<!-- agent:question:rounds -->")) | .key]
-                    | map(. as $i
-                          | ([$b[($i+1):][] | select(test("<!-- agent") | not)] | first)
-                          | if . == null then empty
-                            else ([match("[0-9]+")] | first)
-                                 | if . == null then 1 else (.string | tonumber) end
-                            end)
-                    | add // 0' 2>/dev/null) || extra=0
-            limite=$(( {{.MAX_ROUNDS}} + ${extra:-0} ))
-          fi
-
-          # Modelos das duas faixas da revisão: os que o `gh:models` designou.
-          des=$(task gh:models REF="$ref" 2>/dev/null)
-          jul=$(printf '%s' "$des" | jq -r '.julgamento // empty' 2>/dev/null); jul=${jul:-opus}
-          conf=$(printf '%s' "$des" | jq -r '.conferencia // empty' 2>/dev/null); conf=${conf:-minimax-m3}
-
-          if [ "$rounds" -ge "$limite" ]; then
-            echo "$ref: $rounds rodadas sem convergir (teto $limite) — perguntando quantas mais"
-            corpo=$(printf '%s\n%s\n\n%s\n\n%s' \
-              "<!-- agent:question:rounds -->" \
-              "**Pergunta** — Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
-              "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`)." \
-              "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
-            gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
-            gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
-            rm -f {{.BOARD_CACHE}}
-            gh issue edit "$num" -R "$repo" --add-label agent:human >/dev/null
-            rm -f {{.BOARD_CACHE}}
-            task gh:issue-status REF="$ref" VALUE=Blocked
-            continue
-          fi
-
-          if [ "$rounds" -gt 0 ]; then
-            prompt="Rode /review-pr --check $pr — o PR já foi revisado e depois corrigido, então é conferir item a item o que foi pedido, não revisar de novo. Toda resposta em thread começa com <!-- agent:review --> e o prefixo '**Revisão** — '. Antes de qualquer coisa depois do check: FECHE as threads que você classificou como resolvidas (resolveReviewThread) e diga quantas fecharam e quantas ficaram abertas, com o motivo de cada uma que ficou. Thread que não é sua, ou achado parcial/não atendido, ou discordância do autor que não te convenceu: deixe aberta. Se o veredito for 'pode aprovar': traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, dê push, marque gh pr edit $pr -R $repo --add-label agent:approved e rode /review-pr --close $pr. NÃO mergeie — o merge é do Álvaro; seu trabalho é entregar o PR mergeável. Se ainda falta coisa: poste o que falta no PR, marque gh pr edit $pr -R $repo --add-label agent:changes e devolva a issue pra implementação com /issue-status $repo#$num In Progress. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
-          else
-            prompt="Rode /review-pr $pr --julgamento $jul --conferencia $conf e, com o relatório pronto, /review-pr --post $pr. Se a issue $repo#$num tem um comentário <!-- agent:plan --> (gh issue view $num -R $repo --comments), confira o diff contra ele: desvio que não está na seção '## Desvios do plano' do PR é achado importante, e o texto do achado começa com 'desvio do plano:' — é o que separa o que a crítica do plano deixou passar do resto. Antes do relatório, olhe o CI: gh pr checks $pr -R $repo. Job vermelho é achado bloqueante, com o trecho do log que prova (gh run view <run-id> -R $repo --log-failed). Todo comentário que você postar carrega o marcador <!-- agent:review --> e o prefixo **Revisão** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:review -->\n**Revisão** — o texto Se o veredito do relatório foi request_changes (há achado bloqueante ou importante): marque gh pr edit $pr -R $repo --add-label agent:changes e devolva a issue pra implementação com /issue-status $repo#$num In Progress. Se foi comment ou approve (no máximo sugestão e nit, e o --post já resolveu essas threads com resposta): traga a main (git fetch origin main && git merge origin/main), resolva os conflitos, dê push, marque gh pr edit $pr -R $repo --add-label agent:approved e rode /review-pr --close $pr. NÃO mergeie o PR em hipótese nenhuma — o merge é do Álvaro. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
-          fi
-
-          echo "→ $ref: revisando #$pr (rodada $((rounds+1)))"
+          echo "→ $ref: revisando #$pr (rodada $rodada)"
           gh issue edit "$num" -R "$repo" --add-label agent:running >/dev/null
           rm -f {{.BOARD_CACHE}}
           # Prompt por arquivo pelo mesmo motivo do `gh:orca`: `!` na linha
@@ -2983,7 +2821,7 @@ tasks:
           sid=$(cat /proc/sys/kernel/random/uuid)
           if ! orca terminal create --worktree "$wtsel" \
                  --title "review #$pr" \
-                 --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m claude --model opus --session-id $sid \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
+                 --command "CLAUDE_CODE_PROMPT_CACHE_TTL=5m $runner --session-id $sid \"\$(cat $pf)\"; rc=\$?; rm -f $pf; [ \$rc = 0 ] && exit" >/dev/null; then
             echo "  falhou ao abrir o terminal — soltando o lock"
             gh issue edit "$num" -R "$repo" --remove-label agent:running >/dev/null
             rm -f {{.BOARD_CACHE}}
@@ -2991,6 +2829,200 @@ tasks:
             task gh:run-log REF="$ref" ETAPA=revisao RUNNER=claude SESSAO="$sid"
           fi
         done
+
+  pr-tick-prep:
+    desc: "O que revisar pra UMA issue In Review: JSON {etapa, runner, pr, rodada, prompt, acao}, ou nada."
+    summary: |
+      O corpo por issue do `gh:pr-tick`, extraído pra ser chamado de fora: o tick
+      e a rendeira (rendeira#3) usam a mesma regra e o mesmo prompt. Não trava
+      lock nem abre sessão. Saída vazia = não revisar, com o motivo no stderr.
+      Age como o `gh:pr-tick` agia: tira `agent:approved` envelhecido, adota PR
+      sem o label `agent`, devolve pra In Progress (`agent:changes`) e pergunta
+      rodadas no teto (Blocked).
+
+      Examples:
+        - task gh:pr-tick-prep REF=alvarofpp/dotfiles-ai#92
+    requires:
+      vars: [REF]
+    vars:
+      MAX_ROUNDS: 5
+    cmds:
+      - |
+        ref="{{.REF}}"
+        repo="${ref%\#*}"; num="${ref##*\#}"
+
+        # `agent:approved` deixou de ser filtro de lista: aprovação
+        # envelhece. Commit que entra depois da revisão — o `gh:answer`
+        # atendendo pergunta sua, o `gh:unstick` consertando CI — não passou
+        # por revisor nenhum, e com o label intacto o PR ia pro merge com a
+        # aprovação da versão ANTERIOR dele (matria#150, commit `6c94fc8c`).
+        #
+        # `continue`/`break` NÃO pode morar dentro de `if` aninhado em `if`
+        # aqui: o shell do Task (mvdan/sh) sai só do `if` de dentro, executa
+        # o resto do `if` de fora e só então aplica o desvio. A primeira
+        # versão disto tinha o `continue` dois níveis fundo e reabria PR com
+        # "0 commit(s) depois da revisão" — o log dizia 0 e ele reabria
+        # assim mesmo, num vai-e-vem de 15 em 15 minutos nos PRs #152 e #153
+        # do matria. Por isso a decisão vira a flag `usar` e o desvio fica
+        # num `if` de um nível só.
+        pr=""
+        # Ordem CRESCENTE, e isso importa: o `gh pr list` devolve do mais
+        # novo pro mais velho, e a issue que rende uma PILHA (cada PR baseado
+        # na branch do anterior) precisa ser revisada da BASE pro topo — é a
+        # ordem em que eles conseguem mesclar. Com a ordem do gh, o
+        # lucida-monorepo#125 passou a noite revisando o topo da pilha (#129)
+        # enquanto #126, #127 e #128 estavam verdes e sem revisor nenhum.
+        for cand in $(gh pr list -R "$repo" --state open --label agent --limit 50 \
+                        --json number,body \
+                        --jq '[.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number] | sort | .[]' 2>/dev/null); do
+          usar=1
+          aprovado=$(gh pr view "$cand" -R "$repo" --json labels \
+                       --jq '[.labels[].name] | index("agent:approved") != null' 2>/dev/null)
+          if [ "$aprovado" = "true" ]; then
+            # Commit NÃO-merge (um pai só) mais novo que a última review.
+            # Merge de `origin/main` fica de fora: quem o empurra é o
+            # revisor ao aprovar e o `gh:unstick`, e contá-lo faria cada
+            # avanço da main custar uma rodada até estourar o teto. Sem
+            # review nenhuma o `max` sai vazio e todo commit conta — que é o
+            # lado seguro de errar. O veredito do `/review-pr --check` é
+            # comentário de PR, não review: sem contá-lo, PR conferido sem
+            # thread nenhuma reabria a cada tick e pagava uma sessão de
+            # revisor por vez (abacaxei-app#266, 7 voltas em 70 min).
+            # Review de corpo vazio só vale pela resposta de thread marcada
+            # do revisor: o autor responde thread com a mesma conta, e a
+            # resposta dele contava como revisão do próprio commit.
+            base=$( { gh pr view "$cand" -R "$repo" --json reviews,comments \
+                        --jq '(.reviews[] | select((.body // "") != "") | .submittedAt),
+                              (.comments[] | select(.body | test("<!-- agent:review -->")) | .createdAt)'
+                      gh api "repos/$repo/pulls/$cand/comments?per_page=100" \
+                        --jq '.[] | select(.body | test("<!-- agent:review -->")) | .created_at'
+                    } 2>/dev/null | sort | tail -1)
+            novos=$(gh api "repos/$repo/pulls/$cand/commits?per_page=100" \
+                      --jq '[ .[] | select((.parents | length) < 2)
+                              | select(.commit.committer.date > "'"$base"'") ] | length' 2>/dev/null) || novos=0
+            if [ "${novos:-0}" -gt 0 ]; then
+              echo "$ref: #$cand aprovado mas com $novos commit(s) depois da revisão — reabrindo" >&2
+              gh pr edit "$cand" -R "$repo" --remove-label agent:approved >/dev/null
+            else
+              usar=0
+            fi
+          fi
+          if [ "$usar" = "1" ]; then
+            pr="$cand"
+            break
+          fi
+        done
+        # PR do fluxo que nasceu SEM o label `agent` é invisível pro filtro
+        # acima, e a revisão nunca acontece. O `gh pr create --label agent`
+        # está no prompt da implementação, mas modelo mais barato esquece —
+        # abacaxei-app#278 e lucida-monorepo#126..#129 em 2026-09-19, todos
+        # rendendo só "destrave na mão" a cada dez minutos. Adota quando a
+        # evidência é inequívoca: aberto pela conta do fluxo, `Refs #<num>`
+        # no corpo E branch com `issue-<num>`. PR de terceiro não casa a
+        # autoria; PR solto seu não casa a branch. Adota o MENOR número —
+        # fase 1 antes da fase 2, quando a issue rendeu vários.
+        if [ -z "$pr" ]; then
+          eu=$(gh api user --jq .login 2>/dev/null)
+          orfao=$(gh pr list -R "$repo" --state open --limit 50 \
+                    --json number,body,author,headRefName,labels \
+                    --jq '[.[] | select([.labels[].name] | index("agent") | not)
+                           | select(.author.login == "'"$eu"'")
+                           | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))
+                           | select(.headRefName | test("issue-'"$num"'(\\D|$)"))
+                           | .number] | sort | first // empty' 2>/dev/null)
+          if [ -n "$orfao" ]; then
+            echo "$ref: #$orfao é do fluxo mas nasceu sem o label agent — adotando" >&2
+            gh pr edit "$orfao" -R "$repo" --add-label agent >/dev/null && pr="$orfao"
+          fi
+        fi
+
+        # Pular calado aqui travou olhadinha#28 por um dia: o autor reescreveu
+        # o corpo do PR #35 e o `Refs #28` sumiu junto.
+        if [ -z "$pr" ]; then
+          echo "  · $ref: In Review sem PR aberto com label agent citando 'Refs #$num' no corpo — destrave na mão" >&2
+          exit 0
+        fi
+
+        # PR com `agent:changes` já tem veredito: a bola é da implementação,
+        # não do revisor. Quem devolve a issue pra In Progress deveria ser o
+        # próprio revisor no fim da sessão, mas o modelo barato pula esse
+        # passo — e aí o tick refaz o `--check` de dez em dez minutos, com o
+        # mesmo "não pode aprovar" toda vez, e a issue nunca chega no
+        # gh:dispatch que consertaria. Foi o que segurou o
+        # lucida-monorepo#126 (16 achados) a noite inteira, e com ele a
+        # pilha toda atrás: o tick revisa um PR por issue.
+        # A transição é idempotente — o agente de implementação tira o
+        # `agent:changes` ao empurrar a correção, e aí a rodada seguinte
+        # volta a ser `--check`.
+        if [ "$(gh pr view "$pr" -R "$repo" --json labels \
+                  --jq '[.labels[].name] | index("agent:changes") != null' 2>/dev/null)" = "true" ]; then
+          echo "$ref: #$pr já está agent:changes — devolvendo pra implementação em vez de re-revisar" >&2
+          task gh:issue-status REF="$ref" VALUE="In Progress" >&2
+          exit 0
+        fi
+
+        # Conta rodada, não submissão: review com corpo é uma passada de
+        # revisor; review de corpo vazio é comentário ancorado postado
+        # solto. No PR 115 isso deu 7 "rodadas" em 8 segundos e o fluxo se
+        # auto-matou no teto — o guarda contra ping-pong virou o ping-pong.
+        rounds=$(gh pr view "$pr" -R "$repo" --json reviews \
+          --jq '[.reviews[] | select((.body // "") != "")] | length')
+
+        # O teto não é fixo: cada resposta sua a uma pergunta de rodadas
+        # concede mais N — o número que você escreveu, ou 1 se você
+        # respondeu sem número nenhum ("pode seguir", "vai"). O estado é a
+        # própria issue, pra não existir arquivo capaz de discordar do
+        # GitHub. De cada pergunta conta só o primeiro comentário humano
+        # depois dela, e desse comentário só o primeiro número.
+        #
+        # A leitura só acontece ao bater no teto base: abaixo dele o
+        # orçamento não muda decisão nenhuma, e o normal é o PR fechar em
+        # uma ou duas rodadas — sem isto, todo tick pagaria uma chamada de
+        # API por issue em revisão pra descobrir um número que não usaria.
+        limite={{.MAX_ROUNDS}}
+        if [ "$rounds" -ge "$limite" ]; then
+          extra=$(gh issue view "$num" -R "$repo" --json comments \
+            --jq '[.comments[].body] as $b
+                  | [$b | to_entries[] | select(.value | test("<!-- agent:question:rounds -->")) | .key]
+                  | map(. as $i
+                        | ([$b[($i+1):][] | select(test("<!-- agent") | not)] | first)
+                        | if . == null then empty
+                          else ([match("[0-9]+")] | first)
+                               | if . == null then 1 else (.string | tonumber) end
+                          end)
+                  | add // 0' 2>/dev/null) || extra=0
+          limite=$(( {{.MAX_ROUNDS}} + ${extra:-0} ))
+        fi
+
+        # Modelos das duas faixas da revisão: os que o `gh:models` designou.
+        des=$(task gh:models REF="$ref" 2>/dev/null) || des=""
+        jul=$(printf '%s' "$des" | jq -r '.julgamento // empty' 2>/dev/null); jul=${jul:-opus}
+        conf=$(printf '%s' "$des" | jq -r '.conferencia // empty' 2>/dev/null); conf=${conf:-minimax-m3}
+
+        if [ "$rounds" -ge "$limite" ]; then
+          echo "$ref: $rounds rodadas sem convergir (teto $limite) — perguntando quantas mais" >&2
+          corpo=$(printf '%s\n%s\n\n%s\n\n%s' \
+            "<!-- agent:question:rounds -->" \
+            "**Pergunta** — Revisor e autor trocaram $rounds rodadas no PR #$pr sem convergir, e o teto atual é $limite." \
+            "**Como sigo?** Responda com o número de rodadas extras autorizadas — só o número basta (\`3\`, \`10\`)." \
+            "Pra assumir o PR na mão ou descartar o trabalho, mova o card no board em vez de responder.")
+          gh issue comment "$num" -R "$repo" --body "$corpo" >/dev/null
+          gh pr edit "$pr" -R "$repo" --add-label agent:human >/dev/null
+          rm -f {{.BOARD_CACHE}}
+          gh issue edit "$num" -R "$repo" --add-label agent:human >/dev/null
+          rm -f {{.BOARD_CACHE}}
+          task gh:issue-status REF="$ref" VALUE=Blocked >&2
+          exit 0
+        fi
+
+        if [ "$rounds" -gt 0 ]; then
+          prompt="Rode /review-pr --check $pr — o PR já foi revisado e depois corrigido, então é conferir item a item o que foi pedido, não revisar de novo. Toda resposta em thread começa com <!-- agent:review --> e o prefixo '**Revisão** — '. Antes de qualquer coisa depois do check: FECHE as threads que você classificou como resolvidas (resolveReviewThread) e diga quantas fecharam e quantas ficaram abertas, com o motivo de cada uma que ficou. Thread que não é sua, ou achado parcial/não atendido, ou discordância do autor que não te convenceu: deixe aberta. Se o veredito for 'pode aprovar': traga a main (git fetch origin main && git merge origin/main), resolva os conflitos que houver, dê push, marque gh pr edit $pr -R $repo --add-label agent:approved e rode /review-pr --close $pr. NÃO mergeie — o merge é do Álvaro; seu trabalho é entregar o PR mergeável. Se ainda falta coisa: poste o que falta no PR, marque gh pr edit $pr -R $repo --add-label agent:changes e devolva a issue pra implementação com /issue-status $repo#$num In Progress. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+        else
+          prompt="Rode /review-pr $pr --julgamento $jul --conferencia $conf e, com o relatório pronto, /review-pr --post $pr. Se a issue $repo#$num tem um comentário <!-- agent:plan --> (gh issue view $num -R $repo --comments), confira o diff contra ele: desvio que não está na seção '## Desvios do plano' do PR é achado importante, e o texto do achado começa com 'desvio do plano:' — é o que separa o que a crítica do plano deixou passar do resto. Antes do relatório, olhe o CI: gh pr checks $pr -R $repo. Job vermelho é achado bloqueante, com o trecho do log que prova (gh run view <run-id> -R $repo --log-failed). Todo comentário que você postar carrega o marcador <!-- agent:review --> e o prefixo **Revisão** — . O marcador vai em LINHA PRÓPRIA e o texto começa na linha seguinte, com o prefixo colado nele: linha que abre com <!-- é bloco HTML no CommonMark e sai literal até o fim da linha, então marcador e texto juntos entregam o comentário como texto puro, sem negrito e sem código. Assim:\n<!-- agent:review -->\n**Revisão** — o texto Se o veredito do relatório foi request_changes (há achado bloqueante ou importante): marque gh pr edit $pr -R $repo --add-label agent:changes e devolva a issue pra implementação com /issue-status $repo#$num In Progress. Se foi comment ou approve (no máximo sugestão e nit, e o --post já resolveu essas threads com resposta): traga a main (git fetch origin main && git merge origin/main), resolva os conflitos, dê push, marque gh pr edit $pr -R $repo --add-label agent:approved e rode /review-pr --close $pr. NÃO mergeie o PR em hipótese nenhuma — o merge é do Álvaro. Faça por último, SEMPRE: gh issue edit $num -R $repo --remove-label agent:running"
+        fi
+
+        jq -n --arg pr "$pr" --arg prompt "$prompt" --arg rodada "$((rounds+1))" \
+          '{etapa: "revisao", runner: "claude --model opus", pr: ($pr | tonumber), rodada: ($rodada | tonumber), prompt: $prompt, acao: "revisando #\($pr) (rodada \($rodada))"}'
 
   review-requested:
     desc: "PR de terceiro esperando revisão sua: despacha o revisor na branch do PR."
@@ -3556,6 +3588,9 @@ tasks:
       `gh:sweep` varre (fluxo sim, `agent:skip` e árvore principal não), e quem recebe o aviso do
       `gh:review-gate-notice` — errar ali é ruído em PR de outra pessoa, ou
       silêncio pra quem esperava revisão.
+      E a decisão por issue do `gh:pr-tick-prep`, com um `gh` falso no PATH:
+      ele age (pergunta rodadas, move card), e rodar contra o GitHub mexe em
+      issue de verdade.
       Nada de cópia — os programas jq são extraídos do próprio `GitHub.yml` e
       as tasks rodam de verdade, com as costuras `GATE`, `STATE`, `DRY` e
       `CACHE` injetadas; cópia que envelhece testa o passado.
@@ -3571,6 +3606,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/stall.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/model-probe.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/orphan-instance.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/pr-tick-prep.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/automerge.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/agents-busy.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/sweep.sh"
