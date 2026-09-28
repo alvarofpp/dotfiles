@@ -1643,9 +1643,14 @@ tasks:
         case "$wtpath" in
           */orca/workspaces/*/issue-[0-9]*)
             nome=$(basename "$(dirname "$wtpath")"); num="${wtpath##*/issue-}"
-            modelo=$(jq -rs --arg nome "$nome" --arg n "$num" \
-              '[.[] | select((.repo | split("/") | last) == $nome and .issue == ($n | tonumber))] | last
-               | (.runner // "") | capture("^claude-model (?<m>[^ ]+)").m // empty' "{{.RUNS_FILE}}" 2>/dev/null || true) ;;
+            ultimo=$(jq -cs --arg nome "$nome" --arg n "$num" \
+              '[.[] | select((.repo | split("/") | last) == $nome and .issue == ($n | tonumber))] | last // empty' \
+              "{{.RUNS_FILE}}" 2>/dev/null || true)
+            # O dono sai da mesma linha: a `troca` grava `owner/repo`, como o
+            # `gh:run-log`, senão o `/comparacao` da rendeira não a casa.
+            dono_repo=$(printf '%s' "$ultimo" | jq -r '.repo // empty' 2>/dev/null || true)
+            modelo=$(printf '%s' "$ultimo" \
+              | jq -r '(.runner // "") | capture("^claude-model (?<m>[^ ]+)").m // empty' 2>/dev/null || true) ;;
         esac
 
         # Terminal VIVO parado num modal de permissão. Não entra em
@@ -1797,7 +1802,7 @@ tasks:
                   # O modelo da sessão sai do RUNS_FILE: sem registrar a troca,
                   # o tick seguinte sondaria o provedor velho de novo.
                   if [ -n "${nome:-}" ] && [ -n "${num:-}" ]; then
-                    jq -cn --arg repo "$nome" --argjson n "$num" --arg r "claude-model $alvo" \
+                    jq -cn --arg repo "${dono_repo:-$nome}" --argjson n "$num" --arg r "claude-model $alvo" \
                       '{repo: $repo, issue: $n, etapa: "troca", runner: $r, em: (now | todate)}' \
                       >> "{{.RUNS_FILE}}" 2>/dev/null || true
                   fi

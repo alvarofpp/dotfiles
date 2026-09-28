@@ -280,6 +280,8 @@ troca() { # $1 descrição  $2 FALLBACKS  $3 enviou /model (s|n)  $4 retomou (s|
   confere "$1: segue vivo" fica "$(grep -qx f1 "$tmp/stub/fechados" && echo fecha || echo fica)"
   [ "$3" = s ] && confere "$1: troca no RUNS_FILE" glm-5.3-flash \
     "$(jq -r 'select(.etapa == "troca") | .runner | sub("^claude-model "; "")' "$runs2" | tail -1)"
+  [ "$3" = s ] && confere "$1: troca com o dono do repo" o/y \
+    "$(jq -r 'select(.etapa == "troca") | .repo' "$runs2" | tail -1)"
 }
 troca "cota fora, fallback no mesmo gateway" "minimax-m3=glm-5.3-flash" s s
 troca "fallback em outro endpoint (Opus)"    "minimax-m3=opus"          n n
