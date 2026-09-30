@@ -25,6 +25,10 @@ vars:
   # Snapshot do board (ver `gh:board-scan`). Var global porque todo ponto que
   # escreve Status ou lock precisa descartá-lo na mesma linha da escrita.
   BOARD_CACHE: $HOME/.local/state/gh-board/items.jsonl
+  # Interruptor de repos do tick: arquivo ausente = todos; presente = só os
+  # listados (um `owner/repo` por linha, `#` comenta, vazio = nenhum). Filtra
+  # toda etapa que abre agente: `gh:issues`, `review-requested` e `unstick`.
+  TICK_REPOS: $HOME/.local/state/gh-board/tick-repos
   # Modelo de cada etapa (plano, crítica, execução, julgamento, conferência):
   # designado por issue pelo `gh:models`, que grava aqui e comenta na issue.
   MODELS_FILE: $HOME/.local/state/gh-board/models.jsonl
@@ -2015,13 +2019,21 @@ tasks:
       vars: [STATUS]
     vars:
       CACHE: '{{.CACHE | default .BOARD_CACHE}}'
+      REPOS_FILE: '{{.REPOS_FILE | default .TICK_REPOS}}'
     cmds:
       - task: board-scan
         vars: { CACHE: '{{.CACHE}}' }
       - |
         # Snapshot ausente = varredura falhou. Sai vazio, como sempre saiu.
         [ -s "{{.CACHE}}" ] || exit 0
-        jq -r 'select(.content.__typename == "Issue")
+        # null = sem interruptor, todos os repos; lista = só esses.
+        permitidos=null
+        if [ -f "{{.REPOS_FILE}}" ]; then
+          permitidos=$(grep -vE '^[[:space:]]*(#|$)' "{{.REPOS_FILE}}" | jq -R . | jq -sc .)
+        fi
+        jq -r --argjson p "$permitidos" 'select(.content.__typename == "Issue")
+               | .content.repository.nameWithOwner as $r
+               | select($p == null or any($p[]; . == $r))
                | select(.content.state == "OPEN")
                | select([.content.labels.nodes[].name] | index("agent:running") | not)
                | select([.content.labels.nodes[].name] | index("agent:human") | not)
@@ -3094,6 +3106,7 @@ tasks:
         task gh:agents-ready || exit 0
 
         task gh:repos | sort -u | while read -r repo; do
+          if [ -f "{{.TICK_REPOS}}" ] && ! grep -qxF "$repo" "{{.TICK_REPOS}}"; then continue; fi
           # Reprovar aqui não pode ser calado: quem espera é PR de OUTRA
           # pessoa, e o silêncio se lê como "o revisor não achou nada".
           if ! motivo=$(task gh:review-ready REPO="$repo" 2>&1); then
@@ -3311,6 +3324,7 @@ tasks:
         task gh:agents-ready || exit 0
 
         task gh:repos | sort -u | while read -r repo; do
+          if [ -f "{{.TICK_REPOS}}" ] && ! grep -qxF "$repo" "{{.TICK_REPOS}}"; then continue; fi
           gh pr list -R "$repo" --state open --label agent:approved --limit 50 \
             --json number,body,mergeStateStatus \
             --jq '.[] | select(.mergeStateStatus == "DIRTY" or .mergeStateStatus == "BEHIND"

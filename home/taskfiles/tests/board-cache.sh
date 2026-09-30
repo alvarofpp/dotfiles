@@ -48,7 +48,8 @@ caso() { # nome, esperado, obtido
 }
 
 # TTL alto: snapshot recém-criado é reaproveitado, então nada vai à rede.
-lista() { task gh:issues STATUS="$1" CACHE="$cache" TTL=3600 2>/dev/null | awk '{print $1}' | paste -sd, -; }
+# REPOS_FILE inexistente = sem interruptor; o real (`TICK_REPOS`) não vaza pro teste.
+lista() { task gh:issues STATUS="$1" CACHE="$cache" TTL=3600 REPOS_FILE="${2:-/nao/existe}" 2>/dev/null | awk '{print $1}' | paste -sd, -; }
 
 caso "issue limpa entra"                    "o/r#1,o/r#5" "$(lista 'In Progress')"
 caso "outro Status não vaza"                "o/r#7"       "$(lista 'Ready')"
@@ -56,7 +57,16 @@ caso "Status inexistente sai vazio"         ""            "$(lista 'Blocked')"
 
 # O id do item é a segunda coluna — é ele que o `gh:status` consome.
 caso "leva o itemId junto" "PVTI_1" \
-  "$(task gh:issues STATUS='In Progress' CACHE="$cache" TTL=3600 2>/dev/null | awk '$1=="o/r#1"{print $2}')"
+  "$(task gh:issues STATUS='In Progress' CACHE="$cache" TTL=3600 REPOS_FILE=/nao/existe 2>/dev/null | awk '$1=="o/r#1"{print $2}')"
+
+# Interruptor de repos: presente, só o listado passa; vazio, nenhum.
+repos=$(mktemp); trap 'rm -f "$cache" "$repos"' EXIT
+printf '# comentário\no/r\n' > "$repos"
+caso "repo listado passa"                   "o/r#1,o/r#5" "$(lista 'In Progress' "$repos")"
+echo "x/y" > "$repos"
+caso "repo fora da lista some"              ""            "$(lista 'In Progress' "$repos")"
+: > "$repos"
+caso "arquivo vazio barra todos"            ""            "$(lista 'In Progress' "$repos")"
 
 # Invalidação: sem ela o `dispatch` leria o board de antes do `prep`.
 task gh:board-stale CACHE="$cache" >/dev/null 2>&1
