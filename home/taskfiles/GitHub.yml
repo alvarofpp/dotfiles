@@ -2977,8 +2977,11 @@ tasks:
         # revisor; review de corpo vazio é comentário ancorado postado
         # solto. No PR 115 isso deu 7 "rodadas" em 8 segundos e o fluxo se
         # auto-matou no teto — o guarda contra ping-pong virou o ping-pong.
+        # Resposta do autor (`agent:author`) também não é rodada: a correção
+        # que responde N achados posta N reviews com corpo, e o lucida#179
+        # bateu "9 rodadas" com duas revisões de verdade.
         rounds=$(gh pr view "$pr" -R "$repo" --json reviews \
-          --jq '[.reviews[] | select((.body // "") != "")] | length')
+          --jq '[.reviews[] | select((.body // "") != "" and ((.body // "") | test("<!-- agent:author -->") | not))] | length')
 
         # O teto não é fixo: cada resposta sua a uma pergunta de rodadas
         # concede mais N — o número que você escreveu, ou 1 se você
