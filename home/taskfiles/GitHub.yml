@@ -2348,7 +2348,7 @@ tasks:
           # `glm/glm-5.3-flash` deixou todo `claude` sem `--model` morrendo em
           # 5s ("unrecognized_model"), e a triagem do lucida#125 falhou a cada
           # 10 min sem outro sintoma. Etapa headless não herda escolha de TUI.
-          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.PREP_TIMEOUT}} claude --model opus --session-id "$sid" -p "/issue-prep $ref" ) \
+          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.PREP_TIMEOUT}} claude --model opus --session-id "$sid" -p "/issue-prep $ref" < /dev/null ) \
             || echo "  $ref: a triagem falhou ou estourou o tempo — fica em Ready"
         done
 
@@ -3484,7 +3484,7 @@ tasks:
           sid=$(cat /proc/sys/kernel/random/uuid)
           task gh:run-log REF="$ref" ETAPA=settle RUNNER=claude SESSAO="$sid"
           # `--model opus` pelo mesmo motivo do `gh:prep` — ver o comentário lá.
-          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.SETTLE_TIMEOUT}} claude --model opus --session-id "$sid" -p "/issue-status $ref Done" ) \
+          ( cd "$path" && CLAUDE_CODE_PROMPT_CACHE_TTL=5m timeout {{.SETTLE_TIMEOUT}} claude --model opus --session-id "$sid" -p "/issue-status $ref Done" < /dev/null ) \
             || echo "  $ref: a conferência falhou — fica em In Review"
         done
 
