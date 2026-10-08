@@ -2742,7 +2742,7 @@ tasks:
           aviso="$HOME/.local/state/gh-board/sem-provedor-$modelo-$(date +%F)"
           if [ ! -f "$aviso" ]; then
             mkdir -p "$(dirname "$aviso")" && : > "$aviso"
-            task gh:telegram TEXT="<b>$modelo</b> sem provedor de pé — despacho parado (ex.: $ref)" >/dev/null 2>&1 || true
+            TELEGRAM_TEXT="<b>$modelo</b> sem provedor de pé — despacho parado (ex.: $ref)" task gh:telegram >/dev/null 2>&1 || true
           fi
           exit 0
         fi
@@ -4324,7 +4324,7 @@ tasks:
             continue
           fi
 
-          if task gh:telegram TEXT="$texto" >/dev/null 2>&1; then
+          if TELEGRAM_TEXT="$texto" task gh:telegram >/dev/null 2>&1; then
             echo "$url $status" >> "$novo"
             echo "  ~ avisado: $titulo -> $status"
           else
@@ -4360,10 +4360,15 @@ tasks:
       acento e quebra de linha, e nenhum deles sobrevive a uma interpolação de
       template dentro de aspas.
 
+      Quem chama de dentro do fluxo passa `TELEGRAM_TEXT` no ambiente, **não**
+      `TEXT=`: o Task lê o valor de uma variável de CLI como template, e título
+      com chaves duplas de template (neurofolio-capital#69) fazia a task morrer com
+      `function "var" not defined` — o aviso era retentado em todo tick, para
+      sempre. `TEXT=` fica pra uso à mão.
+
       Examples:
         - task gh:telegram TEXT="<b>oi</b>"
-    requires:
-      vars: [TEXT]
+        - TELEGRAM_TEXT="$texto" task gh:telegram
     env:
       MSG: '{{.TEXT}}'
     cmds:
@@ -4374,6 +4379,8 @@ tasks:
           echo "telegram não configurado ($env)"
           exit 1
         fi
+        MSG="${TELEGRAM_TEXT:-$MSG}"
+        [ -n "$MSG" ] || { echo "sem texto: TEXT= ou TELEGRAM_TEXT"; exit 1; }
         curl -fsS -m 15 -o /dev/null \
           "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
           --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
@@ -4437,7 +4444,7 @@ tasks:
             texto=$(printf '✅ <b>Fluxo autônomo de volta</b>\n\nO portão reabriu depois de %s tick(s) fechado.' "${falhas:-0}")
             if [ -n "{{.DRY}}" ]; then
               printf '%s\n' "$texto"
-            elif ! task gh:telegram TEXT="$texto" >/dev/null 2>&1; then
+            elif ! TELEGRAM_TEXT="$texto" task gh:telegram >/dev/null 2>&1; then
               echo "  falhou o aviso de volta — retentando no próximo tick"
               exit 0
             fi
@@ -4457,7 +4464,7 @@ tasks:
             printf '%s\n' "$texto"
             avisado=1
             echo "  ~ avisado: portão fechado há $falhas ticks"
-          elif task gh:telegram TEXT="$texto" >/dev/null 2>&1; then
+          elif TELEGRAM_TEXT="$texto" task gh:telegram >/dev/null 2>&1; then
             avisado=1
             echo "  ~ avisado: portão fechado há $falhas ticks"
           else
