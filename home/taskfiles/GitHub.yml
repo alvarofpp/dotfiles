@@ -1535,7 +1535,7 @@ tasks:
       # cobrança, novidade de versão) para a sessão igual a um pedido de
       # permissão e redesenha do mesmo jeito. A `olhadinha#88` ficou 9h assim
       # em 2026-09-19, com saída de segundos atrás o tempo todo.
-      PROMPT_RE: '{{.PROMPT_RE | default "do you want to (proceed|make this edit|create|run)|do you trust the files|enter to continue"}}'
+      PROMPT_RE: '{{.PROMPT_RE | default "do you want to (proceed|make this edit|create|run)|do you trust the files|trust this folder|enter to continue"}}'
       # Aviso INFORMATIVO não é decisão: ninguém escolhe nada, só confirma que
       # leu ("mudamos a cobrança do classifier", "nova versão disponível"). Ele
       # para a sessão do mesmo jeito, mas chamar um humano pra apertar Enter é
@@ -1546,7 +1546,7 @@ tasks:
       # porque as sessões do board saem pelo gateway 127.0.0.1:8093 e o Claude
       # Code avisa que elas não entram na cobrança nova do auto mode.
       NOTICE_RE: '{{.NOTICE_RE | default "enter to continue"}}'
-      DECISION_RE: '{{.DECISION_RE | default "do you want to|do you trust the files"}}'
+      DECISION_RE: '{{.DECISION_RE | default "do you want to|do you trust the files|trust this folder"}}'
       # Quanto tempo o modal fica de pé antes de a sessão contar como parada.
       # Um tick do timer é 10 min; o dobro evita declarar parada uma sessão que
       # o tick pegou no instante em que o modal abriu.
