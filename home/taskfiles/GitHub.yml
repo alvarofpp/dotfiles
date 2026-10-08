@@ -139,7 +139,7 @@ tasks:
 
         checkout="{{.CHECKOUT}}"
         [ -n "$checkout" ] || checkout=$(task gh:repo-path REPO="$repo" 2>/dev/null) || checkout="$HOME/${repo%%/*}/$nome"
-        [ -d "$checkout/.git" ] || {
+        [ -e "$checkout/.git" ] || {
           echo "  ! $repo: sem checkout em $checkout — clone antes (gh repo clone $repo $checkout)"
           exit 1
         }
