@@ -2878,6 +2878,7 @@ tasks:
         # do matria. Por isso a decisão vira a flag `usar` e o desvio fica
         # num `if` de um nível só.
         pr=""
+        aguardando=""
         # Ordem CRESCENTE, e isso importa: o `gh pr list` devolve do mais
         # novo pro mais velho, e a issue que rende uma PILHA (cada PR baseado
         # na branch do anterior) precisa ser revisada da BASE pro topo — é a
@@ -2917,6 +2918,7 @@ tasks:
               gh pr edit "$cand" -R "$repo" --remove-label agent:approved >/dev/null
             else
               usar=0
+              aguardando="$aguardando #$cand"
             fi
           fi
           if [ "$usar" = "1" ]; then
@@ -2950,6 +2952,13 @@ tasks:
 
         # Pular calado aqui travou olhadinha#28 por um dia: o autor reescreveu
         # o corpo do PR #35 e o `Refs #28` sumiu junto.
+        # PR aprovado e sem commit novo não é trava: espera o merge, que é
+        # humano quando o `gh:automerge` recusa. Dizer "sem PR" aqui mandava
+        # procurar um PR que existe (matria#297/#299, neurofolio-capital#99).
+        if [ -z "$pr" ] && [ -n "$aguardando" ]; then
+          echo "  · $ref: aprovado, esperando merge:$aguardando" >&2
+          exit 0
+        fi
         if [ -z "$pr" ]; then
           echo "  · $ref: In Review sem PR aberto com label agent citando 'Refs #$num' no corpo — destrave na mão" >&2
           exit 0
