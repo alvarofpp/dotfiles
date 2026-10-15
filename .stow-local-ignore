@@ -9,6 +9,7 @@
 .gitmodules
 ^/ai$
 ^/rendeira$
+^/brazier$
 
 # Repository
 ^/README.*

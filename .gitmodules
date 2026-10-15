@@ -4,3 +4,6 @@
 [submodule "rendeira"]
 	path = rendeira
 	url = git@github.com:alvarofpp/rendeira.git
+[submodule "brazier"]
+	path = brazier
+	url = git@github.com:alvarofpp/brazier.git
