@@ -79,9 +79,9 @@ copy_windows() {
   cp "$DOTFILES_DIR/windows/.wslconfig" "$target/.wslconfig"
 }
 
-# Sempre: home (shell tooling) + ai (submodule)
+# Sempre: home (shell tooling) + private (submodule)
 run_stow_user home "$HOME"
-run_stow_user ai "$HOME"
+run_stow_user private "$HOME"
 
 # Só WSL2: etc + windows
 if is_wsl2; then

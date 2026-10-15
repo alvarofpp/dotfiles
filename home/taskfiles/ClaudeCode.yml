@@ -111,7 +111,7 @@ tasks:
           rm -rf "$d"
         done
 
-        # Processo preso a worktree apagada (dotfiles-ai#114). O teste Flutter
+        # Processo preso a worktree apagada (dotfiles-private#114). O teste Flutter
         # roda no host, fora do container, então o `dev:destroy` do
         # arquivamento não o alcança: em 2026-09-14 seis `flutter_tester`
         # (~1,4GB) seguiram de pé 1h38, adotados pelo `systemd --user`. Mesmo

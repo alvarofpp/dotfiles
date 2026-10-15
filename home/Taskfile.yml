@@ -10,10 +10,10 @@ includes:
   op: ./taskfiles/Operations.yml
   py: ./taskfiles/Python.yml
   ai:
-    taskfile: $HOME/dotfiles/ai/taskfiles/AI.yml
+    taskfile: $HOME/dotfiles/private/taskfiles/AI.yml
     optional: true
   svc:
-    taskfile: $HOME/dotfiles/ai/taskfiles/Services.yml
+    taskfile: $HOME/dotfiles/private/taskfiles/Services.yml
     optional: true
 
 tasks:

@@ -177,7 +177,7 @@ filho "no prompt, sem processo"              fecha
 # Modal de permissão: a sessão fica esperando tecla e o modal REDESENHA, então
 # `lastOutputAt` é sempre fresco e nenhum corte de ociosidade dispara. O erro
 # que isto impede é a issue sumir do fluxo — lock preso, `gh:issues` a esconde,
-# e ninguém mais olha (dotfiles-ai#127).
+# e ninguém mais olha (dotfiles-private#127).
 cat > "$tmp/bin/humano" <<'STUB'
 #!/usr/bin/env bash
 echo "$1#$2" >> "$ORCA_STUB/humanos"

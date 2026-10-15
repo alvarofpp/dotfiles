@@ -41,7 +41,7 @@ alias python="python3.13"
 export PATH=`echo ${PATH} | awk -v RS=: -v ORS=: '/2.7/ {next} {print}'`
 
 # User-local bins ganham precedência sobre /usr/bin (deixa wrappers em
-# ~/.local/bin/ — ex.: claude-mini do submódulo ai/ — interceptarem binários globais).
+# ~/.local/bin/ — ex.: claude-mini do submódulo private/ — interceptarem binários globais).
 export PATH="/home/${WSL_USER}/.local/bin:${PATH}"
 alias t=task --global
 eval "$(task --completion zsh)"
@@ -133,7 +133,7 @@ export PATH="$HOME/flutter/bin:$PATH"
 # RTK
 export RTK_TELEMETRY_DISABLED=1
 
-# Drop-in shell config (usado pelo submódulo ai/)
+# Drop-in shell config (usado pelo submódulo private/)
 if [[ -d $HOME/.zshrc.d ]]; then
   for f in $HOME/.zshrc.d/*.zsh(N); do
     source "$f"

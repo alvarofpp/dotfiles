@@ -1,6 +1,6 @@
 [submodule "ai"]
-	path = ai
-	url = git@github.com:alvarofpp/dotfiles-ai.git
+	path = private
+	url = git@github.com:alvarofpp/dotfiles-private.git
 [submodule "rendeira"]
 	path = rendeira
 	url = git@github.com:alvarofpp/rendeira.git

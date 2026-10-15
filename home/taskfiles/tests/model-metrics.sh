@@ -76,7 +76,7 @@ confere "designação sem repo/issue/em"             "glm-5.3 deepseek-v4-flash 
 confere "etapas na ordem, repo alheio fora"        "plano:claude execucao:claude-mini" "$(jq -r '[.etapas[] | "\(.etapa):\(.runner)"] | join(" ")' <<< "$issue")"
 confere "sessão na folga cai no plano"             "1 claude-opus-5" "$(jq -r '.etapas[0] | "\(.sessoes) \(.modelos | keys | join(","))"' <<< "$issue")"
 confere "execução soma as duas sessões"            "2 6" "$(jq -r '.etapas[1] | "\(.sessoes) \(.modelos["MiniMax-M3"].saida)"' <<< "$issue")"
-# Com `sessao` no RUNS_FILE (dotfiles-ai#130): sessão aberta à mão dentro da
+# Com `sessao` no RUNS_FILE (dotfiles-private#130): sessão aberta à mão dentro da
 # janela da execução não pode virar execução — era o `glm-5.3` com 379 tokens
 # de saída na linha de execução.
 printf '%s\n' \

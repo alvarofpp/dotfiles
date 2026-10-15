@@ -1,6 +1,6 @@
 #!/bin/sh
 # Uma etapa do tick do board: roda `task <etapa>` e anexa etapa, início, fim e rc
-# em tick.jsonl (dotfiles-ai#113). Sem isto, 5h de etapa travada e 5h de
+# em tick.jsonl (dotfiles-private#113). Sem isto, 5h de etapa travada e 5h de
 # trabalho são o mesmo silêncio no journal.
 #
 # `trap : TERM`, e não `trap '' TERM`: ignorar o sinal seria herdado pelo `task`,

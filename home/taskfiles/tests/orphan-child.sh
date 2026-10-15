@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checa o jq que o `gh:dispatch-prep` usa pra achar filha órfã de uma mãe
-# container (dotfiles-ai#134): aberta e fora do board, ou em Backlog/sem Status.
+# container (dotfiles-private#134): aberta e fora do board, ou em Backlog/sem Status.
 # Filha assim nunca é despachada e a mãe espera por ela pra sempre. O jq é
 # EXTRAÍDO do GitHub.yml, não copiado: cópia que envelhece testa o passado.
 #

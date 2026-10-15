@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checa como o `gh:dispatch` lê o PR da issue (dotfiles-ai#115): o número e se
+# Checa como o `gh:dispatch` lê o PR da issue (dotfiles-private#115): o número e se
 # ele ainda tem `agent:changes`. É isso que decide entre abrir sessão e só
 # mover o card pra In Review. O jq é EXTRAÍDO do GitHub.yml, não copiado:
 # cópia que envelhece testa o passado.

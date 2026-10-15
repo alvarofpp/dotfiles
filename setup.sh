@@ -188,23 +188,23 @@ echo "  -- plataforma --"
 # `windows/` entram. Fora do WSL2 os dois são pulados de propósito: `wsl.conf`
 # e `.wslconfig` não significam nada em macOS nem em Linux nativo.
 if [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null; then
-  echo "  ✅ WSL2 — stow.sh aplica home/, ai/, etc/ e windows/"
+  echo "  ✅ WSL2 — stow.sh aplica home/, private/, etc/ e windows/"
   if [ ! -d /mnt/c/Users/alvar ]; then
     echo "  ⚠️  /mnt/c/Users/alvar não existe — pacote windows/ será pulado"
   fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-  echo "  ✅ macOS — stow.sh aplica home/ e ai/; etc/ e windows/ ficam de fora"
+  echo "  ✅ macOS — stow.sh aplica home/ e private/; etc/ e windows/ ficam de fora"
 else
-  echo "  ✅ Linux nativo — stow.sh aplica home/ e ai/; etc/ e windows/ ficam de fora"
+  echo "  ✅ Linux nativo — stow.sh aplica home/ e private/; etc/ e windows/ ficam de fora"
 fi
 
 echo "  -- repo state --"
 if [ -d "$HOME/dotfiles" ]; then
   echo "  ✅ ~/dotfiles existe"
-  if [ -f "$HOME/dotfiles/ai/README.md" ]; then
-    echo "  ✅ submódulo ai/ inicializado"
+  if [ -f "$HOME/dotfiles/private/README.md" ]; then
+    echo "  ✅ submódulo private/ inicializado"
   else
-    echo "  ⚠️  submódulo ai/ não inicializado — rode 'git submodule update --init --recursive'"
+    echo "  ⚠️  submódulo private/ não inicializado — rode 'git submodule update --init --recursive'"
   fi
 else
   echo "  ⚠️  ~/dotfiles não existe — clone manualmente"
@@ -233,4 +233,4 @@ echo "Próximos passos:"
 echo "  1. cd ~/dotfiles && ./stow.sh --dry-run   # revise os symlinks"
 echo "  2. cd ~/dotfiles && ./stow.sh             # aplique"
 echo "  3. exec zsh                                # nova shell com tudo carregado"
-echo "  4. setup AI (opcional)                     # veja ai/docs/DEV_ONBOARDING.md"
+echo "  4. setup AI (opcional)                     # veja private/docs/DEV_ONBOARDING.md"

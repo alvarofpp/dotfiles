@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checa o `cc:prune-sessions` matando processo preso a worktree apagada
-# (dotfiles-ai#114). Roda a task de verdade, com HOME falso: sem `.claude`
+# (dotfiles-private#114). Roda a task de verdade, com HOME falso: sem `.claude`
 # nele, os laços de sessão e transcript não encontram nada real pra apagar.
 #
 # O erro caro é o oposto do que a task conserta: matar processo de worktree

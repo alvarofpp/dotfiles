@@ -7,7 +7,7 @@
 
 # Git modules
 .gitmodules
-^/ai$
+^/private$
 ^/rendeira$
 ^/brazier$
 
