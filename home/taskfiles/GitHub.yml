@@ -3067,6 +3067,9 @@ tasks:
       está no `headRefOid` atual. Se o GitHub um dia deixar de limpar o pedido,
       isso impede o tick de revisar o mesmo commit em loop.
 
+      **Só repo `{{.PROJECT_OWNER}}/*`.** Repo de outra organização fica fora
+      inteiro — sem revisor e sem o aviso do portão —, mesmo com `AGENTS.md`.
+
       **O interruptor por repo é o `AGENTS.md`**, não uma lista à parte: sem ele
       o revisor não tem como se escolher, e é o mesmo pré-requisito que o resto
       do fluxo já exige (`gh:review-ready`). Repo de terceiro entra adicionando
@@ -3119,6 +3122,9 @@ tasks:
 
         task gh:repos | sort -u | while read -r repo; do
           if [ -f "{{.TICK_REPOS}}" ] && ! grep -qxF "$repo" "{{.TICK_REPOS}}"; then continue; fi
+          # Só repo seu. Em repo de outra organização o revisor não roda — nem
+          # o aviso do portão sai, que seria comentário do fluxo em casa alheia.
+          case "$repo" in {{.PROJECT_OWNER}}/*) ;; *) continue ;; esac
           # Reprovar aqui não pode ser calado: quem espera é PR de OUTRA
           # pessoa, e o silêncio se lê como "o revisor não achou nada".
           if ! motivo=$(task gh:review-ready REPO="$repo" 2>&1); then
