@@ -5084,8 +5084,10 @@ tasks:
             linha=$(printf '%s\n%s\n' "$issue" "$prjson" | jq -cs --arg repo "$repo" --arg dono "{{.PROJECT_OWNER}}" \
               --argjson proj {{.PROJECT_NUMBER}} "$JQ")
             [ -n "$linha" ] || continue
+            # `fromjson?` no SESSIONS_FILE: sessão morta deixa linha cortada, e uma
+            # só derrubava o JQE de toda issue fechada dali em diante.
             linha=$(printf '%s' "$linha" | jq -c --arg nome "$r" \
-              --slurpfile runs "{{.RUNS_FILE}}" --slurpfile sess "{{.SESSIONS_FILE}}" --slurpfile mods "{{.MODELS_FILE}}" "$JQE") \
+              --slurpfile runs "{{.RUNS_FILE}}" --slurpfile sess <(jq -cR 'fromjson?' "{{.SESSIONS_FILE}}") --slurpfile mods "{{.MODELS_FILE}}" "$JQE") \
               || { echo "  ! $repo#$num: não juntei as etapas — fica pra próxima"; continue; }
             printf '%s\n' "$linha" >> "$arq"
             novas=$((novas + 1))
