@@ -132,6 +132,16 @@ else
   echo "✅ opencode is already installed"
 fi
 
+# Rust (rustup oficial; brew não instala o rustup como padrão do toolchain).
+# --no-modify-path: o PATH vem do home/.zshrc.
+if ! command -v rustup >/dev/null 2>&1 && [ ! -x "$HOME/.cargo/bin/rustup" ]; then
+  echo "Installing rustup..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal -c clippy,rustfmt \
+    && echo "🎉 rustup was successfully installed" || echo "❌ rustup"
+else
+  echo "✅ rustup is already installed"
+fi
+
 # Linux-only system packages (apt)
 # - gnome-keyring: backend de libsecret pra Orca/opencode guardarem tokens em
 #   sessões WSL2 sem desktop. Sem isso, "org.freedesktop.secrets was not provided".

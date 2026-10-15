@@ -46,6 +46,9 @@ export PATH="/home/${WSL_USER}/.local/bin:${PATH}"
 alias t=task --global
 eval "$(task --completion zsh)"
 
+# Rust (rustup em ~/.cargo, instalado pelo setup.sh)
+export PATH="/home/${WSL_USER}/.cargo/bin:${PATH}"
+
 # Add Pulumi to the PATH
 export PATH="$PATH:/home/${WSL_USER}/.pulumi/bin"
 
