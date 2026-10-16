@@ -3717,6 +3717,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/dispatch-changes.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/orphan-child.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/model-metrics.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/sessions-append.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/model-assignment.sh"
       # A conta da página /ctl/modelos sai dos mesmos arquivos que as tasks
       # acima escrevem: se ela roda só quando alguém lembra, ela quebra calada.
@@ -4993,7 +4994,13 @@ tasks:
           # `fromjson?`: sessão morta no meio pode deixar a última linha cortada.
           linha=$(cat "$t" "$d/$sid"/subagents/*.jsonl 2>/dev/null | jq -cR 'fromjson?' \
             | jq -cs --arg nome "$nome" --arg n "$num" --arg s "$sid" --slurpfile precos "{{.PRICES_FILE}}" "$JQS") || exit 1
-          if [ -n "$linha" ]; then printf '%s\n' "$linha" >> "$arq"; fi
+          # A linha vai inteira e sob `flock` (dotfiles-private#145): o `printf >>` solto deixava meia linha
+          # quando dois arquivamentos corriam juntos ou um morria no meio, e o registro seguinte grudava nela.
+          # Arquivo sem `\n` final é fechado antes; sessão que outro gravou na espera não duplica.
+          if [ -n "$linha" ]; then
+            flock "$arq" sh -c '[ -s "$2" ] && [ -n "$(tail -c1 "$2")" ] && echo >> "$2"
+              grep -qF "\"sessao\":\"$3\"" "$2" || printf "%s\n" "$1" >> "$2"' _ "$linha" "$arq" "$sid"
+          fi
         done
 
   metrics:
