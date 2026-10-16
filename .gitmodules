@@ -7,3 +7,6 @@
 [submodule "brazier"]
 	path = brazier
 	url = git@github.com:alvarofpp/brazier.git
+[submodule "alexandria"]
+	path = alexandria
+	url = git@github.com:alvarofpp/alexandria.git
