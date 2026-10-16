@@ -801,12 +801,18 @@ tasks:
         # `gh:repo-path`: o `orca repo list` que ele usa leva ~4 min com o
         # runtime ocupado, e aqui ele seria chamado a cada rodada.
         # `DIR=` curto-circuita os dois.
+        #
+        # Todo git daqui roda por `g`, com hook e fsmonitor neutralizados: o
+        # checkout é um repositório que outra pessoa (ou um agente) mexe, e um
+        # `pre-push` ou um `core.fsmonitor` no `.git` dele executaria código
+        # nesta máquina só porque um PR foi aprovado.
+        g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c protocol.ext.allow=never "$@"; }
         dir="{{.DIR}}"
         if [ -z "$dir" ]; then
           nome=$(printf '%s' "{{.REPO}}" | sed 's#.*/##')
           for c in "$HOME/$nome" "$HOME"/*/"$nome"; do
             [ -d "$c/.git" ] || continue
-            url=$(git -C "$c" remote get-url origin 2>/dev/null)
+            url=$(g -C "$c" remote get-url origin 2>/dev/null)
             case "$url" in *"{{.REPO}}"*) dir="$c"; break ;; esac
           done
         fi
@@ -921,31 +927,31 @@ tasks:
               || { echo "   ✗ CI não ficou verde — pulando"; continue; }
           fi
 
-          git fetch origin --quiet
-          mainsha=$(git rev-parse "origin/$base")
-          headsha=$(git rev-parse "origin/$br")
+          g fetch origin --quiet
+          mainsha=$(g rev-parse "origin/$base")
+          headsha=$(g rev-parse "origin/$br")
           # O que o filtro julgou é `headRefOid`; se a branch andou desde então,
           # o veredito não vale mais.
           [ "$headsha" = "$oid" ] || { echo "   ✗ a branch mudou depois do julgamento — pulando"; continue; }
 
           # Já contém a main? Nada a atualizar.
-          if git merge-base --is-ancestor "$mainsha" "$headsha"; then
+          if g merge-base --is-ancestor "$mainsha" "$headsha"; then
             echo "   · já está em dia com $base"
           else
             # merge-tree honra o .gitattributes (union), que é justamente o que
             # o GitHub ignora. Sem working tree: só objetos.
-            tree=$(git merge-tree --write-tree "$headsha" "$mainsha" 2>/dev/null) || {
+            tree=$(g merge-tree --write-tree "$headsha" "$mainsha" 2>/dev/null) || {
               echo "   ✗ conflito real (não é o índice append-only) — deixa pro gh:unstick"
               continue
             }
-            novo=$(git commit-tree "$tree" -p "$headsha" -p "$mainsha" \
+            novo=$(g commit-tree "$tree" -p "$headsha" -p "$mainsha" \
                      -m "Merge branch '$base' into $br")
             if [ "{{.DRY}}" = "1" ]; then
               echo "   · [dry] traria $base pra $br (commit $novo)"
             else
               # Chaves obrigatórias: `$novo:refs/...` é lido como modificador
               # `:r` do zsh e o refspec chega mutilado ("efs/heads/...").
-              git push origin "${novo}:refs/heads/${br}" --quiet \
+              g push origin "${novo}:refs/heads/${br}" --quiet \
                 && { echo "   · $base trazida pra $br"; headsha="$novo"; } \
                 || { echo "   ✗ push recusado — pulando"; continue; }
             fi
@@ -1075,8 +1081,13 @@ tasks:
         [ -f "$lista" ] || barra "automerge desligado (não existe $lista)"
         # Repo de outro dono não é alcançável por glob: mesclar no repositório
         # de alguém sem essa pessoa ver é decisão dela.
-        case "$repo" in
-          {{.PROJECT_OWNER}}/*) porglob=sim ;;
+        # O GitHub não diferencia maiúsculas em nome de repo, e o `case` do
+        # shell diferencia: `!alvarofpp/Foo` não negaria `alvarofpp/foo`. Tudo
+        # aqui compara em minúsculas (repo e linhas do arquivo).
+        minus() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+        repo_l=$(minus "$repo")
+        case "$repo_l" in
+          "$(minus "{{.PROJECT_OWNER}}")"/*) porglob=sim ;;
           *) porglob=nao ;;
         esac
         # `!padrão` NEGA, e a negação ganha: é o que tira UM repo de dentro do
@@ -1086,18 +1097,18 @@ tasks:
         # linhas não decidir nada.
         while IFS= read -r linha || [ -n "$linha" ]; do
           linha=${linha%%#*}
-          linha=$(printf '%s' "$linha" | tr -d '[:space:]')
+          linha=$(printf '%s' "$linha" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
           case "$linha" in
             "!"?*)
               padrao=${linha#!}
-              case "$repo" in $padrao) barra "$repo está negado em $lista (!$padrao)" ;; esac ;;
+              case "$repo_l" in $padrao) barra "$repo está negado em $lista (!$padrao)" ;; esac ;;
           esac
         done < "$lista"
 
         ok=0
         while IFS= read -r linha || [ -n "$linha" ]; do
           linha=${linha%%#*}
-          linha=$(printf '%s' "$linha" | tr -d '[:space:]')
+          linha=$(printf '%s' "$linha" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
           [ -n "$linha" ] || continue
           # `if`, não `[ ... ] && ...`. O errexit do shell do Task pega o
           # comando NU que falha e o `&&` que fecha o bloco (é o caso do
@@ -1107,8 +1118,8 @@ tasks:
           # mensagem do repo de terceiro não autorizado se perdeu. O `if`
           # resolve os dois casos e diz o que quer dizer.
           if [ "$porglob" = sim ]; then
-            case "$repo" in $linha) ok=1; break ;; esac
-          elif [ "$linha" = "$repo" ]; then
+            case "$repo_l" in $linha) ok=1; break ;; esac
+          elif [ "$linha" = "$repo_l" ]; then
             ok=1; break
           fi
         done < "$lista"
@@ -1124,13 +1135,13 @@ tasks:
         j=$(gh api graphql -f query='
           query($o:String!,$n:String!,$pr:Int!){ repository(owner:$o,name:$n){
             pullRequest(number:$pr){
-              state isDraft mergeable additions deletions changedFiles
+              state isDraft mergeable additions deletions changedFiles headRefOid
               labels(first:30){ nodes{ name } }
-              reviews(first:50){ nodes{ author{login} body submittedAt comments(first:1){ nodes{ author{login} body } } } }
+              reviews(first:50){ totalCount nodes{ author{login} body submittedAt commit{ oid } comments(first:1){ nodes{ author{login} body } } } }
               comments(last:50){ nodes{ author{login} body createdAt } }
-              reviewThreads(first:100){ nodes{ isResolved comments(first:10){ nodes{ author{login} body } } } }
+              reviewThreads(first:100){ totalCount nodes{ isResolved comments(first:10){ nodes{ author{login} body } } } }
               files(first:100){ nodes{ path } }
-              commits(last:30){ nodes{ commit{ committedDate parents{ totalCount }
+              commits(last:30){ nodes{ commit{ oid committedDate parents{ totalCount }
                 statusCheckRollup{ state } } } } } } }' \
           -f o="$o" -f n="$n" -F pr="$pr" --jq '.data.repository.pullRequest' 2>/dev/null) \
           || barra "não consegui ler o PR #$pr"
@@ -1159,12 +1170,16 @@ tasks:
         # destravaria "achado sem resposta" ou esconderia commit posterior.
         passadas='[(.reviews.nodes[] | select(.author.login == "{{.PROJECT_OWNER}}") | select((.body // "") != "") | .submittedAt),
                    ((.comments.nodes // [])[] | select(.author.login == "{{.PROJECT_OWNER}}") | select((.body // "") | test("<!-- agent:review -->")) | .createdAt)]'
-        # Pra "o que veio depois da revisão" vale também a conferência feita só
-        # em thread (#267, #268): review de corpo vazio cuja resposta é do
-        # revisor. A do autor (`agent:author`) é a mesma conta e NÃO vale.
-        vistas='[($passadas[]), (.reviews.nodes[] | select((.body // "") == "")
-                   | select(.comments.nodes[0].author.login == "{{.PROJECT_OWNER}}")
-                   | select((.comments.nodes[0].body // "") | test("<!-- agent:review -->")) | .submittedAt)]'
+        # (`vistaso`, no passo 4, soma a isso a conferência feita só em thread
+        # (#267, #268): review de corpo vazio cuja resposta é do revisor. A do
+        # autor (`agent:author`) é a mesma conta e NÃO vale.)
+        # Lista que a API devolveu pela metade não se julga: o que ficou de fora
+        # pode ser justamente o que barraria.
+        for campo in reviews reviewThreads; do
+          tot=$(leia ".$campo.totalCount"); lidas=$(leia ".$campo.nodes | length")
+          [ "${tot:-999999}" -le "${lidas:-0}" ] \
+            || barra "$tot $campo e só consegui ler $lidas — lista truncada"
+        done
         rodadas=$(leia "$passadas | length")
         [ "${rodadas:-0}" -ge 1 ] || barra "nenhuma revisão com corpo — agent:approved sem revisão atrás"
         [ "${rodadas:-0}" -le {{.MAX_ROUNDS_AUTO}} ] \
@@ -1186,10 +1201,48 @@ tasks:
         # 4. Código depois da revisão. Merge commit não conta: é a própria
         #    atualização da main que o `gh:merge-approved` empurra, e contá-la
         #    reprovaria todo PR que ele mesmo põe em dia.
-        ultima=$(leia "$passadas as \$passadas | $vistas | max // \"\"")
+        #
+        #    O que vale é o OID, não a data. `committedDate` é do autor do
+        #    commit e se forja: um commit novo com data anterior à revisão
+        #    passaria. A review carrega o commit que o revisor viu
+        #    (`commit.oid`, posto pelo GitHub): o head tem que ser esse, ou
+        #    só merge depois dele (posição na lista de commits do PR, não data).
+        #    LIMITE: o CONTEÚDO desse merge não é conferido aqui (precisaria de
+        #    git); um merge que carregue código extra passa. A porta em Python
+        #    (`fluxo/automerge.py`) confere a árvore do merge. Quando a última
+        #    conferência foi um comentário marcado (`/review-pr --check`), que
+        #    não tem oid, só resta a data — e um commit retroativo depois dele
+        #    passa; limite aceito, o caminho comum é a review.
+        vistaso='[(.reviews.nodes[] | select(.author.login == "{{.PROJECT_OWNER}}") | select((.body // "") != "")
+                    | {t: .submittedAt, k: "review", o: (.commit.oid // "")}),
+                  ((.comments.nodes // [])[] | select(.author.login == "{{.PROJECT_OWNER}}") | select((.body // "") | test("<!-- agent:review -->"))
+                    | {t: .createdAt, k: "comentario", o: ""}),
+                  (.reviews.nodes[] | select((.body // "") == "")
+                    | select(.comments.nodes[0].author.login == "{{.PROJECT_OWNER}}")
+                    | select((.comments.nodes[0].body // "") | test("<!-- agent:review -->"))
+                    | {t: .submittedAt, k: "review", o: (.commit.oid // "")})]'
+        ultima=$(leia "$vistaso | map(select(.t != null)) | sort_by([.t, (.k == \"review\")]) | last | .t // \"\"")
         [ -n "$ultima" ] || barra "revisão sem data — não dá pra saber o que veio depois"
-        depois=$(leia "[.commits.nodes[].commit | select(.parents.totalCount < 2) | select(.committedDate > \"$ultima\")] | length")
-        [ "${depois:-1}" = "0" ] || barra "$depois commit(s) depois da revisão — ninguém olhou esse código"
+        tipo=$(leia "$vistaso | map(select(.t != null)) | sort_by([.t, (.k == \"review\")]) | last | .k")
+        if [ "$tipo" = review ]; then
+          oid_rev=$(leia "$vistaso | map(select(.t != null)) | sort_by([.t, (.k == \"review\")]) | last | .o")
+          head_oid=$(leia '.headRefOid // ""')
+          [ -n "$oid_rev" ] || barra "a revisão não diz qual commit viu — não dá pra saber o que veio depois"
+          [ -n "$head_oid" ] || barra "o PR não diz qual é o head — não dá pra saber o que veio depois"
+          if [ "$oid_rev" != "$head_oid" ]; then
+            apos=$(printf '%s' "$j" | jq -r --arg o "$oid_rev" '[.commits.nodes[].commit] as $c
+              | ($c | map(.oid) | index($o)) as $i
+              | if $i == null then "fora"
+                else ([$c[($i + 1):][] | select(.parents.totalCount < 2)] | length | tostring) end' 2>/dev/null)
+            case "$apos" in
+              fora|"") barra "o commit que a revisão viu não está entre os commits lidos — ninguém olhou o que veio depois" ;;
+            esac
+            [ "$apos" = "0" ] || barra "$apos commit(s) depois da revisão — ninguém olhou esse código"
+          fi
+        else
+          depois=$(leia "[.commits.nodes[].commit | select(.parents.totalCount < 2) | select(.committedDate > \"$ultima\")] | length")
+          [ "${depois:-1}" = "0" ] || barra "$depois commit(s) depois da revisão — ninguém olhou esse código"
+        fi
 
         # 5. CI. Rollup nulo = nenhum job disparou (CI inexistente, pausado ou
         #    desativado): não há o que esperar, e o `agent:approved` basta —
