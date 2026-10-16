@@ -98,8 +98,7 @@ caso "CI pendente"                           human '.commits.nodes[-1].commit.st
 caso "repo sem CI nenhum"                    auto  '.commits.nodes[-1].commit.statusCheckRollup = null'
 
 # --- tamanho
-caso "diff no teto passa"                    auto  '.additions = 350 | .deletions = 50'
-caso "uma linha acima do teto"               human '.additions = 350 | .deletions = 51'
+caso "diff grande não barra"                 auto  '.additions = 3000 | .deletions = 500'
 
 # --- lista de arquivos truncada não se julga
 caso "mais arquivos do que o lido"           human '.changedFiles = 140'

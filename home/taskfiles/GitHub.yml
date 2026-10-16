@@ -1009,7 +1009,6 @@ tasks:
           resolvida — `isResolved` mede quem clicou, não quem consertou
         commit (não-merge) depois da revisão   mescla o que ninguém revisou
         job de CI que disparou e não está verde
-        diff acima de {{.MAX_LINES}} linhas
         caminho de risco no diff            ver `RISCO`
 
       **Por que o veredito `approve` não entra na lista.** No fluxo, autor e
@@ -1027,7 +1026,6 @@ tasks:
 
       Arguments:
         - REPO, PR: o PR a julgar.
-        - MAX_LINES: teto de linhas alteradas (default 400).
         - MAX_ROUNDS_AUTO: rodadas de revisão toleradas (default 3).
         - ALLOW: o arquivo do interruptor.
         - RISCO: a ERE dos caminhos que forçam humano.
@@ -1039,12 +1037,6 @@ tasks:
     requires:
       vars: [REPO, PR]
     vars:
-      # 400, o dobro do teto do plano (dotfiles-private#118), por escolha do Álvaro
-      # em 2026-09-15: com 200, PR corrigido e conferido de 450–570 linhas
-      # ficava na fila. Os dados sugeriam 100 — a revisão acha ~4 achados a
-      # cada 100 linhas até ali e ~2 de 101 a 200. Ver
-      # private/docs/decisions/2026-09-15-teto-de-pr-pela-densidade-de-achados.md.
-      MAX_LINES: '{{.MAX_LINES | default 400}}'
       # 3: PR corrigido e conferido mescla sozinho (decisão do Álvaro,
       # 2026-09-15). Com 1, só mesclava PR limpo de primeira.
       MAX_ROUNDS_AUTO: '{{.MAX_ROUNDS_AUTO | default 3}}'
@@ -1185,9 +1177,9 @@ tasks:
           *) barra "CI=$ci" ;;
         esac
 
-        # 6. Tamanho e risco.
+        # 6. Risco. Tamanho não barra (sem teto desde 2026-10-15, decisão do
+        #    Álvaro): o revisor já julgou o PR, e o número só vai pro rastro.
         linhas=$(( $(leia .additions) + $(leia .deletions) ))
-        [ "$linhas" -le {{.MAX_LINES}} ] || barra "$linhas linhas alteradas (teto {{.MAX_LINES}})"
 
         arqs=$(leia .changedFiles)
         vistos=$(leia '.files.nodes | length')
