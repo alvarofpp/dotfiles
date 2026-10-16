@@ -3477,11 +3477,13 @@ tasks:
           # Sem PR mesclado, só a evidência de uma entrega sem PR (plano com
           # "Entrega: sem PR") chega aqui. Sem ela, nada a conferir — e quem
           # fecha issue de verificação é este tick, nunca a sessão de execução
+          # Só evidência do dono vale: o `claude --model opus` abaixo é pago, e comentário de
+          # qualquer um com o marcador abriria o agente.
           # (dotfiles-private#116: a abacaxei-app#89 foi de In Progress pra Done
           # julgada pelo MiniMax).
           evidencias=0
           [ "$mesclados" != "0" ] || evidencias=$(gh issue view "$num" -R "$repo" --json comments \
-            --jq '[.comments[].body | select(test("<!-- agent:evidence -->"))] | length' 2>/dev/null)
+            --jq '[.comments[] | select(.author.login == "{{.PROJECT_OWNER}}") | .body | select(test("<!-- agent:evidence -->"))] | length' 2>/dev/null)
           [ "$mesclados" != "0" ] || [ "${evidencias:-0}" != "0" ] || continue
 
           # Pergunta sua sem resposta segura o Done: o `gh:answer` despacha o
@@ -3642,6 +3644,7 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/sweep.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/reap-live.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/forged-comments.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/settle-close-owner.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/prune-orphan.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/dispatch-changes.sh"
@@ -3678,8 +3681,9 @@ tasks:
       thread ancorada, um posterior **da mesma thread**. Marcador de resposta e
       não `<!-- agent` genérico porque o agente comenta no PR por outros
       motivos — relato de rodada, resolução de conflito — e qualquer um deles
-      passaria por resposta. Quem pergunta tem que ter acesso de escrita
-      (`OWNER`/`MEMBER`/`COLLABORATOR`), pela mesma razão do `gh:trusted`.
+      passaria por resposta. Quem pergunta tem que ser o dono do fluxo
+      (`PROJECT_OWNER`, o mesmo critério do `gh:models`): a pergunta segura o Done
+      e despacha agente pago, e colaborador também escreve em issue pública.
 
       Havendo perguntas dos dois times, sai a do último comentário — o outro
       time entra no tick seguinte.
@@ -3708,10 +3712,10 @@ tasks:
         # do PR é uma issue. Lista plana, então "depois" é a ordem da lista.
         conversa() {
           gh api "repos/$repo/issues/$1/comments?per_page=100" --jq '
-            [ .[] | {b: (.body // ""), a: .author_association} ] as $c
+            [ .[] | {b: (.body // ""), u: .user.login} ] as $c
             | [ $c | to_entries[]
                 | select(.value.b | test("(?i)^[[:space:]]*(impl|review|agent):"))
-                | select(.value.a == "OWNER" or .value.a == "MEMBER" or .value.a == "COLLABORATOR")
+                | select(.value.u == "{{.PROJECT_OWNER}}")
                 | .key ]
             | if length == 0 then empty else last as $i
                 | if [ $c[($i+1):][] | select(.b | test("<!-- agent:answer")) ] | length > 0 then empty
@@ -3724,10 +3728,10 @@ tasks:
         # thread dele marcaria a sua como respondida.
         ancorada() {
           gh api "repos/$repo/pulls/$1/comments?per_page=100" --jq '
-            [ .[] | {id, raiz: (.in_reply_to_id // .id), b: (.body // ""), a: .author_association} ] as $c
+            [ .[] | {id, raiz: (.in_reply_to_id // .id), b: (.body // ""), u: .user.login} ] as $c
             | [ $c[]
                 | select(.b | test("(?i)^[[:space:]]*(impl|review|agent):"))
-                | select(.a == "OWNER" or .a == "MEMBER" or .a == "COLLABORATOR")
+                | select(.u == "{{.PROJECT_OWNER}}")
                 | . as $q
                 | select([ $c[] | select(.raiz == $q.raiz and .id > $q.id and (.b | test("<!-- agent:answer"))) ] | length == 0)
                 | (.b | split("\n")[0]) ]
@@ -3813,7 +3817,8 @@ tasks:
       pelo `gh:settle`; issue em **Dropped** você desistiu dela na mão. Nos dois
       casos não há mais trabalho, então:
 
-        Dropped:  fecha primeiro o PR, sem mesclar (`--delete-branch`)
+        Dropped:  fecha primeiro o PR do fluxo (label `agent` ou do dono), sem mesclar, e apaga
+                  a branch só se não for de fork (`--delete-branch`)
         fecha a issue (`completed` em Done, `not planned` em Dropped)
         apaga a worktree, com `--run-hooks` pro `archive` do `orca.yaml`
         derrubar containers e volumes da instância
@@ -3874,10 +3879,14 @@ tasks:
             # trabalho abandonado fica no board de todo mundo como se ainda
             # esperasse revisão, e o `gh:pr-board` o mostraria em In Review.
             if [ "$status" = "Dropped" ]; then
-              gh pr list -R "$repo" --state open --limit 50 --json number,body \
-                --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b")) | .number' 2>/dev/null \
-              | while read -r pr; do
-                  gh pr close "$pr" -R "$repo" --delete-branch \
+              # Só fecha PR do fluxo (label `agent` ou aberto pelo dono): `Refs #n` no corpo é texto
+              # de qualquer um. E só apaga a branch que vive neste repo, nunca a de fork.
+              gh pr list -R "$repo" --state open --limit 50 --json number,body,labels,author,isCrossRepository \
+                --jq '.[] | select(.body // "" | test("(?i)(refs|closes) #'"$num"'\\b"))
+                      | select(.author.login == "{{.PROJECT_OWNER}}" or any(.labels[]; .name == "agent"))
+                      | "\(.number) \(if .isCrossRepository then "" else "--delete-branch" end)"' 2>/dev/null \
+              | while read -r pr del; do
+                  gh pr close "$pr" -R "$repo" $del \
                     --comment "$(printf '<!-- agent -->\n**Fluxo** — Issue #%s marcada como Dropped no board. Fechando sem mesclar.' "$num")" >/dev/null \
                     && echo "    PR #$pr fechado sem mesclar"
                 done

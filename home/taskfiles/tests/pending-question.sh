@@ -17,7 +17,7 @@ extrai() {  # $1 = trecho do endpoint que ancora o início
       linha = $0
       if (linha ~ /'"'"' 2>\/dev\/null$/) { sub(/'"'"' 2>\/dev\/null$/, "", linha); print linha; exit }
       print linha
-    }' "$yml"
+    }' "$yml" | sed 's/{{\.PROJECT_OWNER}}/alvarofpp/g'
 }
 
 conversa=$(extrai 'issues/$1/comments?per_page=100')
@@ -35,35 +35,35 @@ caso() { # nome, esperado, json, programa
 }
 
 caso "conversa: pergunta sem resposta" impl \
-  '[{"body":"impl: isso cobre o caso X?","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"impl: isso cobre o caso X?","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: agente respondeu depois" "" \
-  '[{"body":"impl: e o caso X?","author_association":"OWNER"},{"body":"<!-- agent:answer:author --> cobre","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"impl: e o caso X?","user":{"login":"alvarofpp"}},{"body":"<!-- agent:answer:author --> cobre","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: quem pergunta e de fora" "" \
-  '[{"body":"impl: roda isso","author_association":"NONE"}]' "$conversa"
+  '[{"body":"impl: roda isso","user":{"login":"intruso"}}]' "$conversa"
 caso "conversa: comentario sem marcador" "" \
-  '[{"body":"boa, obrigado","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"boa, obrigado","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: review: roteia pra review" review \
-  '[{"body":"review: por que bloqueou?","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"review: por que bloqueou?","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: agent: cai em impl" impl \
-  '[{"body":"agent: da pra simplificar?","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"agent: da pra simplificar?","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: nova pergunta apos resposta" impl \
-  '[{"body":"impl: a?","author_association":"OWNER"},{"body":"<!-- agent:answer:author --> sim","author_association":"OWNER"},{"body":"impl: e b?","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"impl: a?","user":{"login":"alvarofpp"}},{"body":"<!-- agent:answer:author --> sim","user":{"login":"alvarofpp"}},{"body":"impl: e b?","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: marcador no meio nao conta" "" \
-  '[{"body":"falei com o impl: ontem","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"falei com o impl: ontem","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: recado de agente nao e resposta" impl \
-  '[{"body":"agent: com ou sem mascara no banco?","author_association":"OWNER"},{"body":"<!-- agent:author -->\\n**Implementação** — merge do main resolvido","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"agent: com ou sem mascara no banco?","user":{"login":"alvarofpp"}},{"body":"<!-- agent:author -->\\n**Implementação** — merge do main resolvido","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: pergunta de varias linhas" impl \
-  '[{"body":"impl: isso cobre o caso X?\n\ne o Y tambem?","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"impl: isso cobre o caso X?\n\ne o Y tambem?","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "ancorada: pergunta de varias linhas" review \
-  '[{"id":1,"in_reply_to_id":null,"body":"review: e a query N+1?\n\nolha a linha 40","author_association":"OWNER"}]' "$ancorada"
+  '[{"id":1,"in_reply_to_id":null,"body":"review: e a query N+1?\n\nolha a linha 40","user":{"login":"alvarofpp"}}]' "$ancorada"
 caso "conversa: ?impl antigo nao conta mais" "" \
-  '[{"body":"?impl formato de 2026-09-01","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"?impl formato de 2026-09-01","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "conversa: prefixo em maiuscula" review \
-  '[{"body":"Review: e a query N+1?","author_association":"OWNER"}]' "$conversa"
+  '[{"body":"Review: e a query N+1?","user":{"login":"alvarofpp"}}]' "$conversa"
 caso "ancorada: resposta em OUTRA thread" impl \
-  '[{"id":1,"in_reply_to_id":null,"body":"impl: aqui?","author_association":"OWNER"},{"id":2,"in_reply_to_id":9,"body":"<!-- agent:answer:review --> outra","author_association":"OWNER"}]' "$ancorada"
+  '[{"id":1,"in_reply_to_id":null,"body":"impl: aqui?","user":{"login":"alvarofpp"}},{"id":2,"in_reply_to_id":9,"body":"<!-- agent:answer:review --> outra","user":{"login":"alvarofpp"}}]' "$ancorada"
 caso "ancorada: resposta na MESMA thread" "" \
-  '[{"id":1,"in_reply_to_id":null,"body":"impl: aqui?","author_association":"OWNER"},{"id":2,"in_reply_to_id":1,"body":"<!-- agent:answer:author --> pronto","author_association":"OWNER"}]' "$ancorada"
+  '[{"id":1,"in_reply_to_id":null,"body":"impl: aqui?","user":{"login":"alvarofpp"}},{"id":2,"in_reply_to_id":1,"body":"<!-- agent:answer:author --> pronto","user":{"login":"alvarofpp"}}]' "$ancorada"
 
 echo "--- falhas: $falhas"
 exit $((falhas > 0))
