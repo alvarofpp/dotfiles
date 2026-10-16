@@ -18,10 +18,10 @@ base=$(cat <<'JSON'
 {"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE",
  "additions":40,"deletions":12,"changedFiles":2,
  "labels":{"nodes":[{"name":"agent"},{"name":"agent:approved"}]},
- "reviews":{"nodes":[{"body":"revisado, sem achado bloqueante","submittedAt":"2026-09-10T10:00:00Z"}]},
+ "reviews":{"nodes":[{"author":{"login":"alvarofpp"},"body":"revisado, sem achado bloqueante","submittedAt":"2026-09-10T10:00:00Z"}]},
  "reviewThreads":{"nodes":[{"isResolved":true,"comments":{"nodes":[
-   {"body":"<!-- agent:review -->\n**Revisão** — importante: o problema"},
-   {"body":"<!-- agent:author -->\n**Implementação** — corrigido em x.dart:12"}]}}]},
+   {"author":{"login":"alvarofpp"},"body":"<!-- agent:review -->\n**Revisão** — importante: o problema"},
+   {"author":{"login":"alvarofpp"},"body":"<!-- agent:author -->\n**Implementação** — corrigido em x.dart:12"}]}}]},
  "files":{"nodes":[{"path":"app/lib/src/widgets/snackbars.dart"},{"path":"docs/decisions/2026-09-10-x.md"}]},
  "commits":{"nodes":[{"commit":{"committedDate":"2026-09-10T09:00:00Z","parents":{"totalCount":1},
                                "statusCheckRollup":{"state":"SUCCESS"}}}]}}
@@ -65,16 +65,16 @@ caso "mergeable desconhecido"                human '.mergeable = "UNKNOWN"'
 caso "importante resolvido SEM resposta do autor" human \
   '.reviewThreads.nodes[0].comments.nodes = [.reviewThreads.nodes[0].comments.nodes[0]]'
 caso "nit resolvido sem resposta do autor"        auto  \
-  '.reviewThreads.nodes[0].comments.nodes = [{"body":"<!-- agent:review -->\n**Revisão** — nit: vírgula"}]'
+  '.reviewThreads.nodes[0].comments.nodes = [{"author":{"login":"alvarofpp"},"body":"<!-- agent:review -->\n**Revisão** — nit: vírgula"}]'
 caso "thread sem comentário nenhum"               auto  \
   '.reviewThreads.nodes[0].comments.nodes = []'
 
 # --- o que a revisão disse
 caso "label agent:human"                     human '.labels.nodes += [{"name":"agent:human"}]'
 caso "label agent:changes"                   human '.labels.nodes += [{"name":"agent:changes"}]'
-caso "sem revisão com corpo"                 human '.reviews.nodes = [{"body":"","submittedAt":"2026-09-10T10:00:00Z"}]'
-caso "três rodadas de revisão passam"        auto  '.reviews.nodes += [{"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"},{"body":"faltou y","submittedAt":"2026-09-10T11:30:00Z"}]'
-caso "quatro rodadas de revisão"             human '.reviews.nodes += [{"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"},{"body":"faltou y","submittedAt":"2026-09-10T11:30:00Z"},{"body":"faltou z","submittedAt":"2026-09-10T11:45:00Z"}]'
+caso "sem revisão com corpo"                 human '.reviews.nodes = [{"author":{"login":"alvarofpp"},"body":"","submittedAt":"2026-09-10T10:00:00Z"}]'
+caso "três rodadas de revisão passam"        auto  '.reviews.nodes += [{"author":{"login":"alvarofpp"},"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"},{"author":{"login":"alvarofpp"},"body":"faltou y","submittedAt":"2026-09-10T11:30:00Z"}]'
+caso "quatro rodadas de revisão"             human '.reviews.nodes += [{"author":{"login":"alvarofpp"},"body":"faltou x","submittedAt":"2026-09-10T11:00:00Z"},{"author":{"login":"alvarofpp"},"body":"faltou y","submittedAt":"2026-09-10T11:30:00Z"},{"author":{"login":"alvarofpp"},"body":"faltou z","submittedAt":"2026-09-10T11:45:00Z"}]'
 caso "thread aberta"                         human '.reviewThreads.nodes += [{"isResolved":false}]'
 
 # --- código que ninguém revisou. Merge commit NÃO conta: é a main que o
@@ -86,10 +86,19 @@ caso "merge da main depois não reprova"      auto  '.commits.nodes += [{"commit
 #     comentário marcado ou só como resposta de thread; os dois cobrem o commit
 #     da correção. Resposta de thread do AUTOR (mesma conta) não cobre.
 fix='.commits.nodes += [{"commit":{"committedDate":"2026-09-10T11:00:00Z","parents":{"totalCount":1},"statusCheckRollup":{"state":"SUCCESS"}}}]'
-caso "conferido em comentário marcado"       auto  "$fix"' | .comments = {"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — pode aprovar","createdAt":"2026-09-10T12:00:00Z"}]}'
-caso "comentário sem marcador não confere"   human "$fix"' | .comments = {"nodes":[{"body":"valeu","createdAt":"2026-09-10T12:00:00Z"}]}'
-caso "conferido só em thread"                auto  "$fix"' | .reviews.nodes += [{"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"body":"<!-- agent:review -->\n**Revisão** — resolvido"}]}}]'
-caso "thread do autor não confere"           human "$fix"' | .reviews.nodes += [{"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"body":"<!-- agent:author -->\n**Implementação** — aplicado"}]}}]'
+caso "conferido em comentário marcado"       auto  "$fix"' | .comments = {"nodes":[{"author":{"login":"alvarofpp"},"body":"<!-- agent:review -->\n**Revisão** — pode aprovar","createdAt":"2026-09-10T12:00:00Z"}]}'
+caso "comentário sem marcador não confere"   human "$fix"' | .comments = {"nodes":[{"author":{"login":"alvarofpp"},"body":"valeu","createdAt":"2026-09-10T12:00:00Z"}]}'
+caso "conferido só em thread"                auto  "$fix"' | .reviews.nodes += [{"author":{"login":"alvarofpp"},"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"author":{"login":"alvarofpp"},"body":"<!-- agent:review -->\n**Revisão** — resolvido"}]}}]'
+caso "thread do autor não confere"           human "$fix"' | .reviews.nodes += [{"author":{"login":"alvarofpp"},"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"author":{"login":"alvarofpp"},"body":"<!-- agent:author -->\n**Implementação** — aplicado"}]}}]'
+
+# --- sinal forjado por terceiro (repo público): só o DONO conta. Terceiro não
+#     cria revisão, não confere commit posterior e não responde achado.
+T='{"login":"intruso"}'
+caso "revisão com corpo de terceiro não conta"  human '.reviews.nodes[0].author = '"$T"
+caso "resposta do autor forjada não atende"     human '.reviewThreads.nodes[0].comments.nodes[1].author = '"$T"
+caso "comentário agent:review forjado não confere" human "$fix"' | .comments = {"nodes":[{"author":'"$T"',"body":"<!-- agent:review -->\n**Revisão** — pode aprovar","createdAt":"2026-09-10T12:00:00Z"}]}'
+caso "conferência em thread forjada não confere" human "$fix"' | .reviews.nodes += [{"author":'"$T"',"body":"","submittedAt":"2026-09-10T12:00:00Z","comments":{"nodes":[{"author":'"$T"',"body":"<!-- agent:review -->\n**Revisão** — resolvido"}]}}]'
+caso "comentário forjado não esconde commit posterior" human '.commits.nodes += [{"commit":{"committedDate":"2026-09-10T12:00:00Z","parents":{"totalCount":1},"statusCheckRollup":{"state":"SUCCESS"}}}] | .comments = {"nodes":[{"author":'"$T"',"body":"<!-- agent:review -->\nx","createdAt":"2026-09-10T13:00:00Z"}]}'
 
 # --- CI. Job que disparou tem que estar verde; nenhum job (CI inexistente,
 #     pausado, desativado) não impede.

@@ -845,9 +845,14 @@ tasks:
         [ -n "$prs" ] || { echo "nenhum PR agent:approved em {{.REPO}}."; exit 0; }
         echo "fila: $(echo "$prs" | tr '\n' ' ')"
 
+        # Nome de branch vira refspec no `git push`: só o conjunto seguro, sem
+        # `..` e sem `-` na frente (seria lido como opção).
+        brok() { case "$1" in ""|-*|*..*|*[!A-Za-z0-9_./-]*) return 1 ;; esac; }
+
         for pr in $prs; do
-          info=$(gh pr view "$pr" -R {{.REPO}} --json headRefName,mergeable,statusCheckRollup,title)
+          info=$(gh pr view "$pr" -R {{.REPO}} --json headRefName,headRefOid,isCrossRepository,mergeable,statusCheckRollup,title)
           br=$(printf '%s' "$info" | jq -r .headRefName)
+          oid=$(printf '%s' "$info" | jq -r .headRefOid)
           titulo=$(printf '%s' "$info" | jq -r .title)
           # `state` cobre check run e `conclusion` cobre status legado; um dos
           # dois vem nulo em cada tipo, e contar nulo como falha reprovaria PR
@@ -857,6 +862,14 @@ tasks:
                     | select(. == "failure" or . == "timed_out" or . == "cancelled" or . == "error")] | length')
 
           echo "── #$pr ($br) — $titulo"
+
+          # Fork nunca: a branch de mesmo nome no repo é outra coisa, e o push
+          # de atualização cairia nela. Vale também sem `AUTO`.
+          if [ "$(printf '%s' "$info" | jq -r 'if .isCrossRepository == false then "false" else "true" end')" != "false" ]; then
+            echo "   ✗ PR de fork — não é mesclado por aqui"
+            continue
+          fi
+          brok "$br" || { echo "   ✗ nome de branch recusado — pulando"; continue; }
 
           if [ "${ruins:-0}" != "0" ] && [ "{{.FORCE}}" != "1" ]; then
             echo "   ✗ $ruins check(s) vermelho(s) — pulando (FORCE=1 mescla assim mesmo)"
@@ -911,6 +924,9 @@ tasks:
           git fetch origin --quiet
           mainsha=$(git rev-parse "origin/$base")
           headsha=$(git rev-parse "origin/$br")
+          # O que o filtro julgou é `headRefOid`; se a branch andou desde então,
+          # o veredito não vale mais.
+          [ "$headsha" = "$oid" ] || { echo "   ✗ a branch mudou depois do julgamento — pulando"; continue; }
 
           # Já contém a main? Nada a atualizar.
           if git merge-base --is-ancestor "$mainsha" "$headsha"; then
@@ -930,7 +946,7 @@ tasks:
               # Chaves obrigatórias: `$novo:refs/...` é lido como modificador
               # `:r` do zsh e o refspec chega mutilado ("efs/heads/...").
               git push origin "${novo}:refs/heads/${br}" --quiet \
-                && echo "   · $base trazida pra $br" \
+                && { echo "   · $base trazida pra $br"; headsha="$novo"; } \
                 || { echo "   ✗ push recusado — pulando"; continue; }
             fi
           fi
@@ -945,7 +961,7 @@ tasks:
           # o cache virar em vez de desistir na primeira.
           ok=0
           for _ in 1 2 3 4 5 6; do
-            if gh pr merge "$pr" -R {{.REPO}} --"$method" --delete-branch >/dev/null 2>&1; then
+            if gh pr merge "$pr" -R {{.REPO}} --"$method" --delete-branch --match-head-commit "$headsha" >/dev/null 2>&1; then
               ok=1; break
             fi
             sleep 10
@@ -1110,9 +1126,9 @@ tasks:
             pullRequest(number:$pr){
               state isDraft mergeable additions deletions changedFiles
               labels(first:30){ nodes{ name } }
-              reviews(first:50){ nodes{ body submittedAt comments(first:1){ nodes{ body } } } }
-              comments(last:50){ nodes{ body createdAt } }
-              reviewThreads(first:100){ nodes{ isResolved comments(first:10){ nodes{ body } } } }
+              reviews(first:50){ nodes{ author{login} body submittedAt comments(first:1){ nodes{ author{login} body } } } }
+              comments(last:50){ nodes{ author{login} body createdAt } }
+              reviewThreads(first:100){ nodes{ isResolved comments(first:10){ nodes{ author{login} body } } } }
               files(first:100){ nodes{ path } }
               commits(last:30){ nodes{ commit{ committedDate parents{ totalCount }
                 statusCheckRollup{ state } } } } } } }' \
@@ -1138,12 +1154,16 @@ tasks:
         #    que sai como comentário de PR marcado, não como review. Sem ele,
         #    PR corrigido e conferido barrava por "commit depois da revisão" —
         #    motivo errado, e a rodada 2 nem contava (abacaxei-app#266..269).
-        passadas='[(.reviews.nodes[] | select((.body // "") != "") | .submittedAt),
-                   ((.comments.nodes // [])[] | select((.body // "") | test("<!-- agent:review -->")) | .createdAt)]'
+        # Só vale sinal do DONO ({{.PROJECT_OWNER}}): em repo público um terceiro
+        # forja review, comentário marcado ou resposta `agent:author` — e
+        # destravaria "achado sem resposta" ou esconderia commit posterior.
+        passadas='[(.reviews.nodes[] | select(.author.login == "{{.PROJECT_OWNER}}") | select((.body // "") != "") | .submittedAt),
+                   ((.comments.nodes // [])[] | select(.author.login == "{{.PROJECT_OWNER}}") | select((.body // "") | test("<!-- agent:review -->")) | .createdAt)]'
         # Pra "o que veio depois da revisão" vale também a conferência feita só
         # em thread (#267, #268): review de corpo vazio cuja resposta é do
         # revisor. A do autor (`agent:author`) é a mesma conta e NÃO vale.
         vistas='[($passadas[]), (.reviews.nodes[] | select((.body // "") == "")
+                   | select(.comments.nodes[0].author.login == "{{.PROJECT_OWNER}}")
                    | select((.comments.nodes[0].body // "") | test("<!-- agent:review -->")) | .submittedAt)]'
         rodadas=$(leia "$passadas | length")
         [ "${rodadas:-0}" -ge 1 ] || barra "nenhuma revisão com corpo — agent:approved sem revisão atrás"
@@ -1159,7 +1179,7 @@ tasks:
         # portão é a resposta do autor no achado que segura merge.
         mudas=$(leia '[.reviewThreads.nodes[]
           | select((.comments.nodes[0].body // "") | test("\\*\\*Revisão\\*\\* — (bloqueante|importante):"))
-          | select([(.comments.nodes // [])[].body | select(test("<!-- agent:author -->"))] | length == 0)] | length')
+          | select([(.comments.nodes // [])[] | select(.author.login == "{{.PROJECT_OWNER}}") | .body | select(test("<!-- agent:author -->"))] | length == 0)] | length')
         [ "${mudas:-1}" = "0" ] \
           || barra "$mudas achado(s) bloqueante/importante sem resposta do autor"
 
@@ -2054,10 +2074,8 @@ tasks:
       `/issue-prep`, e o que ele procura é tentativa de injeção, não a origem.
 
       Olha só os comentários; o autor da issue não entra na conta. O critério é
-      o `author_association` do GitHub, não uma lista de nomes:
-      `OWNER`, `MEMBER` e `COLLABORATOR` têm acesso de escrita ao repositório —
-      quem já pode commitar não ganha poder novo influenciando um agente.
-      `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR` e `NONE` são de fora.
+      o login do dono do fluxo (`{{.PROJECT_OWNER}}`), o mesmo do
+      `gh:pending-question`: colaborador de repo de terceiro não destrava.
 
       Sai não-zero listando de quem é o comentário. **Não é filtro de conteúdo** — não
       procura padrão malicioso, porque isso é corrida perdida. Ele decide se o
@@ -2073,11 +2091,8 @@ tasks:
     cmds:
       - |
         ref={{shellQuote .REF}}; repo="${ref%\#*}"; num="${ref##*\#}"
-        confiavel='OWNER|MEMBER|COLLABORATOR'
-
         externos=$( gh api "repos/$repo/issues/$num/comments" --paginate \
-                      --jq '.[] | .user.login + " " + .author_association' 2>/dev/null \
-                    | awk -v ok="$confiavel" '$2 !~ "^(" ok ")$" {print "    comentário de @" $1 " (" $2 ")"}' )
+                      --jq '.[] | select(.user.login != "{{.PROJECT_OWNER}}") | "    comentário de @" + .user.login' 2>/dev/null )
 
         if [ -n "$externos" ]; then
           echo "  ! $ref: comentário de fora do time —"
@@ -3573,7 +3588,7 @@ tasks:
             fi
 
             respondida=$(gh issue view "$num" -R "$repo" --json comments \
-              --jq '[.comments[] | .body] as $b
+              --jq '[.comments[] | select(.author.login == "{{.PROJECT_OWNER}}") | .body] as $b
                     | ([$b | to_entries[] | select(.value | test("<!-- agent:question")) | .key] | last) as $q
                     | if $q == null then false
                       else ([$b[($q+1):][] | select(test("<!-- agent") | not)] | length) > 0 end')
@@ -3582,13 +3597,10 @@ tasks:
             # Quem responde tem que ser do time. Sem isso, num repo público,
             # qualquer pessoa comentando numa issue Blocked reativa o agente —
             # e Blocked existe justamente pra esperar decisão de quem manda.
+            # Só o dono ({{.PROJECT_OWNER}}) destrava; `respondida` acima já só
+            # conta comentário dele, e o `gh:trusted` barra thread com terceiro.
             if ! task gh:trusted REF="$ref" >/dev/null 2>&1; then
-              ultimo=$(gh api "repos/$repo/issues/$num/comments" --paginate \
-                --jq '[.[] | select(.body | test("<!-- agent") | not)] | last | .author_association' 2>/dev/null)
-              case "$ultimo" in
-                OWNER|MEMBER|COLLABORATOR) ;;
-                *) echo "  · $ref: resposta de @fora ($ultimo) não destrava — segue Blocked"; continue ;;
-              esac
+              echo "  · $ref: há comentário de fora do dono — não destrava, segue Blocked"; continue
             fi
             echo "  ~ $ref: respondida — voltando pra In Progress"
             gh issue edit "$num" -R "$repo" --remove-label agent:human >/dev/null 2>&1 || true
@@ -3645,6 +3657,8 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/reap-live.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/forged-comments.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/settle-close-owner.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/merge-approved.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/unblock-owner.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/prune-orphan.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/dispatch-changes.sh"
