@@ -22,46 +22,15 @@ WorkingDirectory=%h
 # Vigia do portão: avisa no Telegram quando o fluxo passa 3 ticks desligado.
 # Primeiro de propósito — é o que responde "este tick vale alguma coisa?".
 ExecStart=%h/.local/bin/gh-tick-step gh:gate-watch
-# Issue e PR novos entram no board; o `sync` termina chamando `defaults`.
-ExecStart=%h/.local/bin/gh-tick-step gh:sync
 # Issue cujo agente morreu perde o lock e volta pra fila.
 ExecStart=%h/.local/bin/gh-tick-step gh:reap
 ExecStart=%h/.local/bin/gh-tick-step gh:sweep
-# Blocked que já teve resposta humana volta pra In Progress.
-ExecStart=%h/.local/bin/gh-tick-step gh:unblock
-# Pergunta sua com prefixo impl:/review:/agent: ganha o time que responde.
-ExecStart=%h/.local/bin/gh-tick-step gh:answer
 # Ready -> triagem (/issue-prep). Síncrono: nada de worktree nesta fase.
 ExecStart=%h/.local/bin/gh-tick-step gh:prep
-# dispatch, pr-tick e review-requested saíram daqui em 2026-10-16: rodam no
-# workflow "Board do GitHub → Rastreio" da Rendeira (ADR 0012 da rendeira).
-# PR aprovado que parou de mesclar (conflito, atrasado, CI vermelho).
-ExecStart=%h/.local/bin/gh-tick-step gh:unstick
-# PR aprovado que o filtro liberar mescla sozinho. Inerte enquanto não existir
-# `~/.local/state/gh-board/automerge` — que é o default, e é como isto entra no
-# tick sem mudar nada até você optar. Depois do `unstick`, que é quem põe o PR
-# aprovado em dia, e antes do `settle`, pra o que mesclou agora fechar no mesmo
-# tick.
-ExecStart=%h/.local/bin/gh-tick-step gh:automerge
-# In Review sem PR aberto -> confere critérios de aceite e decide Done.
-ExecStart=%h/.local/bin/gh-tick-step gh:settle
-# Done/Dropped -> fecha a issue e apaga a worktree.
-ExecStart=%h/.local/bin/gh-tick-step gh:close
-# Card de PR ganha Status próprio (In Review / Ready-é-seu / Blocked / Done).
-ExecStart=%h/.local/bin/gh-tick-step gh:pr-board
-# Higiene: item fechado fora do fluxo sai do Status antigo.
-ExecStart=%h/.local/bin/gh-tick-step gh:done
-# Métricas do que fechou, pra a página /ctl/modelos não depender de eu rodar à
-# mão. Depois do `close` e do `done`, que são quem fecha issue — antes deles a
-# issue que fechou neste tick ainda não estaria na conta. É idempotente: issue
-# que já tem linha não é consultada de novo, então o custo de rotina é um
-# `gh issue list` por repo.
-ExecStart=%h/.local/bin/gh-tick-step gh:metrics
-
-# Higiene de settings: repõe o squash-only que alguém tenha desfeito pela UI.
-# Autolimitado a uma passada por dia (`EVERY` no gh:merge-policy) — rodar a
-# cada tick custaria uma chamada de API por repo pra consertar um desvio raro.
-ExecStart=%h/.local/bin/gh-tick-step gh:merge-policy
+# Em 2026-10-16 sync, unblock, answer, dispatch, pr-tick, review-requested,
+# unstick, automerge, settle, close, pr-board, done, metrics e merge-policy
+# saíram daqui: rodam no workflow "Board do GitHub → Rastreio" da Rendeira, na
+# mesma ordem (ADR 0012 da rendeira). prep e notify ficam até virarem.
 # Por último: avisa no Telegram o que parou esperando humano (PR pra mergear,
 # issue travada). Depois do pr-board, que é quem põe o card do PR em Ready.
 ExecStart=%h/.local/bin/gh-tick-step gh:notify
