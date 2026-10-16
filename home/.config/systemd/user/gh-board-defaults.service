@@ -33,12 +33,8 @@ ExecStart=%h/.local/bin/gh-tick-step gh:unblock
 ExecStart=%h/.local/bin/gh-tick-step gh:answer
 # Ready -> triagem (/issue-prep). Síncrono: nada de worktree nesta fase.
 ExecStart=%h/.local/bin/gh-tick-step gh:prep
-# In Progress -> agente implementando, ou aplicando o que a revisão pediu.
-ExecStart=%h/.local/bin/gh-tick-step gh:dispatch
-# In Review -> ciclo de revisão do PR. Para em agent:approved; o merge é dele.
-ExecStart=%h/.local/bin/gh-tick-step gh:pr-tick
-# PR de outra pessoa que pediu revisão sua: despacha o revisor.
-ExecStart=%h/.local/bin/gh-tick-step gh:review-requested
+# dispatch, pr-tick e review-requested saíram daqui em 2026-10-16: rodam no
+# workflow "Board do GitHub → Rastreio" da Rendeira (ADR 0012 da rendeira).
 # PR aprovado que parou de mesclar (conflito, atrasado, CI vermelho).
 ExecStart=%h/.local/bin/gh-tick-step gh:unstick
 # PR aprovado que o filtro liberar mescla sozinho. Inerte enquanto não existir

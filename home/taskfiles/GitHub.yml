@@ -29,6 +29,11 @@ vars:
   # listados (um `owner/repo` por linha, `#` comenta, vazio = nenhum). Filtra
   # toda etapa que abre agente: `gh:issues`, `review-requested` e `unstick`.
   TICK_REPOS: $HOME/.local/state/gh-board/tick-repos
+  # Refs `owner/repo#n` com sessão viva da rendeira, uma por linha. Quem escreve é
+  # a rendeira (atomicamente, ao lançar, terminar e soltar órfã). A sessão dela
+  # não tem terminal no Orca: sem ler isto, `gh:reap` tiraria o `agent:running`
+  # dela e `gh:sweep` a trataria como terminal parado.
+  LIVE_FILE: $HOME/.local/state/gh-board/rendeira-live
   # Modelo de cada etapa (plano, crítica, execução, julgamento, conferência):
   # designado por issue pelo `gh:models`, que grava aqui e comenta na issue.
   MODELS_FILE: $HOME/.local/state/gh-board/models.jsonl
@@ -2689,7 +2694,7 @@ tasks:
         # `continue` aninhado antes de rodar o resto do bloco.
         planos=1
         [ -n "$pr" ] || planos=$(gh issue view "$num" -R "$repo" --json comments \
-          --jq '[.comments[].body | select(test("<!-- agent:plan -->"))] | length' 2>/dev/null) || planos=""
+          --jq '[.comments[] | select(.author.login == "{{.PROJECT_OWNER}}") | .body | select(test("<!-- agent:plan -->"))] | length' 2>/dev/null) || planos=""
         if [ -z "$planos" ]; then
           echo "  ! $ref: não li os comentários da issue — fica pro próximo tick" >&2
           exit 0
@@ -2997,13 +3002,14 @@ tasks:
         # API por issue em revisão pra descobrir um número que não usaria.
         limite={{.MAX_ROUNDS}}
         if [ "$rounds" -ge "$limite" ]; then
+          # Só resposta do dono vale: quem comenta na issue não autoriza o gasto de rodadas, que é o que o teto impede.
           extra=$(gh issue view "$num" -R "$repo" --json comments \
-            --jq '[.comments[].body] as $b
-                  | [$b | to_entries[] | select(.value | test("<!-- agent:question:rounds -->")) | .key]
+            --jq '[.comments[] | {b: .body, u: .author.login}] as $c
+                  | [$c | to_entries[] | select(.value.b | test("<!-- agent:question:rounds -->")) | .key]
                   | map(. as $i
-                        | ([$b[($i+1):][] | select(test("<!-- agent") | not)] | first)
+                        | ([$c[($i+1):][] | select(.b | test("<!-- agent") | not) | select(.u == "{{.PROJECT_OWNER}}")] | first)
                         | if . == null then empty
-                          else ([match("[0-9]+")] | first)
+                          else ([.b | match("[0-9]+")] | first)
                                | if . == null then 1 else (.string | tonumber) end
                           end)
                   | add // 0' 2>/dev/null) || extra=0
@@ -3634,6 +3640,8 @@ tasks:
       - "$HOME/dotfiles/home/taskfiles/tests/automerge.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/agents-busy.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/sweep.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/reap-live.sh"
+      - "$HOME/dotfiles/home/taskfiles/tests/forged-comments.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/review-gate-notice.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/prune-orphan.sh"
       - "$HOME/dotfiles/home/taskfiles/tests/dispatch-changes.sh"
@@ -4497,6 +4505,10 @@ tasks:
       Terminal existir, sozinho, não vale como sinal: sessão que terminou fica
       no prompt e não sai nunca.
 
+      **Ref em `LIVE_FILE` é pulada:** é sessão viva da rendeira, que roda como
+      processo dela e não tem terminal no Orca. O lock dela é solto pela própria
+      rendeira (sessão que termina fora de `ok`, órfã na subida).
+
       Roda depois do `gh:agents-ready` de propósito. Com o Orca fora do ar
       nenhuma worktree teria terminal vivo e a task soltaria todos os locks de
       uma vez — o contrário do que ela existe pra fazer.
@@ -4511,6 +4523,9 @@ tasks:
           gh issue list -R "$repo" --state open --label agent:running --limit 100 \
             --json number --jq '.[].number' 2>/dev/null \
           | while read -r num; do
+              # Sessão viva da rendeira: sem terminal no Orca, mas com agente.
+              # `if` de um nível só (ver o comentário no `gh:pr-tick-prep`).
+              if grep -qxF "$repo#$num" "{{.LIVE_FILE}}" 2>/dev/null; then continue; fi
               # Quem conta é o `gh:agents-busy`, não `totalCount` cru: terminal
               # de sessão que já acabou continua de pé (Claude Code com prompt
               # posicional não sai sozinho) e prenderia o lock pra sempre —
@@ -4542,7 +4557,8 @@ tasks:
 
       A regra é a do `gh:agents-busy` — é ele quem decide o que fecha —,
       aplicada a toda worktree `issue-<n>`/`pr-<n>` com terminal vivo. Issue
-      com `agent:skip` fica de fora: você assumiu. Sem snapshot do board não
+      com `agent:skip` fica de fora: você assumiu. Ref em `LIVE_FILE` (sessão
+      viva da rendeira) também. Sem snapshot do board não
       varre, porque sem ele não dá pra saber quem tem `agent:skip`.
 
       Roda depois do `gh:reap` e antes do `gh:dispatch`: RAM liberada aqui é a
@@ -4563,6 +4579,9 @@ tasks:
                       | select([(.content.labels.nodes // [])[].name] | index("agent:skip"))
                       | (.content.repository.nameWithOwner | split("/")[1]) + "/issue-" + (.content.number | tostring)' \
                  < "{{.CACHE}}" 2>/dev/null || true)
+        # `owner/repo#n` da rendeira vira `repo/issue-n` e `repo/pr-n`, o formato do `rel`.
+        live=$(sed -E 's|^[^/]+/([^#]+)#([0-9]+)$|\1/issue-\2\n\1/pr-\2|' "{{.LIVE_FILE}}" 2>/dev/null || true)
+        skip=$(printf '%s\n%s\n' "$skip" "$live")
         orca terminal list --json 2>/dev/null \
           | { jq -r '(.result.terminals // [])[].worktreePath // empty' 2>/dev/null || true; } \
           | sort -u \
@@ -4698,9 +4717,15 @@ tasks:
     cmds:
       - |
         ref={{shellQuote .REF}}; repo="${ref%\#*}"; num="${ref##*\#}"
-        coms=$(gh issue view "$num" -R "$repo" --json comments --jq '[.comments[].body]') || exit 1
+        # Só comentário do dono do fluxo vale: a designação vira `claude-model <valor>` e entra em comando nos prompts,
+        # então um `<!-- agent:models -->` de qualquer um injetaria flag e texto no agente. `JQV` ainda exige braço
+        # conhecido e cada etapa no pool (ou nula); o que não passa é descartado e a issue é redesignada.
+        JQC='[.comments[] | select(.author.login == "{{.PROJECT_OWNER}}") | .body]'
+        JQV='select(.braco as $b | ["claude-glm-minimax","claude-minimax","claude-glm","glm-minimax"] | index($b)) | select(all(.plano, .critica, .execucao, .julgamento, .conferencia; . == null or (. as $m | ["opus","haiku","minimax-m3","deepseek-v4-pro","deepseek-v4-flash","glm-5.3","glm-5.3-flash","kimi-k3"] | index($m) != null)))'
+        coms=$(gh issue view "$num" -R "$repo" --json comments --jq "$JQC") || exit 1
         atual=$(printf '%s' "$coms" | jq -r '[.[] | select(startswith("<!-- agent:models -->"))
           | capture("<!-- modelos: (?<j>\\{.*\\}) -->").j] | last // empty')
+        [ -z "$atual" ] || atual=$(printf '%s' "$atual" | jq -c "$JQV" 2>/dev/null)
         # A designação é sticky de propósito (a issue vai e volta entre etapas),
         # mas modelo cujo provedor caiu depois dela a torna indespachável pra
         # sempre: o `gh:dispatch` recusa provedor fora do ar e a issue fica em

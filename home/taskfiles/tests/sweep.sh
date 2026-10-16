@@ -40,7 +40,8 @@ falhas=0
 # $1 nome  $2 esperado (separado por vírgula)
 caso() {
   local obtido st
-  obtido=$(PATH="$tmp/bin:$PATH" task gh:sweep DRY=1 CACHE="$3" 2>/dev/null | paste -sd',' -)
+  # `LIVE_FILE` sempre apontado pro teste: o da máquina não pode vazar pro resultado.
+  obtido=$(PATH="$tmp/bin:$PATH" task gh:sweep DRY=1 CACHE="$3" LIVE_FILE="${4:-$tmp/sem-live}" 2>/dev/null | paste -sd',' -)
   if [ "$obtido" = "$2" ]; then st=ok; else st=FALHOU; falhas=$((falhas + 1)); fi
   printf '%-7s %-52s esperado=%-36s obtido=%s\n' "$st" "$1" "$2" "${obtido:-<vazio>}"
 }
@@ -52,6 +53,15 @@ caso "fluxo sim; skip, principal e feat-x não" "lucida-monorepo/pr-33,matria/is
 # Varredura do board falhou e não há snapshot: sem saber quem tem skip, não
 # varre nada.
 caso "board inacessível e sem snapshot, não varre" "" "$tmp/nao-existe.jsonl"
+
+# Sessão viva da rendeira (`LIVE_FILE`, `owner/repo#n`) não tem terminal parado a fechar: a worktree dela sai da
+# varredura, seja `issue-<n>` ou `pr-<n>` (o revisor de PR de terceiro).
+printf 'alvarofpp/matria#5\n' > "$tmp/live-issue"
+caso "issue com sessão da rendeira não é varrida" "lucida-monorepo/pr-33" "$tmp/items.jsonl" "$tmp/live-issue"
+printf 'alvarofpp/lucida-monorepo#33\n' > "$tmp/live-pr"
+caso "PR com revisor da rendeira não é varrido" "matria/issue-5" "$tmp/items.jsonl" "$tmp/live-pr"
+: > "$tmp/live-vazio"
+caso "arquivo vazio não pula nada" "lucida-monorepo/pr-33,matria/issue-5" "$tmp/items.jsonl" "$tmp/live-vazio"
 
 [ "$falhas" -eq 0 ] && echo "sweep: ok" || echo "sweep: $falhas falha(s)"
 exit "$falhas"
